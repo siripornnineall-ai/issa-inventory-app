@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, FormField } from "@/components/ui/Field";
 import { useActions } from "@/lib/store";
+import { useCurrentUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/permissions";
+import { adminCreateUser, adminResetPassword, generateTempPassword, MIN_PASSWORD_LENGTH } from "@/lib/supabase/adminUsers";
 import type { AppUser, UserRole } from "@/lib/types";
 import { ROLE_LABEL_TH } from "@/lib/types";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -20,15 +24,50 @@ export function UserDialog(props: UserDialogProps) {
   return <UserDialogForm {...props} />;
 }
 
+// ช่องรหัสผ่านชั่วคราว: แสดง/ซ่อนได้ และมีปุ่มสุ่มให้ — ผู้ดูแลระบบต้องจดไปบอกพนักงานเอง ระบบไม่ส่งอีเมลให้
+function TempPasswordInput({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  const [visible, setVisible] = useState(true);
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        id={id}
+        type={visible ? "text" : "password"}
+        autoComplete="new-password"
+        className="font-mono"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
+        className="shrink-0 rounded-lg p-2 text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)]"
+      >
+        {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+      <Button type="button" variant="ghost" size="sm" onClick={() => onChange(generateTempPassword())}>
+        <RefreshCw className="h-3.5 w-3.5" /> สุ่ม
+      </Button>
+    </div>
+  );
+}
+
 function UserDialogForm({ open, onClose, existing }: UserDialogProps) {
-  const { upsertUser } = useActions();
+  const { upsertUser, mergeUser } = useActions();
+  const currentUser = useCurrentUser();
+  const isAdmin = hasPermission(currentUser?.role, "user.admin");
   const [name, setName] = useState(existing?.name ?? "");
   const [email, setEmail] = useState(existing?.email ?? "");
   const [role, setRole] = useState<UserRole>(existing?.role ?? "viewer");
   const [active, setActive] = useState(existing?.active ?? true);
+  const [password, setPassword] = useState(() => (existing ? "" : generateTempPassword()));
+  const [resetPassword, setResetPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
-  function handleSave() {
+  const canResetOther = isAdmin && existing !== undefined && existing.id !== currentUser?.id;
+
+  async function handleSave() {
     if (!name.trim()) {
       toastError("กรุณาระบุชื่อผู้ใช้งาน");
       return;
@@ -37,15 +76,45 @@ function UserDialogForm({ open, onClose, existing }: UserDialogProps) {
       toastError("กรุณาระบุอีเมล");
       return;
     }
+    if (!existing && password.length < MIN_PASSWORD_LENGTH) {
+      toastError(`รหัสผ่านชั่วคราวต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`);
+      return;
+    }
     setSaving(true);
     try {
-      upsertUser({ id: existing?.id, name: name.trim(), email: email.trim(), role, active });
-      toastSuccess(existing ? "แก้ไขข้อมูลผู้ใช้งานเรียบร้อยแล้ว" : "เพิ่มผู้ใช้งานใหม่เรียบร้อยแล้ว");
+      if (existing) {
+        upsertUser({ id: existing.id, name: name.trim(), role, active });
+        toastSuccess("แก้ไขข้อมูลผู้ใช้งานเรียบร้อยแล้ว");
+      } else {
+        // ผู้ใช้ใหม่ต้องมีบัญชีเข้าสู่ระบบจริงด้วย จึงสร้างผ่านเซิร์ฟเวอร์ (Edge Function) แล้วค่อยเพิ่มเข้า state ในเครื่อง
+        const created = await adminCreateUser({ name: name.trim(), email: email.trim(), role, password });
+        mergeUser(created);
+        toastSuccess(`เพิ่ม "${created.name}" แล้ว — แจ้งรหัสผ่านชั่วคราวให้เจ้าตัว ระบบจะบังคับให้ตั้งรหัสใหม่เมื่อเข้าครั้งแรก`);
+      }
       onClose();
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleResetPassword() {
+    if (!existing) return;
+    if (resetPassword.length < MIN_PASSWORD_LENGTH) {
+      toastError(`รหัสผ่านชั่วคราวต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`);
+      return;
+    }
+    setResetting(true);
+    try {
+      await adminResetPassword(existing.id, resetPassword);
+      mergeUser({ ...existing, mustChangePassword: true });
+      toastSuccess(`ตั้งรหัสผ่านใหม่ให้ "${existing.name}" แล้ว — เจ้าตัวต้องตั้งรหัสของตัวเองเมื่อเข้าระบบครั้งถัดไป`);
+      onClose();
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -67,13 +136,13 @@ function UserDialogForm({ open, onClose, existing }: UserDialogProps) {
     >
       <div className="grid grid-cols-1 gap-4">
         <FormField label="ชื่อ-นามสกุล" required>
-          <Input value={name} onChange={(e) => setName(e.target.value)} />
+          <Input id="user-name" value={name} onChange={(e) => setName(e.target.value)} />
         </FormField>
-        <FormField label="อีเมล" required>
-          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <FormField label="อีเมล" required hint={existing ? "อีเมลใช้เป็นชื่อเข้าสู่ระบบ จึงแก้ไขภายหลังไม่ได้" : "ใช้เป็นชื่อเข้าสู่ระบบ"}>
+          <Input id="user-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={existing !== undefined} />
         </FormField>
         <FormField label="บทบาท">
-          <Select value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
+          <Select id="user-role" value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
             {Object.entries(ROLE_LABEL_TH).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -81,12 +150,37 @@ function UserDialogForm({ open, onClose, existing }: UserDialogProps) {
             ))}
           </Select>
         </FormField>
-        <FormField label="สถานะการใช้งาน">
-          <Select value={active ? "1" : "0"} onChange={(e) => setActive(e.target.value === "1")}>
-            <option value="1">ใช้งานอยู่</option>
-            <option value="0">ปิดการใช้งาน</option>
-          </Select>
-        </FormField>
+        {existing ? (
+          <FormField label="สถานะการใช้งาน">
+            <Select id="user-active" value={active ? "1" : "0"} onChange={(e) => setActive(e.target.value === "1")}>
+              <option value="1">ใช้งานอยู่</option>
+              <option value="0">ปิดการใช้งาน</option>
+            </Select>
+          </FormField>
+        ) : (
+          <FormField
+            label="รหัสผ่านชั่วคราว"
+            required
+            hint={`อย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร — จดไว้แจ้งเจ้าตัว เมื่อเข้าระบบครั้งแรกจะถูกบังคับให้ตั้งรหัสผ่านใหม่เอง`}
+          >
+            <TempPasswordInput id="user-temp-password" value={password} onChange={setPassword} />
+          </FormField>
+        )}
+
+        {canResetOther && (
+          <div className="mt-2 rounded-xl border border-[var(--color-border)] p-4">
+            <p className="text-sm font-medium text-[var(--color-on-surface)]">ตั้งรหัสผ่านใหม่ให้ผู้ใช้นี้</p>
+            <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
+              ใช้เมื่อผู้ใช้ลืมรหัสผ่าน{existing?.mustChangePassword ? " — ตอนนี้บัญชีนี้ยังรอเจ้าตัวตั้งรหัสผ่านใหม่อยู่" : ""}
+            </p>
+            <div className="mt-3">
+              <TempPasswordInput id="user-reset-password" value={resetPassword} onChange={setResetPassword} />
+            </div>
+            <Button type="button" variant="ghost" size="sm" className="mt-3" onClick={handleResetPassword} loading={resetting} disabled={!resetPassword}>
+              ตั้งรหัสผ่านใหม่
+            </Button>
+          </div>
+        )}
       </div>
     </Dialog>
   );

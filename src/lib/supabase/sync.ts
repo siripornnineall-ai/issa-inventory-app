@@ -131,6 +131,9 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
       )
     );
   }
+  // หมายเหตุ: การสร้าง/ลบผู้ใช้งานไม่ผ่านที่นี่ — ทำผ่าน Edge Function admin-users (ต้องจัดการบัญชี Supabase Auth ด้วย)
+  // แล้วค่อยอัปเดต state ในเครื่องด้วย mergeUser/removeUser ซึ่งไม่เรียก sync (ดู src/lib/store/index.ts)
+  // และไม่ส่ง must_change_password ใน upsert ด้านบนโดยเจตนา เพื่อไม่ให้การแก้ชื่อ/บทบาทไปทับค่าธงนี้
 
   // แบรนด์/ผู้ใช้/ร้านค้าต้องเสร็จก่อนสินค้า เพราะ products.brand_id อ้างอิงถึง
   await Promise.all(jobs.splice(0));

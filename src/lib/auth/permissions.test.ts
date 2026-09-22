@@ -8,6 +8,13 @@ describe("hasPermission", () => {
     expect(hasPermission("admin", "user.manage")).toBe(true);
   });
 
+  it("lets only admins create accounts, reset others' passwords, and delete users", () => {
+    expect(hasPermission("admin", "user.admin")).toBe(true);
+    expect(hasPermission("manager", "user.admin")).toBe(false);
+    expect(hasPermission("manager", "user.manage")).toBe(true);
+    expect(hasPermission("warehouse", "user.admin")).toBe(false);
+  });
+
   it("restricts sales staff to order and stock-out actions only", () => {
     expect(hasPermission("sales", "order.create")).toBe(true);
     expect(hasPermission("sales", "stock.out")).toBe(true);

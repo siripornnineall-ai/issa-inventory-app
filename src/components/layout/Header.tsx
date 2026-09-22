@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, HelpCircle, LogOut, ChevronDown, Menu } from "lucide-react";
+import { ArrowLeft, HelpCircle, KeyRound, LogOut, ChevronDown, Menu } from "lucide-react";
+import { ChangePasswordDialog } from "@/components/account/ChangePassword";
 import { useCurrentUser } from "@/lib/auth/session";
 import { useActions, useStore } from "@/lib/store";
 import { ROLE_LABEL_TH } from "@/lib/types";
@@ -24,6 +25,7 @@ export function Header({
   const { logout } = useActions();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const { setOpen: setMobileNavOpen } = useMobileNav();
 
   return (
@@ -73,7 +75,16 @@ export function Header({
                 <ChevronDown className="hidden h-4 w-4 text-[var(--color-on-surface-variant)] sm:block" />
               </button>
               {menuOpen && (
-                <div className="absolute right-0 z-20 mt-2 w-44 overflow-hidden rounded-xl border border-[var(--color-border)] bg-white py-1 shadow-[var(--shadow-micro)]">
+                <div className="absolute right-0 z-20 mt-2 w-48 overflow-hidden rounded-xl border border-[var(--color-border)] bg-white py-1 shadow-[var(--shadow-micro)]">
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setPasswordOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-[var(--color-on-surface)] hover:bg-[var(--color-surface-container)]"
+                  >
+                    <KeyRound className="h-4 w-4" /> เปลี่ยนรหัสผ่าน
+                  </button>
                   <button
                     onClick={async () => {
                       await createClient().auth.signOut();
@@ -92,6 +103,7 @@ export function Header({
         </div>
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2 sm:gap-3">{actions}</div>}
+      <ChangePasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </header>
   );
 }

@@ -100,9 +100,33 @@ export function upsertUser(draft: Draft<AppState>, input: Partial<AppUser> & { i
     active: input.active ?? existing?.active ?? true,
     avatarUrl: input.avatarUrl ?? existing?.avatarUrl,
     canViewCost: input.canViewCost ?? existing?.canViewCost,
+    mustChangePassword: input.mustChangePassword ?? existing?.mustChangePassword,
     createdAt: existing?.createdAt ?? nowISO(),
   };
   return id;
+}
+
+// ลบผู้ใช้งานออกจากระบบ (สิทธิ์ user.admin — เฉพาะผู้ดูแลระบบ ตรวจที่ store/index.ts)
+// ผู้ใช้ที่เคยทำรายการแล้วลบไม่ได้ เพราะประวัติ/เอกสารในฐานข้อมูลอ้างอิงถึง (foreign key) และประวัติการเคลื่อนไหว
+// ถูกล็อกห้ามแก้ไข — กรณีนั้นให้ "ปิดการใช้งาน" แทน เพื่อรักษา audit trail ว่าใครเป็นคนทำรายการ
+export function removeUser(draft: Draft<AppState>, id: string) {
+  const user = draft.users[id];
+  if (!user) throw new BusinessRuleError("ไม่พบผู้ใช้งานนี้");
+  if (id === draft.currentUserId) throw new BusinessRuleError("ไม่สามารถลบบัญชีของตัวเองได้");
+  const hasHistory =
+    Object.values(draft.movements).some((m) => m.actorId === id) ||
+    Object.values(draft.stockInDocs).some((d) => d.receivedBy === id) ||
+    Object.values(draft.stockOutDocs).some((d) => d.actorId === id) ||
+    Object.values(draft.transfers).some((t) => t.senderId === id || t.receiverId === id) ||
+    Object.values(draft.equipmentRequisitions).some((r) => r.requesterId === id || r.approverId === id);
+  if (hasHistory) {
+    throw new BusinessRuleError(`"${user.name}" มีประวัติการทำรายการในระบบแล้ว จึงลบไม่ได้ กรุณาใช้การปิดการใช้งานแทน`);
+  }
+  delete draft.users[id];
+  // การแจ้งเตือนของผู้ใช้นี้ถูกลบตามในฐานข้อมูลอัตโนมัติ (on delete cascade) — ลบออกจากหน่วยความจำให้ตรงกัน
+  for (const key of Object.keys(draft.notifications)) {
+    if (draft.notifications[key].userId === id) delete draft.notifications[key];
+  }
 }
 
 export function upsertSupplier(draft: Draft<AppState>, input: Partial<Supplier> & { id?: string }): string {

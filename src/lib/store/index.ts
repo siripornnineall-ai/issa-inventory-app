@@ -33,6 +33,11 @@ interface Actions {
   upsertSupplier: (input: Partial<Supplier> & { id?: string }) => string;
   removeSupplier: (id: string) => void;
   upsertUser: (input: Partial<AppUser> & { id?: string }) => string;
+  // สามตัวนี้อัปเดตเฉพาะ state ในเครื่อง ไม่เรียก sync — เพราะฝั่งฐานข้อมูลถูกเขียนไปแล้วโดย Edge Function admin-users
+  // (สร้าง/ลบบัญชี) หรือ RPC clear_must_change_password (ล้างธงหลังเปลี่ยนรหัสผ่าน) ใช้หลังคำสั่งฝั่งเซิร์ฟเวอร์สำเร็จเท่านั้น
+  mergeUser: (user: AppUser) => void;
+  assertUserRemovable: (id: string) => void; // โยน error ภาษาไทยถ้าลบไม่ได้ (ลบตัวเอง/มีประวัติทำรายการ) โดยไม่แก้ state
+  removeUser: (id: string) => void;
   upsertBrand: (input: Partial<Brand> & { id?: string }) => string;
   upsertColorCode: (code: string, thaiName: string) => string;
   upsertCustomSize: (label: string) => string;
@@ -143,6 +148,20 @@ export const useStore = create<Store>()((set, get) => ({
     upsertSupplier: (input) => runChecked(set, get, "master.write", (draft) => engine.upsertSupplier(draft as never, input)),
     removeSupplier: (id) => runChecked(set, get, "master.write", (draft) => engine.removeSupplier(draft as never, id)),
     upsertUser: (input) => runChecked(set, get, "user.manage", (draft) => engine.upsertUser(draft as never, input)),
+    mergeUser: (user) =>
+      set((state) =>
+        produce(state, (draft) => {
+          draft.users[user.id] = user;
+        })
+      ),
+    assertUserRemovable: (id) => {
+      assertPermission(get().users[get().currentUserId ?? ""]?.role, "user.admin");
+      produce(get() as AppState, (draft) => engine.removeUser(draft as never, id)); // ผลลัพธ์ทิ้งไป ใช้แค่ให้กฎใน engine โยน error
+    },
+    removeUser: (id) => {
+      assertPermission(get().users[get().currentUserId ?? ""]?.role, "user.admin");
+      set((state) => produce(state, (draft) => engine.removeUser(draft as never, id)));
+    },
     upsertBrand: (input) => runChecked(set, get, "master.write", (draft) => engine.upsertBrand(draft as never, input)),
     upsertColorCode: (code, thaiName) => runChecked(set, get, "product.write", (draft) => engine.upsertColorCode(draft as never, code, thaiName)),
     upsertCustomSize: (label) => runChecked(set, get, "product.write", (draft) => engine.upsertCustomSize(draft as never, label)),

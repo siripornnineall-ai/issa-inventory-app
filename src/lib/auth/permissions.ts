@@ -14,6 +14,7 @@ export type Permission =
   | "report.view"
   | "report.export"
   | "user.manage"
+  | "user.admin" // สร้างบัญชี/ตั้งรหัสผ่านให้คนอื่น/ลบผู้ใช้งาน — เฉพาะผู้ดูแลระบบเท่านั้น (ตรงกับที่ Edge Function admin-users ตรวจ)
   | "settings.write"
   | "requisition.create"
   | "requisition.approve";
@@ -33,6 +34,7 @@ const MATRIX: Record<UserRole, Permission[]> = {
     "report.view",
     "report.export",
     "user.manage",
+    "user.admin",
     "settings.write",
     "requisition.create",
     "requisition.approve",

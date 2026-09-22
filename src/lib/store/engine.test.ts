@@ -120,6 +120,50 @@ describe("product & variant rules", () => {
   });
 });
 
+describe("removeUser", () => {
+  function seedUsers(): AppState {
+    return produce(seedWarehouses(), (draft) => {
+      engine.upsertUser(draft, { id: "admin-1", name: "Admin", email: "admin@test.co", role: "admin" });
+      engine.upsertUser(draft, { id: "staff-1", name: "Staff", email: "staff@test.co", role: "warehouse" });
+      draft.currentUserId = "admin-1";
+    });
+  }
+
+  it("removes a user who has never recorded a transaction", () => {
+    const { state: next } = run(seedUsers(), (draft) => engine.removeUser(draft, "staff-1"));
+    expect(next.users["staff-1"]).toBeUndefined();
+    expect(next.users["admin-1"]).toBeDefined();
+  });
+
+  it("refuses to remove the currently signed-in user", () => {
+    expect(() => run(seedUsers(), (draft) => engine.removeUser(draft, "admin-1"))).toThrow(BusinessRuleError);
+  });
+
+  it("refuses to remove a user referenced by stock history, so the audit trail keeps its actor", () => {
+    const { state: withVariant, variantId } = seedProductWithVariant(seedUsers());
+    const { state: withHistory } = run(withVariant, (draft) =>
+      engine.stockIn(draft, {
+        itemType: "product",
+        date: new Date().toISOString(),
+        warehouseId: "wh-a",
+        receivedBy: "staff-1",
+        receivedByName: "Staff",
+        lines: [{ itemId: variantId, qty: 1 }],
+      })
+    );
+    expect(() => run(withHistory, (draft) => engine.removeUser(draft, "staff-1"))).toThrow(BusinessRuleError);
+    expect(withHistory.users["staff-1"]).toBeDefined();
+  });
+
+  it("keeps the must-change-password flag when an admin edits other fields", () => {
+    const seeded = produce(seedUsers(), (draft) => {
+      draft.users["staff-1"].mustChangePassword = true;
+    });
+    const { state: next } = run(seeded, (draft) => engine.upsertUser(draft, { id: "staff-1", role: "sales" }));
+    expect(next.users["staff-1"]).toMatchObject({ role: "sales", mustChangePassword: true });
+  });
+});
+
 describe("stockIn", () => {
   it("increases on-hand quantity only at the destination warehouse and records a movement", () => {
     const state = seedWarehouses();

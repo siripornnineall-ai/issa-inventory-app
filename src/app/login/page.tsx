@@ -5,29 +5,18 @@ import { useRouter } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { useStore, useActions } from "@/lib/store";
 import { useCurrentUser } from "@/lib/auth/session";
-import { ROLE_LABEL_TH } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { createClient } from "@/lib/supabase/client";
 import { fetchAppState } from "@/lib/supabase/fetch";
 
-const DEMO_PASSWORD = "issa2024";
-
-const DEMO_ACCOUNTS = [
-  { email: "admin@issa.demo", role: "admin" as const },
-  { email: "manager@issa.demo", role: "manager" as const },
-  { email: "warehouse@issa.demo", role: "warehouse" as const },
-  { email: "sales@issa.demo", role: "sales" as const },
-  { email: "viewer@issa.demo", role: "viewer" as const },
-];
-
 export default function LoginPage() {
   const router = useRouter();
   const user = useCurrentUser();
   const { login } = useActions();
-  const [email, setEmail] = useState("admin@issa.demo");
-  const [password, setPassword] = useState("issa2024");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -100,7 +89,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-[var(--color-on-surface)]">อีเมล</label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@issa.demo" required />
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="username" required />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-[var(--color-on-surface)]">รหัสผ่าน</label>
@@ -112,27 +101,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6">
-            <p className="mb-2 text-xs font-semibold tracking-wide text-[var(--color-on-surface-variant)]">
-              <span className="uppercase">บัญชีทดลองใช้ — รหัสผ่าน:</span> <span className="font-mono normal-case">{DEMO_PASSWORD}</span>
-            </p>
-            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {DEMO_ACCOUNTS.map((a) => (
-                <button
-                  key={a.email}
-                  type="button"
-                  onClick={() => {
-                    setEmail(a.email);
-                    setPassword(DEMO_PASSWORD);
-                  }}
-                  className="flex flex-col rounded-lg border border-[var(--color-border)] px-3 py-2 text-left text-xs hover:border-[var(--color-primary-container)] hover:bg-[var(--color-surface-container)]"
-                >
-                  <span className="font-medium text-[var(--color-on-surface)]">{ROLE_LABEL_TH[a.role]}</span>
-                  <span className="text-[var(--color-on-surface-variant)]">{a.email}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <p className="mt-6 text-xs text-[var(--color-on-surface-variant)]">ลืมรหัสผ่าน? ติดต่อผู้ดูแลระบบเพื่อตั้งรหัสผ่านใหม่</p>
         </div>
       </div>
     </div>
