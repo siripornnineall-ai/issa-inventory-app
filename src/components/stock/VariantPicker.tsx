@@ -21,12 +21,16 @@ export function VariantPicker({
   warehouseId,
   brandId,
   onSelect,
+  onSelectMany,
   onScanToken,
   placeholder = "ค้นหาสินค้าด้วยชื่อ สี ไซซ์ หรือ SKU / สแกนบาร์โค้ด...",
 }: {
   warehouseId?: string;
   brandId?: string;
   onSelect: (variantId: string) => void;
+  // ถ้าส่งมา หน้าต่างเลือกไซซ์จะมีช่องติ๊ก "เลือกทุกไซซ์ของสีนี้" เพิ่มทั้งสีในครั้งเดียว
+  // คืนจำนวนที่เพิ่มเข้ารายการจริง (ข้ามตัวที่มีในรายการอยู่แล้ว) เพื่อใช้แสดงข้อความแจ้ง
+  onSelectMany?: (variantIds: string[]) => number;
   // เรียกเมื่อสแกนได้ป้าย QR ที่มีรหัสเฉพาะตัว (ต่อชิ้นจริง) — ถ้าไม่ส่งมาจะ fallback ไปที่ onSelect แบบเดิม
   onScanToken?: (token: UnitToken, variant: ProductVariant) => void;
   placeholder?: string;
@@ -140,6 +144,19 @@ export function VariantPicker({
   const pickerSizeRows = pickerGroup
     ? [...pickerGroup.variants].filter((v) => v.color === pickerColor).sort((a, b) => compareSizes(a.size, b.size))
     : [];
+  const allSizesAdded = pickerSizeRows.length > 0 && pickerSizeRows.every((v) => addedIds.has(v.id));
+
+  function addAllSizes() {
+    if (!pickerGroup || !onSelectMany || allSizesAdded) return;
+    const pending = pickerSizeRows.filter((v) => !addedIds.has(v.id)).map((v) => v.id);
+    const added = onSelectMany(pending);
+    setAddedIds((prev) => new Set([...prev, ...pending]));
+    toastSuccess(
+      added > 0
+        ? `เพิ่ม ${pickerGroup.product.sellingName} สี${pickerColor} ทุกไซซ์ (${added} ไซซ์) แล้ว`
+        : `ทุกไซซ์ของสี${pickerColor} อยู่ในรายการแล้ว`
+    );
+  }
 
   return (
     <div ref={containerRef} className="relative">
@@ -235,6 +252,29 @@ export function VariantPicker({
             </div>
             <div>
               <p className="mb-2 text-sm font-medium text-[var(--color-on-surface)]">ไซซ์ — แตะเพื่อเพิ่ม (เลือกได้หลายไซซ์/สี ค่อยกดปิดเองตอนเสร็จ)</p>
+              {onSelectMany && pickerSizeRows.length > 1 && (
+                <label
+                  htmlFor="picker-select-all-sizes"
+                  className={`mb-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${
+                    allSizesAdded
+                      ? "border-[var(--color-primary-container)] bg-[var(--color-primary-container)]/10 text-[var(--color-primary-container)]"
+                      : "cursor-pointer border-[var(--color-border)] text-[var(--color-on-surface)] hover:border-[var(--color-primary-container)] hover:bg-[var(--color-surface-container)]"
+                  }`}
+                >
+                  <input
+                    id="picker-select-all-sizes"
+                    type="checkbox"
+                    checked={allSizesAdded}
+                    disabled={allSizesAdded}
+                    onChange={addAllSizes}
+                    className="h-4 w-4 accent-[var(--color-primary-container)]"
+                  />
+                  <span>
+                    เลือกทุกไซซ์ของสี{pickerColor} ({pickerSizeRows.length} ไซซ์)
+                    {allSizesAdded && <span className="ml-1 text-xs font-normal">— เพิ่มครบแล้ว ลบออกได้ในรายการด้านล่าง</span>}
+                  </span>
+                </label>
+              )}
               <div className="flex flex-wrap gap-2">
                 {pickerSizeRows.map((v) => {
                   const stock = warehouseId ? getStockLevel(state.variantStock, v.id, warehouseId) : undefined;

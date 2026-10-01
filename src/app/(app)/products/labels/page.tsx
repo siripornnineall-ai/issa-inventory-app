@@ -49,6 +49,18 @@ export default function PrintLabelsBatchPage() {
     setCart((prev) => [...prev, { key: variantId, variantId, qty: 1 }]);
   }
 
+  // เพิ่มหลายตัวเลือกพร้อมกัน (ช่องติ๊ก "เลือกทุกไซซ์ของสีนี้") ข้ามตัวที่อยู่ในรายการแล้วเงียบ ๆ แทนการเด้ง error ทีละตัว
+  function addLines(variantIds: string[]): number {
+    const inCart = new Set(cart.map((l) => l.variantId));
+    const fresh = variantIds.filter((id) => !inCart.has(id));
+    if (fresh.length === 0) return 0;
+    setCart((prev) => {
+      const have = new Set(prev.map((l) => l.variantId));
+      return [...prev, ...fresh.filter((id) => !have.has(id)).map((id) => ({ key: id, variantId: id, qty: 1 }))];
+    });
+    return fresh.length;
+  }
+
   function updateQty(key: string, qty: number) {
     setCart((prev) => prev.map((l) => (l.key === key ? { ...l, qty } : l)));
   }
@@ -102,7 +114,7 @@ export default function PrintLabelsBatchPage() {
 
       <div className="mb-6 flex flex-col gap-3 rounded-xl border border-[var(--color-border)] p-4 print:hidden">
         <p className="text-sm font-medium">ค้นหารุ่นสินค้าที่ต้องการเพิ่ม</p>
-        <VariantPicker onSelect={addLine} placeholder="ค้นหาสินค้าด้วยชื่อรุ่น..." />
+        <VariantPicker onSelect={addLine} onSelectMany={addLines} placeholder="ค้นหาสินค้าด้วยชื่อรุ่น..." />
       </div>
 
       <div className="print:hidden">
