@@ -75,7 +75,7 @@ function StockInForm() {
     const label = `${product?.sellingName ?? variant.sku} ${variant.color}/${variant.size}`;
     const alreadyScanned = Object.values(scannedTokensByVariant).some((ids) => ids.includes(token.id));
     if (alreadyScanned) {
-      playBeep("error");
+      playBeep("duplicate");
       toastError("ใบนี้สแกนไปแล้วในรายการนี้");
       logScan(`${label} — สแกนซ้ำ`, false);
       return;

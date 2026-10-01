@@ -3,7 +3,16 @@
 // iOS Safari บางเครื่อง suspend เสียงจาก AudioContext เงียบ ๆ โดยไม่มี error — <audio> element
 // เชื่อถือได้กว่าในสถานการณ์นี้ และเป็นวิธีปลดล็อกเสียงบนมือถือที่ใช้กันทั่วไป)
 
-function synthWav(segments: { freq: number; duration: number }[], sampleRate = 8000): string {
+// segment: freq = ความถี่ (Hz) ใส่ 0 = เว้นวรรคเงียบ, amp = ความดัง 0-1 (ค่าเริ่มต้น 0.6), hard = true จะอัดสัญญาณให้เต็มและแหลมขึ้น
+// (soft clipping) ได้เสียงดังกว่าไซน์ธรรมดาที่แอมพลิจูดเท่ากัน ใช้กับเสียงเตือนที่ต้องได้ยินแม้อยู่ในที่เสียงดัง
+export interface BeepSegment {
+  freq: number;
+  duration: number;
+  amp?: number;
+  hard?: boolean;
+}
+
+export function synthWav(segments: BeepSegment[], sampleRate = 16000): string {
   let totalSamples = 0;
   for (const seg of segments) totalSamples += Math.floor(seg.duration * sampleRate);
   const dataSize = totalSamples * 2;
@@ -35,7 +44,10 @@ function synthWav(segments: { freq: number; duration: number }[], sampleRate = 8
     for (let i = 0; i < n; i++) {
       const t = i / sampleRate;
       const fade = Math.min(1, i / fadeSamples, (n - i) / fadeSamples);
-      const sample = Math.sin(2 * Math.PI * seg.freq * t) * fade * 0.6;
+      const amp = seg.amp ?? 0.6;
+      const wave = seg.freq <= 0 ? 0 : Math.sin(2 * Math.PI * seg.freq * t);
+      const shaped = seg.hard ? Math.tanh(2.5 * wave) / Math.tanh(2.5) : wave;
+      const sample = shaped * fade * amp;
       view.setInt16(offset, Math.max(-1, Math.min(1, sample)) * 32767, true);
       offset += 2;
     }
@@ -47,22 +59,42 @@ function synthWav(segments: { freq: number; duration: number }[], sampleRate = 8
   return `data:audio/wav;base64,${btoa(binary)}`;
 }
 
+export type BeepKind = "success" | "error" | "duplicate";
+
+// เสียงสแกนซ้ำ: เตือนดัง ๆ โทนสูง 2 ระดับสลับกัน 2 รอบ (ติ๊ด-ต๊อด ติ๊ด-ต๊อด) ยาวราว 0.45 วินาที
+// ใช้ช่วง 1.3-1.8 kHz ที่หูไวและลำโพงมือถือเล่นได้ดังที่สุด (โทนต่ำ 200-300 Hz เล่นเบามากบนมือถือ) และใช้แอมพลิจูดเต็ม
+export const DUPLICATE_BEEP: BeepSegment[] = [
+  { freq: 1760, duration: 0.1, amp: 0.95, hard: true },
+  { freq: 1320, duration: 0.1, amp: 0.95, hard: true },
+  { freq: 0, duration: 0.05 },
+  { freq: 1760, duration: 0.1, amp: 0.95, hard: true },
+  { freq: 1320, duration: 0.1, amp: 0.95, hard: true },
+];
+
+export const ERROR_BEEP: BeepSegment[] = [
+  { freq: 320, duration: 0.12 },
+  { freq: 220, duration: 0.16 },
+];
+
 let successAudio: HTMLAudioElement | null = null;
 let errorAudio: HTMLAudioElement | null = null;
+let duplicateAudio: HTMLAudioElement | null = null;
 
-function getAudioEl(kind: "success" | "error"): HTMLAudioElement | null {
+function getAudioEl(kind: BeepKind): HTMLAudioElement | null {
   if (typeof window === "undefined" || typeof Audio === "undefined") return null;
   if (kind === "success") {
     if (!successAudio) successAudio = new Audio(synthWav([{ freq: 1400, duration: 0.09 }]));
     return successAudio;
   }
+  if (kind === "duplicate") {
+    if (!duplicateAudio) {
+      duplicateAudio = new Audio(synthWav(DUPLICATE_BEEP));
+      duplicateAudio.volume = 1;
+    }
+    return duplicateAudio;
+  }
   if (!errorAudio) {
-    errorAudio = new Audio(
-      synthWav([
-        { freq: 320, duration: 0.12 },
-        { freq: 220, duration: 0.16 },
-      ])
-    );
+    errorAudio = new Audio(synthWav(ERROR_BEEP));
   }
   return errorAudio;
 }
@@ -71,7 +103,7 @@ function getAudioEl(kind: "success" | "error"): HTMLAudioElement | null {
 // ตัวจัดการคลิกของปุ่มเปิดกล้องไว้ล่วงหน้า เพื่อให้ playBeep ที่เรียกทีหลัง (ตอนสแกนเจอ ระหว่างกล้องเปิดอยู่
 // ซึ่งไม่ใช่ user gesture ตรง) มีเสียงออกจริง
 export function primeAudio() {
-  for (const kind of ["success", "error"] as const) {
+  for (const kind of ["success", "error", "duplicate"] as const) {
     const el = getAudioEl(kind);
     if (!el) continue;
     const originalVolume = el.volume;
@@ -88,7 +120,7 @@ export function primeAudio() {
   }
 }
 
-export function playBeep(kind: "success" | "error") {
+export function playBeep(kind: BeepKind) {
   const el = getAudioEl(kind);
   if (!el) return;
   el.currentTime = 0;

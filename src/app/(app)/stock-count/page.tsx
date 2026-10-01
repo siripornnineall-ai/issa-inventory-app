@@ -91,7 +91,7 @@ function StockCountForm() {
       return;
     }
     if (tokenId && scannedTokenIds.has(tokenId)) {
-      playBeep("error");
+      playBeep("duplicate");
       toastError("ใบนี้นับไปแล้วในรอบนับนี้");
       return;
     }
