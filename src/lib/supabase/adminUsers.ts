@@ -50,6 +50,12 @@ export async function adminResetPassword(userId: string, password: string): Prom
   await invoke({ action: "reset_password", userId, password });
 }
 
+// เปลี่ยนอีเมล (ชื่อที่ใช้เข้าสู่ระบบ) ของผู้ใช้ รวมถึงของตัวเอง — เปลี่ยนที่บัญชีเข้าสู่ระบบและ profiles พร้อมกัน คืนอีเมลที่บันทึกจริง
+export async function adminUpdateEmail(userId: string, email: string): Promise<string> {
+  const { email: saved } = await invoke<{ email: string }>({ action: "update_email", userId, email });
+  return saved;
+}
+
 export async function adminDeleteUser(userId: string): Promise<void> {
   await invoke({ action: "delete", userId });
 }

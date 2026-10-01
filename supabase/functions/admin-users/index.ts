@@ -32,7 +32,7 @@ Deno.serve(async (req: Request) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) return json(500, { error: "ระบบยังไม่ได้ตั้งค่า service role" });
 
-  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const token = (req.headers.get("Authorization") ?? "").replace(/^bearer /i, "");
   if (!token) return json(401, { error: "กรุณาเข้าสู่ระบบก่อน" });
 
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const role = typeof body.role === "string" ? body.role : "";
     if (!name) return json(400, { error: "กรุณาระบุชื่อผู้ใช้งาน" });
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: "รูปแบบอีเมลไม่ถูกต้อง" });
+    if (!/^[^ @]+@[^ @]+[.][^ @]+$/.test(email)) return json(400, { error: "รูปแบบอีเมลไม่ถูกต้อง" });
     if (!ROLES.includes(role)) return json(400, { error: "บทบาทไม่ถูกต้อง" });
     if (!validPassword(body.password)) return json(400, { error: `รหัสผ่านต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร` });
 
@@ -94,7 +94,7 @@ Deno.serve(async (req: Request) => {
   if (action === "reset_password") {
     const userId = typeof body.userId === "string" ? body.userId : "";
     if (!userId) return json(400, { error: "ไม่พบผู้ใช้งานที่ต้องการ" });
-    if (userId === caller.id) return json(400, { error: "เปลี่ยนรหัสผ่านของตัวเองได้ที่เมนู \"เปลี่ยนรหัสผ่าน\"" });
+    if (userId === caller.id) return json(400, { error: 'เปลี่ยนรหัสผ่านของตัวเองได้ที่เมนู "เปลี่ยนรหัสผ่าน"' });
     if (!validPassword(body.password)) return json(400, { error: `รหัสผ่านต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร` });
 
     const { error: pwErr } = await admin.auth.admin.updateUserById(userId, { password: body.password });
@@ -102,6 +102,37 @@ Deno.serve(async (req: Request) => {
     const { error: flagErr } = await admin.from("profiles").update({ must_change_password: true }).eq("id", userId);
     if (flagErr) return json(400, { error: `ตั้งรหัสผ่านแล้ว แต่บันทึกสถานะบังคับเปลี่ยนรหัสไม่สำเร็จ: ${flagErr.message}` });
     return json(200, { ok: true });
+  }
+
+  // ---------- เปลี่ยนอีเมล (ชื่อที่ใช้เข้าสู่ระบบ) ของผู้ใช้ รวมถึงของผู้ดูแลระบบเอง ----------
+  if (action === "update_email") {
+    const userId = typeof body.userId === "string" ? body.userId : "";
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    if (!userId) return json(400, { error: "ไม่พบผู้ใช้งานที่ต้องการ" });
+    if (!/^[^ @]+@[^ @]+[.][^ @]+$/.test(email)) return json(400, { error: "รูปแบบอีเมลไม่ถูกต้อง" });
+
+    const { data: all } = await admin.from("profiles").select("id, email");
+    const target = (all ?? []).find((p) => p.id === userId);
+    if (!target) return json(404, { error: "ไม่พบผู้ใช้งานนี้" });
+    if (target.email.toLowerCase() === email) return json(200, { ok: true, email: target.email });
+    if ((all ?? []).some((p) => p.id !== userId && p.email.toLowerCase() === email)) {
+      return json(409, { error: `อีเมล "${email}" ถูกใช้งานแล้ว` });
+    }
+
+    // เปลี่ยนที่บัญชีเข้าสู่ระบบก่อน (email_confirm ข้ามการส่งอีเมลยืนยัน) แล้วค่อยเปลี่ยนใน profiles
+    // ถ้าขั้นหลังพัง ย้อนอีเมลบัญชีเข้าสู่ระบบกลับ จะได้ไม่เหลือสองฝั่งไม่ตรงกัน
+    const oldEmail = target.email;
+    const { error: authErr } = await admin.auth.admin.updateUserById(userId, { email, email_confirm: true });
+    if (authErr) {
+      const taken = /already|registered|exists/i.test(authErr.message);
+      return json(taken ? 409 : 400, { error: taken ? `อีเมล "${email}" ถูกใช้งานแล้ว` : `เปลี่ยนอีเมลไม่สำเร็จ: ${authErr.message}` });
+    }
+    const { error: profErr } = await admin.from("profiles").update({ email }).eq("id", userId);
+    if (profErr) {
+      await admin.auth.admin.updateUserById(userId, { email: oldEmail, email_confirm: true });
+      return json(400, { error: `เปลี่ยนอีเมลไม่สำเร็จ: ${profErr.message}` });
+    }
+    return json(200, { ok: true, email });
   }
 
   // ---------- ลบผู้ใช้ (ทั้ง profile และบัญชี Auth) ----------

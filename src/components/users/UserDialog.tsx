@@ -8,7 +8,7 @@ import { Input, Select, FormField } from "@/components/ui/Field";
 import { useActions } from "@/lib/store";
 import { useCurrentUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
-import { adminCreateUser, adminResetPassword, generateTempPassword, MIN_PASSWORD_LENGTH } from "@/lib/supabase/adminUsers";
+import { adminCreateUser, adminResetPassword, adminUpdateEmail, generateTempPassword, MIN_PASSWORD_LENGTH } from "@/lib/supabase/adminUsers";
 import type { AppUser, UserRole } from "@/lib/types";
 import { ROLE_LABEL_TH } from "@/lib/types";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -86,8 +86,14 @@ function UserDialogForm({ open, onClose, existing, onChangeOwnPassword }: UserDi
     setSaving(true);
     try {
       if (existing) {
+        const emailChanged = isAdmin && email.trim().toLowerCase() !== existing.email.toLowerCase();
+        if (emailChanged) {
+          // อีเมลคือชื่อที่ใช้เข้าสู่ระบบ ต้องเปลี่ยนที่บัญชีเข้าสู่ระบบจริงผ่านเซิร์ฟเวอร์ก่อน แล้วค่อยอัปเดต state ในเครื่อง
+          const savedEmail = await adminUpdateEmail(existing.id, email.trim());
+          mergeUser({ ...existing, email: savedEmail });
+        }
         upsertUser({ id: existing.id, name: name.trim(), role, active });
-        toastSuccess("แก้ไขข้อมูลผู้ใช้งานเรียบร้อยแล้ว");
+        toastSuccess(emailChanged ? "เปลี่ยนอีเมลแล้ว ล็อกอินครั้งถัดไปให้ใช้อีเมลใหม่" : "แก้ไขข้อมูลผู้ใช้งานเรียบร้อยแล้ว");
       } else {
         // ผู้ใช้ใหม่ต้องมีบัญชีเข้าสู่ระบบจริงด้วย จึงสร้างผ่านเซิร์ฟเวอร์ (Edge Function) แล้วค่อยเพิ่มเข้า state ในเครื่อง
         const created = await adminCreateUser({ name: name.trim(), email: email.trim(), role, password });
@@ -141,8 +147,8 @@ function UserDialogForm({ open, onClose, existing, onChangeOwnPassword }: UserDi
         <FormField label="ชื่อ-นามสกุล" required>
           <Input id="user-name" value={name} onChange={(e) => setName(e.target.value)} />
         </FormField>
-        <FormField label="อีเมล" required hint={existing ? "อีเมลใช้เป็นชื่อเข้าสู่ระบบ จึงแก้ไขภายหลังไม่ได้" : "ใช้เป็นชื่อเข้าสู่ระบบ"}>
-          <Input id="user-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={existing !== undefined} />
+        <FormField label="อีเมล" required hint={existing ? (isAdmin ? "อีเมลคือชื่อที่ใช้เข้าสู่ระบบ เปลี่ยนแล้วต้องใช้อีเมลใหม่ล็อกอินครั้งถัดไป" : "เฉพาะผู้ดูแลระบบเปลี่ยนอีเมลได้") : "ใช้เป็นชื่อเข้าสู่ระบบ"}>
+          <Input id="user-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={existing !== undefined && !isAdmin} />
         </FormField>
         <FormField label="บทบาท">
           <Select id="user-role" value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
