@@ -38,8 +38,34 @@ describe("buildLabelPrintCss — 50x30 mm label roll", () => {
   });
 
   it("sizes the QR to fit inside the label height", () => {
-    // 30mm tall, 1.5mm padding each side -> at most 27mm; 48% of 50mm width = 24mm
-    expect(buildLabelPrintCss(roll)).toContain("width: 24mm !important");
+    // 30mm tall, 1.5mm padding each side -> at most 27mm; 44% of 50mm width = 22mm
+    expect(buildLabelPrintCss(roll)).toContain("width: 22mm !important");
+  });
+
+  it("prints the text larger than the first version (name 9pt, color/size 9.5pt, shape and SKU 7pt)", () => {
+    const css = buildLabelPrintCss(roll);
+    expect(css).toContain("font-size: 9pt !important");
+    expect(css).toContain("font-size: 9.5pt !important");
+    expect(css.match(/font-size: 7pt !important/g)?.length).toBe(2);
+  });
+
+  it("never truncates the color/size line with an ellipsis, so a long color name cannot hide the size", () => {
+    const css = buildLabelPrintCss(roll);
+    const variantRule = css.slice(css.indexOf(".qr-label-variant"), css.indexOf(".qr-label-shape"));
+    expect(variantRule).toContain("white-space: normal !important");
+    expect(variantRule).toContain("text-overflow: clip !important");
+  });
+
+  it("scales all label text with the user's text-size percentage, and clamps absurd values", () => {
+    expect(buildLabelPrintCss({ ...roll, rollTextScalePct: 120 })).toContain("font-size: 10.8pt !important");
+    expect(buildLabelPrintCss({ ...roll, rollTextScalePct: 5000 })).toContain("font-size: 18pt !important");
+    expect(buildLabelPrintCss({ ...roll, rollTextScalePct: 1 })).toContain("font-size: 5.4pt !important");
+  });
+
+  it("falls back to normal size for settings saved before the text-size option existed", () => {
+    const legacy = { ...roll } as Partial<LabelCalibration>;
+    delete legacy.rollTextScalePct;
+    expect(buildLabelPrintCss(legacy as LabelCalibration)).toContain("font-size: 9pt !important");
   });
 
   it("applies the user's offsets for printers that print slightly off-center", () => {

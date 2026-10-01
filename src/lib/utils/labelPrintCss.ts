@@ -56,7 +56,10 @@ function buildRollCss(c: LabelCalibration): string {
   const gap = 1.5;
   // เว้นความสูงนิดเดียว กันเนื้อหาล้นหน้าแล้วเครื่องพิมพ์ดันออกดวงว่างเพิ่ม
   const cardH = +(h - 0.4).toFixed(2);
-  const qr = +clamp(Math.min(h - pad * 2, w * 0.48), 10, 80).toFixed(2);
+  // QR กว้างราว 44% ของดวง (50 มม. -> 22 มม.) เหลือที่ให้ตัวอักษรฝั่งขวามากขึ้น QR ระดับ H ขนาดนี้สแกนติดสบาย
+  const qr = +clamp(Math.min(h - pad * 2, w * 0.44), 10, 80).toFixed(2);
+  const k = clamp(c.rollTextScalePct ?? 100, 60, 200) / 100;
+  const fs = (pt: number) => +(pt * k).toFixed(2);
   const ox = Number.isFinite(c.rollOffsetXMm) ? c.rollOffsetXMm : 0;
   const oy = Number.isFinite(c.rollOffsetYMm) ? c.rollOffsetYMm : 0;
   return `
@@ -86,7 +89,7 @@ function buildRollCss(c: LabelCalibration): string {
         }
         .qr-label-text { flex: 1 1 0; min-width: 0; }
         .qr-label-name {
-          font-size: 7.5pt !important;
+          font-size: ${fs(9)}pt !important;
           font-weight: 700 !important;
           line-height: 1.15 !important;
           white-space: normal !important;
@@ -95,10 +98,25 @@ function buildRollCss(c: LabelCalibration): string {
           -webkit-box-orient: vertical;
           overflow: hidden;
         }
-        .qr-label-variant { font-size: 7.5pt !important; line-height: 1.2 !important; margin-top: 0.4mm; }
-        .qr-label-shape { font-size: 5.5pt !important; line-height: 1.15 !important; }
+        /* สี/ไซซ์ต้องเห็นครบเสมอ ถ้าชื่อสียาวให้ขึ้นบรรทัดใหม่ ห้ามตัดเป็น ... (ไซซ์อยู่ท้ายบรรทัดจะหายก่อน) */
+        .qr-label-variant {
+          font-size: ${fs(9.5)}pt !important;
+          line-height: 1.2 !important;
+          margin-top: 0.4mm;
+          white-space: normal !important;
+          overflow: visible !important;
+          text-overflow: clip !important;
+          overflow-wrap: anywhere;
+        }
+        .qr-label-shape {
+          font-size: ${fs(7)}pt !important;
+          line-height: 1.15 !important;
+          white-space: normal !important;
+          overflow: visible !important;
+          text-overflow: clip !important;
+        }
         .qr-label-sku {
-          font-size: 5.5pt !important;
+          font-size: ${fs(7)}pt !important;
           line-height: 1.15 !important;
           white-space: normal !important;
           word-break: break-all;

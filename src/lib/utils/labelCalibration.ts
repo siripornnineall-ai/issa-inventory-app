@@ -23,6 +23,8 @@ export interface LabelCalibration {
   rollHeightMm: number;
   rollOffsetXMm: number;
   rollOffsetYMm: number;
+  // ขนาดตัวอักษรบนป้ายม้วน เป็นเปอร์เซ็นต์ของค่ามาตรฐาน (100 = ปกติ) ปรับเองได้ถ้ายังเล็ก/ใหญ่ไป
+  rollTextScalePct: number;
 }
 
 export const DEFAULT_LABEL_CALIBRATION: LabelCalibration = {
@@ -38,6 +40,7 @@ export const DEFAULT_LABEL_CALIBRATION: LabelCalibration = {
   rollHeightMm: 30,
   rollOffsetXMm: 0,
   rollOffsetYMm: 0,
+  rollTextScalePct: 100,
 };
 
 const STORAGE_KEY = "issa-qr-label-calibration";

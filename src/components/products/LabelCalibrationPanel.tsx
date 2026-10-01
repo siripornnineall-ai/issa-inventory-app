@@ -80,6 +80,7 @@ export function LabelCalibrationPanel({
             {field("rollHeightMm", "สูงต่อดวง (มม.)", "cal-roll-height")}
             {field("rollOffsetXMm", "เลื่อนไปขวา (มม.) ค่าลบ = ซ้าย", "cal-roll-offset-x")}
             {field("rollOffsetYMm", "เลื่อนลง (มม.) ค่าลบ = ขึ้น", "cal-roll-offset-y")}
+            {field("rollTextScalePct", "ขนาดตัวอักษร (%) 100 = ปกติ", "cal-roll-text-scale")}
           </div>
         ) : (
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
