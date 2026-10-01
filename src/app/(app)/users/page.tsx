@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Users as UsersIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, KeyRound, Users as UsersIcon } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { RequireAccess } from "@/components/layout/RequireAccess";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ConfirmDialog } from "@/components/ui/Dialog";
 import { UserDialog } from "@/components/users/UserDialog";
+import { ChangePasswordDialog } from "@/components/account/ChangePassword";
 import { useStore, useActions } from "@/lib/store";
 import { useCurrentUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
@@ -33,6 +34,7 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<AppUser | undefined>(undefined);
   const [deleting, setDeleting] = useState<AppUser | undefined>(undefined);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
 
   async function confirmDelete() {
     if (!deleting) return;
@@ -119,6 +121,16 @@ export default function UsersPage() {
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
+                      {u.id === currentUser?.id && (
+                        <button
+                          onClick={() => setPasswordOpen(true)}
+                          aria-label="เปลี่ยนรหัสผ่านของคุณ"
+                          title="เปลี่ยนรหัสผ่าน"
+                          className="text-[var(--color-on-surface-variant)] hover:text-[var(--color-primary-container)]"
+                        >
+                          <KeyRound className="h-4 w-4" />
+                        </button>
+                      )}
                       {canDelete && u.id !== currentUser?.id && (
                         <button
                           onClick={() => setDeleting(u)}
@@ -179,6 +191,16 @@ export default function UsersPage() {
                             >
                               <Pencil className="h-4 w-4" />
                             </button>
+                            {u.id === currentUser?.id && (
+                              <button
+                                onClick={() => setPasswordOpen(true)}
+                                aria-label="เปลี่ยนรหัสผ่านของคุณ"
+                                title="เปลี่ยนรหัสผ่าน"
+                                className="text-[var(--color-on-surface-variant)] hover:text-[var(--color-primary-container)]"
+                              >
+                                <KeyRound className="h-4 w-4" />
+                              </button>
+                            )}
                             {canDelete && u.id !== currentUser?.id && (
                               <button
                                 onClick={() => setDeleting(u)}
@@ -202,7 +224,8 @@ export default function UsersPage() {
         </RequireAccess>
       </PageContainer>
 
-      <UserDialog open={dialogOpen} onClose={() => setDialogOpen(false)} existing={editing} />
+      <UserDialog open={dialogOpen} onClose={() => setDialogOpen(false)} existing={editing} onChangeOwnPassword={() => setPasswordOpen(true)} />
+      <ChangePasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />
 
       <ConfirmDialog
         open={deleting !== undefined}

@@ -17,6 +17,8 @@ interface UserDialogProps {
   open: boolean;
   onClose: () => void;
   existing?: AppUser;
+  // เปิดหน้าต่างเปลี่ยนรหัสผ่านของตัวเอง — แสดงปุ่มในหน้าต่างนี้เฉพาะตอนแก้ไขบัญชีของตัวเอง
+  onChangeOwnPassword?: () => void;
 }
 
 export function UserDialog(props: UserDialogProps) {
@@ -52,7 +54,7 @@ function TempPasswordInput({ id, value, onChange }: { id: string; value: string;
   );
 }
 
-function UserDialogForm({ open, onClose, existing }: UserDialogProps) {
+function UserDialogForm({ open, onClose, existing, onChangeOwnPassword }: UserDialogProps) {
   const { upsertUser, mergeUser } = useActions();
   const currentUser = useCurrentUser();
   const isAdmin = hasPermission(currentUser?.role, "user.admin");
@@ -65,6 +67,7 @@ function UserDialogForm({ open, onClose, existing }: UserDialogProps) {
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
 
+  const isSelf = existing !== undefined && existing.id === currentUser?.id;
   const canResetOther = isAdmin && existing !== undefined && existing.id !== currentUser?.id;
 
   async function handleSave() {
@@ -165,6 +168,25 @@ function UserDialogForm({ open, onClose, existing }: UserDialogProps) {
           >
             <TempPasswordInput id="user-temp-password" value={password} onChange={setPassword} />
           </FormField>
+        )}
+
+        {isSelf && onChangeOwnPassword && (
+          <div className="mt-2 rounded-xl border border-[var(--color-border)] p-4">
+            <p className="text-sm font-medium text-[var(--color-on-surface)]">รหัสผ่านของคุณ</p>
+            <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">เปลี่ยนรหัสผ่านที่ใช้เข้าสู่ระบบ ต้องกรอกรหัสผ่านปัจจุบันเพื่อยืนยัน</p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-3"
+              onClick={() => {
+                onClose();
+                onChangeOwnPassword();
+              }}
+            >
+              เปลี่ยนรหัสผ่าน
+            </Button>
+          </div>
         )}
 
         {canResetOther && (
