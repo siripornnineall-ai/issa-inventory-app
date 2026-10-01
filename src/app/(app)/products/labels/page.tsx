@@ -97,7 +97,7 @@ export default function PrintLabelsBatchPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div className="qr-print-root mx-auto max-w-5xl p-6">
       <div className="mb-6 flex items-center justify-between print:hidden">
         <Link href="/products" className="flex items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
           <ArrowLeft className="h-4 w-4" /> กลับ
