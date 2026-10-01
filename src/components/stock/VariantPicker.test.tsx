@@ -27,6 +27,24 @@ function openPicker() {
   fireEvent.click(screen.getByText("Billie Slim", { selector: "span.block" }));
 }
 
+describe("VariantPicker — แสดงสีของรุ่นครบ", () => {
+  beforeEach(() => cleanup());
+
+  it("still lists every color of the model when the search text only matches one color", () => {
+    seed();
+    render(<VariantPicker onSelect={vi.fn()} onSelectMany={vi.fn()} />);
+    fireEvent.change(screen.getByPlaceholderText(/ค้นหา/), { target: { value: "ดำ" } });
+    fireEvent.click(screen.getByText("Billie Slim", { selector: "span.block" }));
+
+    // ครีมไม่ตรงกับคำค้น "ดำ" แต่ต้องยังเลือกได้ และไซซ์ของสีดำที่ค้นเจอถูกเลือกไว้ให้ก่อน
+    expect(screen.getAllByText("ครีม").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ดำ").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText(/เลือกทุกไซซ์ของสีดำ [(]2 ไซซ์[)]/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^ครีม$/ }));
+    expect(screen.getByLabelText(/เลือกทุกไซซ์ของสีครีม [(]3 ไซซ์[)]/)).toBeTruthy();
+  });
+});
+
 describe("VariantPicker — เลือกทุกไซซ์ของสีนี้", () => {
   beforeEach(() => cleanup());
 

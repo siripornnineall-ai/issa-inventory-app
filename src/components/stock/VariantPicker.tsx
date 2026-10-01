@@ -95,7 +95,15 @@ export function VariantPicker({
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    const groups = new Map<string, { product: Product; variants: ProductVariant[] }>();
+    // all = ทุกตัวเลือกของรุ่นนั้น ส่วน variants = เฉพาะที่ตรงกับคำค้น
+    // หน้าต่างเลือกสี/ไซซ์ต้องโชว์ครบทุกสีของรุ่น (all) ไม่ใช่เฉพาะสีที่ตรงกับคำที่พิมพ์ค้นหา
+    const allByProduct = new Map<string, ProductVariant[]>();
+    for (const v of Object.values(state.variants)) {
+      if (!v.active) continue;
+      if (!allByProduct.has(v.productId)) allByProduct.set(v.productId, []);
+      allByProduct.get(v.productId)!.push(v);
+    }
+    const groups = new Map<string, { product: Product; variants: ProductVariant[]; all: ProductVariant[] }>();
     for (const v of Object.values(state.variants)) {
       if (!v.active) continue;
       const product = state.products[v.productId];
@@ -107,7 +115,7 @@ export function VariantPicker({
         v.size.toLowerCase().includes(q) ||
         v.sku.toLowerCase().includes(q);
       if (!matches) continue;
-      if (!groups.has(product.id)) groups.set(product.id, { product, variants: [] });
+      if (!groups.has(product.id)) groups.set(product.id, { product, variants: [], all: allByProduct.get(product.id) ?? [] });
       groups.get(product.id)!.variants.push(v);
     }
     return Array.from(groups.values()).slice(0, 20);
@@ -121,9 +129,10 @@ export function VariantPicker({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
-  function openPicker(group: { product: Product; variants: ProductVariant[] }) {
-    setPickerColor(group.variants[0]?.color ?? null);
-    setPickerGroup(group);
+  function openPicker(group: { product: Product; variants: ProductVariant[]; all: ProductVariant[] }) {
+    // เลือกสีแรกที่ตรงกับคำค้นไว้ให้ก่อน แต่แสดงครบทุกสีของรุ่น
+    setPickerColor(group.variants[0]?.color ?? group.all[0]?.color ?? null);
+    setPickerGroup({ product: group.product, variants: group.all });
     setAddedIds(new Set());
     setOpen(false);
   }
@@ -202,7 +211,7 @@ export function VariantPicker({
       )}
       {open && results.length > 0 && (
         <div className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-xl border border-[var(--color-border)] bg-white py-1 shadow-[var(--shadow-micro)]">
-          {results.map(({ product, variants }) => {
+          {results.map(({ product, variants, all }) => {
             const totalStock = warehouseId
               ? variants.reduce((sum, v) => sum + getStockLevel(state.variantStock, v.id, warehouseId).qtyOnHand, 0)
               : undefined;
@@ -211,7 +220,7 @@ export function VariantPicker({
               <button
                 key={product.id}
                 type="button"
-                onClick={() => openPicker({ product, variants })}
+                onClick={() => openPicker({ product, variants, all })}
                 className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm hover:bg-[var(--color-surface-container)]"
               >
                 <span>
