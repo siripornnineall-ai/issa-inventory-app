@@ -21,6 +21,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "สินค้า",
     items: [
       { href: "/products", label: "สินค้าทั้งหมด", icon: "Package" },
+      { href: "/stock-overview", label: "สต็อกภาพรวม", icon: "Grid3x3" },
       { href: "/products/new", label: "เพิ่มสินค้าใหม่", icon: "PackagePlus", perm: "product.write" },
       { href: "/products/labels", label: "พิมพ์บาร์โค้ด", icon: "Barcode", perm: "product.write" },
       { href: "/stock-in", label: "รับสินค้าเข้า", icon: "LogIn", perm: "stock.in" },
