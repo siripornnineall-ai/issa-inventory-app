@@ -23,6 +23,15 @@ describe("PrintableQrLabels", () => {
     expect(container.querySelector(".bc-name")?.textContent).toBe("Billie Slim");
   });
 
+  it("shows the product shape under the name on barcode labels, like the QR label, and omits the line when there is none", () => {
+    const withShape = render(<PrintableQrLabels items={[barcodeItem]} calibration={DEFAULT_LABEL_CALIBRATION} />);
+    expect(withShape.container.querySelector(".bc-shape")?.textContent).toBe("ทรงกระบอกเล็ก");
+    cleanup();
+    const noShape = { ...barcodeItem, product: { ...product, shape: undefined } as unknown as Product };
+    const without = render(<PrintableQrLabels items={[noShape]} calibration={DEFAULT_LABEL_CALIBRATION} />);
+    expect(without.container.querySelector(".bc-shape")).toBeNull();
+  });
+
   it("prints one barcode label per item, so quantity 3 makes 3 labels", () => {
     const { container } = render(<PrintableQrLabels items={[barcodeItem, barcodeItem, barcodeItem]} calibration={{ ...DEFAULT_LABEL_CALIBRATION, paper: "roll" }} />);
     expect(container.querySelectorAll(".barcode-card").length).toBe(3);

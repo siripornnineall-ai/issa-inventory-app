@@ -106,6 +106,12 @@ describe("barcode labels", () => {
     expect(barcodeGeometry({ ...DEFAULT_LABEL_CALIBRATION, paper: "roll" })).toEqual({ innerWidthMm: 47, heightMm: 13 });
   });
 
+  it("makes room for the shape line: shorter bars on the 25 mm A4 cell, unchanged on the 30 mm roll label", () => {
+    expect(barcodeGeometry({ ...DEFAULT_LABEL_CALIBRATION, paper: "a4-sheet" }).heightMm).toBe(13);
+    expect(barcodeGeometry({ ...DEFAULT_LABEL_CALIBRATION, paper: "a4-sheet" }, { hasShape: true }).heightMm).toBe(11.4);
+    expect(barcodeGeometry({ ...DEFAULT_LABEL_CALIBRATION, paper: "roll" }, { hasShape: true }).heightMm).toBe(13);
+  });
+
   it("never lets the barcode be wider than the label, and does not stretch short SKUs past 0.3 mm per module", () => {
     expect(barcodeWidthMm(190, 47)).toBe(47);
     expect(barcodeWidthMm(100, 47)).toBe(30);

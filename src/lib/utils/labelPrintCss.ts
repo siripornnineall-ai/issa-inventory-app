@@ -156,7 +156,8 @@ function textScale(c: LabelCalibration): number {
 }
 
 // พื้นที่วาดบาร์โค้ดในป้ายหนึ่งดวง: กว้างสุด = ความกว้างดวงหักขอบ, สูง = ส่วนที่เหลือหลังหักบรรทัดชื่อ/สี/ไซซ์ และบรรทัด SKU
-export function barcodeGeometry(c: LabelCalibration): { innerWidthMm: number; heightMm: number } {
+// hasShape: ป้ายมีบรรทัดทรงสินค้าเพิ่มอีก 1 บรรทัด ต้องหักความสูงออกจากแท่งบาร์โค้ด
+export function barcodeGeometry(c: LabelCalibration, opts: { hasShape?: boolean } = {}): { innerWidthMm: number; heightMm: number } {
   const pad = 1.5;
   const { w, h } = rollSizeMm(c);
   const roll = c.paper === "roll";
@@ -164,7 +165,7 @@ export function barcodeGeometry(c: LabelCalibration): { innerWidthMm: number; he
   const cellH = roll ? h - 0.4 : c.cellHeightMm;
   const innerW = Math.max(10, cellW - pad * 2);
   const innerH = Math.max(8, cellH - pad * 2);
-  const textH = (4.2 + 2.8) * textScale(c) + 0.8;
+  const textH = (4.2 + 2.8 + (opts.hasShape ? 2.8 : 0)) * textScale(c) + 0.8;
   return { innerWidthMm: +innerW.toFixed(2), heightMm: +clamp(innerH - textH, 6, 13).toFixed(2) };
 }
 
@@ -184,10 +185,18 @@ function buildBarcodeCss(c: LabelCalibration): string {
           gap: 0.6mm !important;
         }
         .barcode-card, .barcode-card * { color: #000 !important; }
-        .barcode-card .bc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1.5mm; }
+        .barcode-card .bc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5mm; }
+        .barcode-card .bc-title { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+        .barcode-card .bc-shape {
+          display: block;
+          font-size: ${fs(7)}pt;
+          line-height: 1.15;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
         .barcode-card .bc-name {
-          flex: 1 1 0;
-          min-width: 0;
+          display: block;
           font-size: ${fs(8.5)}pt;
           font-weight: 700;
           line-height: 1.2;

@@ -24,7 +24,8 @@ export function PrintableQrLabels({ items, calibration }: { items: PrintLabelIte
   if (items.length === 0) return null;
 
   const wantBarcode = isBarcode(calibration);
-  const geom = barcodeGeometry(calibration);
+  // ถ้ามีรุ่นไหนในชุดนี้มีทรง ให้ทุกป้ายใช้ความสูงบาร์โค้ดเท่ากัน (แท่งสูงเท่ากันทั้งชุด)
+  const geom = barcodeGeometry(calibration, { hasShape: items.some((i) => Boolean(i.product.shape)) });
 
   return (
     <>
@@ -38,7 +39,10 @@ export function PrintableQrLabels({ items, calibration }: { items: PrintLabelIte
               return (
                 <div key={`${v.id}-${idx}`} className="qr-label-card barcode-card flex flex-col rounded-lg border border-[var(--color-border)] p-2 text-left">
                   <div className="bc-head">
-                    <span className="bc-name">{product.sellingName}</span>
+                    <div className="bc-title">
+                      <span className="bc-name">{product.sellingName}</span>
+                      {product.shape && <span className="bc-shape">{product.shape}</span>}
+                    </div>
                     <span className="bc-variant">
                       {v.color} / {v.size}
                     </span>
