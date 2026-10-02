@@ -10,8 +10,9 @@ export function rollSizeMm(c: Pick<LabelCalibration, "rollWidthMm" | "rollHeight
 // สร้าง CSS ของหน้าพิมพ์ป้าย QR ตามชนิดกระดาษ
 // โหมด A4 ต้องได้ผลเหมือนเดิมทุกประการ (ผู้ใช้อาจปรับค่าให้ตรงกับแผ่นสติกเกอร์แล้ว) ห้ามแก้เมื่อไม่จำเป็น
 export function buildLabelPrintCss(c: LabelCalibration): string {
-  if (c.paper === "roll") return buildRollCss(c);
-  return buildA4Css(c);
+  const paperCss = c.paper === "roll" ? buildRollCss(c) : buildA4Css(c);
+  // กฎของบาร์โค้ดต่อท้ายกฎกระดาษเสมอ เพื่อชนะกฎขนาด QR/ช่องไฟเดิมเมื่อความเฉพาะเจาะจงเท่ากัน
+  return isBarcode(c) ? paperCss + buildBarcodeCss(c) : paperCss;
 }
 
 function buildA4Css(c: LabelCalibration): string {
@@ -135,6 +136,77 @@ function buildRollCss(c: LabelCalibration): string {
             page-break-after: always;
           }
           .qr-label-card:last-child { break-after: auto; page-break-after: auto; }
+        }
+      `;
+}
+
+// ---------------------------------------------------------------------------------------------
+// บาร์โค้ด Code 128
+
+// ค่าเดิมของไฟล์ที่บันทึกไว้ก่อนมีตัวเลือกนี้ไม่มี codeType ให้ถือเป็น barcode (ค่าเริ่มต้น)
+export function isBarcode(c: Pick<LabelCalibration, "codeType">): boolean {
+  return (c.codeType ?? "barcode") === "barcode";
+}
+
+// ความกว้างสูงสุดของ 1 โมดูล (มม.) ถ้า SKU สั้นไม่ขยายแท่งให้หนาเกินจำเป็น
+export const BARCODE_MAX_MODULE_MM = 0.3;
+
+function textScale(c: LabelCalibration): number {
+  return c.paper === "roll" ? clamp(c.rollTextScalePct ?? 100, 60, 200) / 100 : 1;
+}
+
+// พื้นที่วาดบาร์โค้ดในป้ายหนึ่งดวง: กว้างสุด = ความกว้างดวงหักขอบ, สูง = ส่วนที่เหลือหลังหักบรรทัดชื่อ/สี/ไซซ์ และบรรทัด SKU
+export function barcodeGeometry(c: LabelCalibration): { innerWidthMm: number; heightMm: number } {
+  const pad = 1.5;
+  const { w, h } = rollSizeMm(c);
+  const roll = c.paper === "roll";
+  const cellW = roll ? w : c.cellWidthMm;
+  const cellH = roll ? h - 0.4 : c.cellHeightMm;
+  const innerW = Math.max(10, cellW - pad * 2);
+  const innerH = Math.max(8, cellH - pad * 2);
+  const textH = (4.2 + 2.8) * textScale(c) + 0.8;
+  return { innerWidthMm: +innerW.toFixed(2), heightMm: +clamp(innerH - textH, 6, 13).toFixed(2) };
+}
+
+export function barcodeWidthMm(totalModules: number, innerWidthMm: number): number {
+  return +Math.min(innerWidthMm, totalModules * BARCODE_MAX_MODULE_MM).toFixed(2);
+}
+
+function buildBarcodeCss(c: LabelCalibration): string {
+  const k = textScale(c);
+  const fs = (pt: number) => +(pt * k).toFixed(2);
+  return `
+        /* ป้ายบาร์โค้ด: แถวบนชื่อรุ่น (ซ้าย) + สี/ไซซ์ (ขวา) ตามด้วยแท่งบาร์โค้ด และ SKU ตัวอักษรใต้แท่ง */
+        .barcode-card {
+          flex-direction: column !important;
+          align-items: stretch !important;
+          justify-content: center !important;
+          gap: 0.6mm !important;
+        }
+        .barcode-card, .barcode-card * { color: #000 !important; }
+        .barcode-card .bc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1.5mm; }
+        .barcode-card .bc-name {
+          flex: 1 1 0;
+          min-width: 0;
+          font-size: ${fs(8.5)}pt;
+          font-weight: 700;
+          line-height: 1.2;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .barcode-card .bc-variant { flex: none; font-size: ${fs(9.5)}pt; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+        .barcode-card .bc-code { display: flex; justify-content: center; }
+        .barcode-card svg.barcode-svg { display: block; flex-shrink: 0; width: var(--bc-w) !important; height: var(--bc-h) !important; }
+        .barcode-card .bc-sku {
+          margin: 0;
+          text-align: center;
+          font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+          font-size: ${fs(7)}pt;
+          line-height: 1.15;
+          letter-spacing: 0.04em;
+          white-space: nowrap;
+          overflow: hidden;
         }
       `;
 }

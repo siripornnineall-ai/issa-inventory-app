@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildLabelPrintCss, rollSizeMm } from "./labelPrintCss";
+import { barcodeGeometry, barcodeWidthMm, buildLabelPrintCss, isBarcode, rollSizeMm } from "./labelPrintCss";
 import { DEFAULT_LABEL_CALIBRATION, type LabelCalibration } from "./labelCalibration";
 
 const a4: LabelCalibration = { ...DEFAULT_LABEL_CALIBRATION, paper: "a4-sheet" };
@@ -78,5 +78,41 @@ describe("buildLabelPrintCss — 50x30 mm label roll", () => {
     expect(buildLabelPrintCss({ ...roll, rollWidthMm: 40, rollHeightMm: 30 })).toContain("size: 40mm 30mm");
     expect(rollSizeMm({ rollWidthMm: 0, rollHeightMm: -5 })).toEqual({ w: 20, h: 15 });
     expect(rollSizeMm({ rollWidthMm: Number.NaN, rollHeightMm: 9999 })).toEqual({ w: 20, h: 200 });
+  });
+});
+
+describe("barcode labels", () => {
+  it("is the default code type, also for settings saved before the option existed", () => {
+    expect(DEFAULT_LABEL_CALIBRATION.codeType).toBe("barcode");
+    expect(isBarcode({ codeType: undefined as unknown as "barcode" })).toBe(true);
+    expect(isBarcode({ codeType: "qr" })).toBe(false);
+  });
+
+  it("adds the barcode card styles after the paper styles so they win ties, for both papers", () => {
+    for (const paper of ["a4-sheet", "roll"] as const) {
+      const css = buildLabelPrintCss({ ...DEFAULT_LABEL_CALIBRATION, paper });
+      expect(css).toContain(".barcode-card");
+      expect(css.indexOf(".barcode-card")).toBeGreaterThan(css.indexOf(".qr-label-card"));
+      expect(css).toContain("width: var(--bc-w) !important");
+    }
+  });
+
+  it("leaves the QR-mode stylesheet exactly as it was (no barcode rules)", () => {
+    expect(buildLabelPrintCss({ ...DEFAULT_LABEL_CALIBRATION, paper: "a4-sheet", codeType: "qr" })).not.toContain("barcode");
+    expect(buildLabelPrintCss({ ...DEFAULT_LABEL_CALIBRATION, paper: "roll", codeType: "qr" })).not.toContain("barcode");
+  });
+
+  it("gives a 50x30 roll label a 47 mm wide and up to 13 mm tall barcode area", () => {
+    expect(barcodeGeometry({ ...DEFAULT_LABEL_CALIBRATION, paper: "roll" })).toEqual({ innerWidthMm: 47, heightMm: 13 });
+  });
+
+  it("never lets the barcode be wider than the label, and does not stretch short SKUs past 0.3 mm per module", () => {
+    expect(barcodeWidthMm(190, 47)).toBe(47);
+    expect(barcodeWidthMm(100, 47)).toBe(30);
+  });
+
+  it("keeps every module at about 2 printer dots (0.25 mm) or wider for a 13-character SKU on 50 mm", () => {
+    // 13 ตัวอักษร: 11*13+35 = 178 โมดูล + โซนเงียบ 12 = 190 -> 47/190 = 0.247 มม.
+    expect(47 / 190).toBeGreaterThan(0.24);
   });
 });

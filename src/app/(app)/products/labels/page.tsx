@@ -13,7 +13,9 @@ import { LabelCalibrationPanel } from "@/components/products/LabelCalibrationPan
 import { useStore, useActions } from "@/lib/store";
 import { useLabelCalibration } from "@/lib/utils/labelCalibration";
 import { preloadImages } from "@/lib/utils/preloadImages";
-import { toastError } from "@/lib/toast";
+import { toastError, toastInfo } from "@/lib/toast";
+import { encodeCode128 } from "@/lib/utils/code128";
+import { isBarcode } from "@/lib/utils/labelPrintCss";
 import type { UnitToken } from "@/lib/types";
 
 interface CartLine {
@@ -75,12 +77,19 @@ export default function PrintLabelsBatchPage() {
     setMinting(true);
     try {
       const batch: PrintLabelItem[] = [];
+      let qrFallback = 0;
       for (const line of cart) {
         if (line.qty <= 0) continue;
         const variant = state.variants[line.variantId];
         const product = variant ? state.products[variant.productId] : undefined;
         if (!variant || !product) continue;
         const brand = product.brandId ? state.brands[product.brandId] : undefined;
+        // บาร์โค้ดใช้ SKU ไม่ต้องสร้างโทเคนเฉพาะตัว (ไม่เพิ่มแถวในฐานข้อมูล) ยกเว้น SKU ที่เข้ารหัสไม่ได้ จะพิมพ์เป็น QR แทน
+        if (isBarcode(calibration) && encodeCode128(variant.sku)) {
+          for (let i = 0; i < line.qty; i++) batch.push({ product, variant, brandLogoUrl: brand?.logoUrl });
+          continue;
+        }
+        if (isBarcode(calibration)) qrFallback += line.qty;
         const tokens: UnitToken[] = mintUnitTokens(line.variantId, line.qty);
         for (const token of tokens) batch.push({ product, variant, token, brandLogoUrl: brand?.logoUrl });
       }
@@ -88,6 +97,7 @@ export default function PrintLabelsBatchPage() {
         toastError("กรุณาเพิ่มรุ่นสินค้าและระบุจำนวนอย่างน้อย 1 ใบ");
         return;
       }
+      if (qrFallback > 0) toastInfo(qrFallback + " ใบ SKU มีภาษาไทยจึงทำบาร์โค้ดไม่ได้ ระบบพิมพ์เป็น QR แทน (แก้ SKU ได้ที่หน้าสินค้า > สร้าง SKU มาตรฐานใหม่)");
       setPrintBatch(batch);
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
@@ -103,7 +113,7 @@ export default function PrintLabelsBatchPage() {
           <ArrowLeft className="h-4 w-4" /> กลับ
         </Link>
         <Button onClick={handlePrint} disabled={totalQty === 0} loading={minting}>
-          <Printer className="h-4 w-4" /> พิมพ์ป้าย QR ({totalQty} ใบ)
+          <Printer className="h-4 w-4" /> พิมพ์ป้าย ({totalQty} ใบ)
         </Button>
       </div>
 
@@ -204,7 +214,7 @@ export default function PrintLabelsBatchPage() {
       <LabelCalibrationPanel calibration={calibration} onChange={updateCalibration} onReset={resetCalibration} />
 
       {!printBatch || printBatch.length === 0 ? (
-        <p className="text-sm text-[var(--color-on-surface-variant)] print:hidden">ยังไม่ได้ปริ้น — เพิ่มรายการแล้วกด &quot;พิมพ์ป้าย QR&quot;</p>
+        <p className="text-sm text-[var(--color-on-surface-variant)] print:hidden">ยังไม่ได้ปริ้น — เพิ่มรายการแล้วกด &quot;พิมพ์ป้าย&quot;</p>
       ) : (
         <PrintableQrLabels items={printBatch} calibration={calibration} />
       )}

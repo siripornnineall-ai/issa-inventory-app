@@ -7,9 +7,15 @@ import { useState } from "react";
 // - roll: ม้วนสติกเกอร์สำหรับเครื่องพิมพ์ฉลาก/ความร้อน 1 ดวงต่อ 1 หน้ากระดาษ (เช่น 50x30 มม.)
 export type LabelPaper = "a4-sheet" | "roll";
 
+// ชนิดรหัสที่พิมพ์บนป้าย
+// - barcode: บาร์โค้ด Code 128 ของรหัส SKU (ทุกชิ้นของตัวเลือกเดียวกันได้รหัสเดียวกัน) สแกนด้วยเครื่องยิงบาร์โค้ด
+// - qr: QR รหัสเฉพาะตัวทุกใบ (ตรวจสแกนซ้ำรายชิ้นได้) สแกนด้วยกล้องมือถือในแอป
+export type LabelCodeType = "barcode" | "qr";
+
 // ค่าตั้งค่าตำแหน่งพิมพ์ป้าย QR ให้ตรงกับช่องสติกเกอร์จริง (ผู้ใช้ปรับเองได้ในหน้าพิมพ์ ไม่ต้องแก้โค้ด)
 export interface LabelCalibration {
   paper: LabelPaper;
+  codeType: LabelCodeType;
   // โหมด A4
   columns: number;
   cellWidthMm: number;
@@ -29,6 +35,7 @@ export interface LabelCalibration {
 
 export const DEFAULT_LABEL_CALIBRATION: LabelCalibration = {
   paper: "a4-sheet",
+  codeType: "barcode",
   columns: 3,
   cellWidthMm: 50,
   cellHeightMm: 25,

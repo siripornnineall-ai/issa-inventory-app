@@ -12,7 +12,9 @@ import { productVariants } from "@/lib/store/selectors";
 import { compareSizes } from "@/lib/utils/sizes";
 import { useLabelCalibration } from "@/lib/utils/labelCalibration";
 import { preloadImages } from "@/lib/utils/preloadImages";
-import { toastError } from "@/lib/toast";
+import { toastError, toastInfo } from "@/lib/toast";
+import { encodeCode128 } from "@/lib/utils/code128";
+import { isBarcode } from "@/lib/utils/labelPrintCss";
 import type { ProductVariant } from "@/lib/types";
 
 export default function ProductLabelsPage() {
@@ -89,10 +91,17 @@ export default function ProductLabelsPage() {
     setMinting(true);
     try {
       const batch: PrintLabelItem[] = [];
+      let qrFallback = 0;
       for (const v of variants) {
         if (!selected.has(v.id)) continue;
         const qty = quantities[v.id] ?? 1;
         if (qty <= 0) continue;
+        // บาร์โค้ดใช้ SKU ไม่ต้องสร้างโทเคนเฉพาะตัว ยกเว้น SKU ที่เข้ารหัสไม่ได้ (มีภาษาไทย) จะพิมพ์เป็น QR แทน
+        if (isBarcode(calibration) && encodeCode128(v.sku)) {
+          for (let i = 0; i < qty; i++) batch.push({ product, variant: v, brandLogoUrl: brand?.logoUrl });
+          continue;
+        }
+        if (isBarcode(calibration)) qrFallback += qty;
         const tokens = mintUnitTokens(v.id, qty);
         for (const token of tokens) batch.push({ product, variant: v, token, brandLogoUrl: brand?.logoUrl });
       }
@@ -100,6 +109,7 @@ export default function ProductLabelsPage() {
         toastError("กรุณาเลือกสี/ไซซ์และระบุจำนวนอย่างน้อย 1 ใบ");
         return;
       }
+      if (qrFallback > 0) toastInfo(qrFallback + " ใบ SKU มีภาษาไทยจึงทำบาร์โค้ดไม่ได้ ระบบพิมพ์เป็น QR แทน (แก้ SKU ได้ที่หน้าสินค้า > สร้าง SKU มาตรฐานใหม่)");
       setPrintBatch(batch);
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
@@ -119,12 +129,16 @@ export default function ProductLabelsPage() {
           <ArrowLeft className="h-4 w-4" /> กลับไปหน้าสินค้า
         </Link>
         <Button onClick={handlePrint} disabled={totalToPrint === 0} loading={minting}>
-          <Printer className="h-4 w-4" /> พิมพ์ป้าย QR ({totalToPrint} ใบ)
+          <Printer className="h-4 w-4" /> พิมพ์ป้าย ({totalToPrint} ใบ)
         </Button>
       </div>
 
-      <h1 className="mb-1 text-lg font-semibold print:hidden">ป้าย QR — {product.sellingName}</h1>
-      <p className="mb-4 text-xs text-[var(--color-on-surface-variant)] print:hidden">แต่ละใบที่ปริ้นจะมีรหัสเฉพาะตัวไม่ซ้ำกัน ใช้กันสแกนซ้ำชิ้นเดิมตอนรับเข้า/เบิกออก/นับสต็อก</p>
+      <h1 className="mb-1 text-lg font-semibold print:hidden">ป้ายสินค้า — {product.sellingName}</h1>
+      <p className="mb-4 text-xs text-[var(--color-on-surface-variant)] print:hidden">
+        {isBarcode(calibration)
+          ? "บาร์โค้ดคือรหัส SKU ของตัวเลือกนั้น ทุกชิ้นของสี/ไซซ์เดียวกันได้รหัสเดียวกัน สแกนด้วยเครื่องยิงบาร์โค้ด"
+          : "แต่ละใบที่ปริ้นจะมีรหัสเฉพาะตัวไม่ซ้ำกัน ใช้กันสแกนซ้ำชิ้นเดิมตอนรับเข้า/เบิกออก/นับสต็อก"}
+      </p>
 
       {variants.length === 0 ? (
         <p className="text-sm text-[var(--color-on-surface-variant)]">สินค้านี้ยังไม่มีตัวเลือกสี/ไซซ์</p>
@@ -192,7 +206,7 @@ export default function ProductLabelsPage() {
           <LabelCalibrationPanel calibration={calibration} onChange={updateCalibration} onReset={resetCalibration} />
 
           {!printBatch || printBatch.length === 0 ? (
-            <p className="text-sm text-[var(--color-on-surface-variant)] print:hidden">ยังไม่ได้ปริ้น — กด &quot;พิมพ์ป้าย QR&quot; เพื่อสร้างรหัสใหม่และเปิดหน้าต่างพิมพ์</p>
+            <p className="text-sm text-[var(--color-on-surface-variant)] print:hidden">ยังไม่ได้ปริ้น — กด &quot;พิมพ์ป้าย&quot; เพื่อเปิดหน้าต่างพิมพ์</p>
           ) : (
             <PrintableQrLabels items={printBatch} calibration={calibration} />
           )}
