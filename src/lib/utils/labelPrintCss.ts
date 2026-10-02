@@ -148,6 +148,9 @@ export function isBarcode(c: Pick<LabelCalibration, "codeType">): boolean {
   return (c.codeType ?? "barcode") === "barcode";
 }
 
+// ความสูงของบรรทัดทรงสินค้า (ตัวอักษร 9pt x ระยะบรรทัด 1.15 = 3.7 มม.)
+const BARCODE_SHAPE_LINE_MM = 3.7;
+
 // ความกว้างสูงสุดของ 1 โมดูล (มม.) ถ้า SKU สั้นไม่ขยายแท่งให้หนาเกินจำเป็น
 export const BARCODE_MAX_MODULE_MM = 0.3;
 
@@ -165,7 +168,7 @@ export function barcodeGeometry(c: LabelCalibration, opts: { hasShape?: boolean 
   const cellH = roll ? h - 0.4 : c.cellHeightMm;
   const innerW = Math.max(10, cellW - pad * 2);
   const innerH = Math.max(8, cellH - pad * 2);
-  const textH = (4.2 + 2.8 + (opts.hasShape ? 2.8 : 0)) * textScale(c) + 0.8;
+  const textH = (4.2 + 2.8 + (opts.hasShape ? BARCODE_SHAPE_LINE_MM : 0)) * textScale(c) + 0.8;
   return { innerWidthMm: +innerW.toFixed(2), heightMm: +clamp(innerH - textH, 6, 13).toFixed(2) };
 }
 
@@ -185,18 +188,20 @@ function buildBarcodeCss(c: LabelCalibration): string {
           gap: 0.6mm !important;
         }
         .barcode-card, .barcode-card * { color: #000 !important; }
-        .barcode-card .bc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5mm; }
-        .barcode-card .bc-title { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+        .barcode-card .bc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1.5mm; }
+        /* ทรงอยู่แถวของตัวเองเต็มความกว้าง ไม่แย่งที่กับสี/ไซซ์ จึงไม่ถูกตัดเป็น ... */
         .barcode-card .bc-shape {
-          display: block;
-          font-size: ${fs(7)}pt;
+          margin: 0;
+          font-size: ${fs(9)}pt;
+          font-weight: 600;
           line-height: 1.15;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
         .barcode-card .bc-name {
-          display: block;
+          flex: 1 1 0;
+          min-width: 0;
           font-size: ${fs(8.5)}pt;
           font-weight: 700;
           line-height: 1.2;

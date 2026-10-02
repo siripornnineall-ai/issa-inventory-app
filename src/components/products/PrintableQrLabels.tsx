@@ -39,14 +39,12 @@ export function PrintableQrLabels({ items, calibration }: { items: PrintLabelIte
               return (
                 <div key={`${v.id}-${idx}`} className="qr-label-card barcode-card flex flex-col rounded-lg border border-[var(--color-border)] p-2 text-left">
                   <div className="bc-head">
-                    <div className="bc-title">
-                      <span className="bc-name">{product.sellingName}</span>
-                      {product.shape && <span className="bc-shape">{product.shape}</span>}
-                    </div>
+                    <span className="bc-name">{product.sellingName}</span>
                     <span className="bc-variant">
                       {v.color} / {v.size}
                     </span>
                   </div>
+                  {product.shape && <p className="bc-shape">{product.shape}</p>}
                   <div className="bc-code">
                     <Code128Svg bits={bits} widthMm={barcodeWidthMm(modules, geom.innerWidthMm)} heightMm={geom.heightMm} />
                   </div>

@@ -108,8 +108,16 @@ describe("barcode labels", () => {
 
   it("makes room for the shape line: shorter bars on the 25 mm A4 cell, unchanged on the 30 mm roll label", () => {
     expect(barcodeGeometry({ ...DEFAULT_LABEL_CALIBRATION, paper: "a4-sheet" }).heightMm).toBe(13);
-    expect(barcodeGeometry({ ...DEFAULT_LABEL_CALIBRATION, paper: "a4-sheet" }, { hasShape: true }).heightMm).toBe(11.4);
+    expect(barcodeGeometry({ ...DEFAULT_LABEL_CALIBRATION, paper: "a4-sheet" }, { hasShape: true }).heightMm).toBe(10.5);
     expect(barcodeGeometry({ ...DEFAULT_LABEL_CALIBRATION, paper: "roll" }, { hasShape: true }).heightMm).toBe(13);
+  });
+
+  it("prints the shape line at 9pt semi-bold so it is easy to read, larger than the SKU line", () => {
+    const css = buildLabelPrintCss({ ...DEFAULT_LABEL_CALIBRATION, paper: "roll" });
+    const shapeRule = css.slice(css.indexOf(".bc-shape"), css.indexOf(".bc-name"));
+    expect(shapeRule).toContain("font-size: 9pt");
+    expect(shapeRule).toContain("font-weight: 600");
+    expect(css.slice(css.indexOf(".bc-sku"))).toContain("font-size: 7pt");
   });
 
   it("never lets the barcode be wider than the label, and does not stretch short SKUs past 0.3 mm per module", () => {
