@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Boxes, Search } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input, Select } from "@/components/ui/Field";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/Table";
@@ -78,29 +79,74 @@ function MatrixTable({ matrix }: { matrix: StockMatrix }) {
 export default function StockOverviewPage() {
   const state = useStore();
   const [search, setSearch] = useState("");
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [brandId, setBrandId] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
   const [hideEmpty, setHideEmpty] = useState(false);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const brands = useMemo(() => Object.values(state.brands).sort((a, b) => a.name.localeCompare(b.name, "th")), [state.brands]);
   const warehouses = useMemo(() => Object.values(state.warehouses).sort((a, b) => a.name.localeCompare(b.name, "th")), [state.warehouses]);
 
+  // รายการรุ่นทั้งหมด (กรองด้วยแบรนด์เท่านั้น) — ช่องค้นหาไม่ตัดรุ่นอื่นออก แต่พาเลื่อนไปที่ตารางของรุ่นที่ค้น
   const models = useMemo(() => {
     const qty = qtyByVariant(state, warehouseId || undefined);
-    const q = search.trim().toLowerCase();
     const list = Object.values(state.products)
       .filter((p) => !brandId || p.brandId === brandId)
-      .filter((p) => !q || p.sellingName.toLowerCase().includes(q) || (p.modelCode ?? "").toLowerCase().includes(q))
       .map((p) => {
         const variants = Object.values(state.variants).filter((v) => v.productId === p.id);
-        return { product: p, matrix: buildStockMatrix(variants, qty, { hideEmpty }), colorCount: new Set(variants.map((v) => v.color)).size };
+        return { product: p, matrix: buildStockMatrix(variants, qty, { hideEmpty }) };
       })
       .filter((m) => m.matrix.sizes.length > 0);
     return list.sort((a, b) => b.matrix.grandTotal - a.matrix.grandTotal || a.product.sellingName.localeCompare(b.product.sellingName, "th"));
-  }, [state, search, brandId, warehouseId, hideEmpty]);
+  }, [state, brandId, warehouseId, hideEmpty]);
 
-  const grandTotal = models.reduce((sum, m) => sum + m.matrix.grandTotal, 0);
-  const negativeTotal = models.reduce((sum, m) => sum + m.matrix.negativeCells, 0);
+  const matches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return models.filter(({ product: p }) => p.sellingName.toLowerCase().includes(q) || (p.modelCode ?? "").toLowerCase().includes(q));
+  }, [models, search]);
+
+  // ปิดรายการแนะนำเมื่อคลิกนอกช่องค้นหา
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) setSuggestOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+  useEffect(
+    () => () => {
+      if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    },
+    []
+  );
+
+  function goTo(productId: string) {
+    const el = document.getElementById("model-" + productId);
+    if (!el) return;
+    const reduce = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    setHighlightId(productId);
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    highlightTimer.current = setTimeout(() => setHighlightId(null), 2500);
+    setSuggestOpen(false);
+    setNotFound(false);
+  }
+
+  // กด Enter หรือปุ่มค้นหา: ไปที่รุ่นแรกที่ตรงคำค้น
+  function submitSearch() {
+    if (!search.trim()) return;
+    if (matches.length === 0) {
+      setNotFound(true);
+      setSuggestOpen(false);
+      return;
+    }
+    goTo(matches[0].product.id);
+  }
 
   return (
     <>
@@ -108,9 +154,63 @@ export default function StockOverviewPage() {
       <PageContainer>
         <Card>
           <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-on-surface-variant)]" />
-              <Input id="so-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหาชื่อรุ่นหรือรหัสรุ่น" className="pl-9" />
+            <div ref={searchBoxRef} className="relative sm:col-span-2 lg:col-span-1">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-on-surface-variant)]" />
+                  <Input
+                    id="so-search"
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setSuggestOpen(true);
+                      setNotFound(false);
+                    }}
+                    onFocus={() => setSuggestOpen(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        submitSearch();
+                      } else if (e.key === "Escape") {
+                        setSuggestOpen(false);
+                      }
+                    }}
+                    placeholder="ค้นหารุ่น แล้วเลื่อนไปที่ตาราง"
+                    className="pl-9"
+                    role="combobox"
+                    aria-expanded={suggestOpen && matches.length > 0}
+                    aria-controls="so-suggestions"
+                    autoComplete="off"
+                  />
+                </div>
+                <Button type="button" onClick={submitSearch} disabled={!search.trim()}>
+                  ค้นหา
+                </Button>
+              </div>
+              {suggestOpen && matches.length > 0 && (
+                <ul
+                  id="so-suggestions"
+                  role="listbox"
+                  className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-xl border border-[var(--color-border)] bg-white py-1 shadow-[var(--shadow-micro)]"
+                >
+                  {matches.map(({ product, matrix }) => (
+                    <li key={product.id} role="option" aria-selected={false}>
+                      <button
+                        type="button"
+                        onClick={() => goTo(product.id)}
+                        className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm hover:bg-[var(--color-surface-container)]"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">{product.sellingName}</span>
+                          <span className="block truncate text-xs text-[var(--color-on-surface-variant)]">{product.brandId ? (state.brands[product.brandId]?.name ?? "") : ""}</span>
+                        </span>
+                        <span className="shrink-0 text-xs font-medium tabular-nums text-[var(--color-on-surface-variant)]">{formatNumber(matrix.grandTotal)} ชิ้น</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {notFound && <p className="mt-1.5 text-xs font-medium text-[var(--color-danger)]">ไม่พบรุ่นที่ตรงกับ &quot;{search.trim()}&quot;</p>}
             </div>
             <Select id="so-brand" value={brandId} onChange={(e) => setBrandId(e.target.value)} aria-label="แบรนด์">
               <option value="">ทุกแบรนด์</option>
@@ -138,68 +238,33 @@ export default function StockOverviewPage() {
         {models.length === 0 ? (
           <Card>
             <CardContent className="p-8">
-              <EmptyState icon={<Boxes className="h-10 w-10" />} title="ไม่พบรุ่นสินค้า" description="ลองเปลี่ยนคำค้นหาหรือตัวกรองแบรนด์" />
+              <EmptyState icon={<Boxes className="h-10 w-10" />} title="ไม่พบรุ่นสินค้า" description="ลองเปลี่ยนตัวกรองแบรนด์" />
             </CardContent>
           </Card>
         ) : (
-          <>
-            {/* สรุปรายรุ่น: กดชื่อรุ่นเพื่อเลื่อนไปตารางของรุ่นนั้น */}
-            <Card>
+          models.map(({ product, matrix }) => (
+            <Card
+              key={product.id}
+              id={"model-" + product.id}
+              className={"scroll-mt-4 transition-shadow duration-500 " + (highlightId === product.id ? "ring-2 ring-[var(--color-primary-container)]" : "")}
+            >
               <CardContent className="p-0">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3">
-                  <p className="text-sm font-semibold">สรุปแต่ละรุ่น</p>
-                  <p className="text-xs text-[var(--color-on-surface-variant)]">
-                    {formatNumber(models.length)} รุ่น · รวม <span className="font-semibold text-[var(--color-on-surface)]">{formatNumber(grandTotal)}</span> ชิ้น
-                    {negativeTotal > 0 && <span className="ml-2 font-semibold text-[var(--color-danger)]">ติดลบ {formatNumber(negativeTotal)} ช่อง</span>}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link href={"/products/" + product.id} className="text-base font-semibold hover:text-[var(--color-primary-container)]">
+                      {product.sellingName}
+                    </Link>
+                    {product.brandId && state.brands[product.brandId] && <Badge tone="primary">{state.brands[product.brandId].name}</Badge>}
+                    {matrix.negativeCells > 0 && <Badge tone="danger">ติดลบ {matrix.negativeCells} ช่อง</Badge>}
+                  </div>
+                  <p className="text-sm text-[var(--color-on-surface-variant)]">
+                    รวม <span className="font-bold text-[var(--color-on-surface)]">{formatNumber(matrix.grandTotal)}</span> ชิ้น
                   </p>
                 </div>
-                <Table>
-                  <Thead>
-                    <Tr>
-                      <Th>รุ่น</Th>
-                      <Th>แบรนด์</Th>
-                      <Th className="text-right">จำนวนสี</Th>
-                      <Th className="text-right">รวมคงเหลือ (ชิ้น)</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {models.map(({ product, matrix, colorCount }) => (
-                      <Tr key={product.id}>
-                        <Td className="font-medium">
-                          <a href={"#model-" + product.id} className="hover:text-[var(--color-primary-container)] hover:underline">
-                            {product.sellingName}
-                          </a>
-                        </Td>
-                        <Td className="text-[var(--color-on-surface-variant)]">{product.brandId ? (state.brands[product.brandId]?.name ?? "-") : "-"}</Td>
-                        <Td className="text-right tabular-nums">{formatNumber(colorCount)}</Td>
-                        <Td className={"text-right font-semibold tabular-nums " + (matrix.grandTotal < 0 ? "text-[var(--color-danger)]" : "")}>{formatNumber(matrix.grandTotal)}</Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
+                <MatrixTable matrix={matrix} />
               </CardContent>
             </Card>
-
-            {models.map(({ product, matrix }) => (
-              <Card key={product.id} id={"model-" + product.id} className="scroll-mt-4">
-                <CardContent className="p-0">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link href={"/products/" + product.id} className="text-base font-semibold hover:text-[var(--color-primary-container)]">
-                        {product.sellingName}
-                      </Link>
-                      {product.brandId && state.brands[product.brandId] && <Badge tone="primary">{state.brands[product.brandId].name}</Badge>}
-                      {matrix.negativeCells > 0 && <Badge tone="danger">ติดลบ {matrix.negativeCells} ช่อง</Badge>}
-                    </div>
-                    <p className="text-sm text-[var(--color-on-surface-variant)]">
-                      รวม <span className="font-bold text-[var(--color-on-surface)]">{formatNumber(matrix.grandTotal)}</span> ชิ้น
-                    </p>
-                  </div>
-                  <MatrixTable matrix={matrix} />
-                </CardContent>
-              </Card>
-            ))}
-          </>
+          ))
         )}
       </PageContainer>
     </>
