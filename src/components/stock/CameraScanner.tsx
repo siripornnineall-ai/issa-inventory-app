@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { X, Camera } from "lucide-react";
 import jsQR from "jsqr";
 import { decodeBarcodeFrame, preloadBarcodeDecoder } from "@/lib/utils/barcodeDecoder";
+import { guideRegionInVideo } from "@/lib/utils/scanRegion";
 
 const RESCAN_COOLDOWN_MS = 1500;
-// บาร์โค้ดแท่งถอดรหัสช้ากว่า QR (WebAssembly) จึงลองเป็นรอบ ๆ ไม่ทุกเฟรม และย่อภาพให้กว้างไม่เกินนี้
-const BARCODE_INTERVAL_MS = 200;
-const BARCODE_MAX_WIDTH = 1280;
+// QR และบาร์โค้ดลองสลับกันเป็นรอบ ๆ ไม่ทุกเฟรม (เฟรม 1080p ถอดรหัสทุกเฟรมหนักเกินมือถือ ทำให้กล้องกระตุกและสแกนไม่เสถียร)
+const QR_INTERVAL_MS = 100;
+const QR_MAX_WIDTH = 1280; // QR ใหญ่พอ ย่อภาพได้ ช่วยให้เร็ว
+const BARCODE_INTERVAL_MS = 120;
 
 // ล็อกไม่ให้หน้าเว็บเบื้องหลังเลื่อน/ขยับตอนเปิดกล้อง — กัน iOS Safari ขยับ viewport ตามแถบ URL
 // ที่ยุบ/ขยายเวลากล้องทำงาน ซึ่งทำให้ overlay แบบ fixed เดิมสั่น/ไม่เต็มจอ
@@ -44,6 +46,7 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
   const barcodeCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const barcodeBusyRef = useRef(false);
   const lastBarcodeAtRef = useRef(0);
+  const lastQrAtRef = useRef(0);
   const onDetectRef = useRef(onDetect);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState(false);
@@ -73,9 +76,14 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
       barcodeBusyRef.current = true;
       lastBarcodeAtRef.current = now;
       try {
-        const scale = Math.min(1, BARCODE_MAX_WIDTH / video.videoWidth);
-        const w = Math.round(video.videoWidth * scale);
-        const h = Math.round(video.videoHeight * scale);
+        // ตัดเฉพาะส่วนที่อยู่ในกรอบเล็ง ที่ความละเอียดเต็มของกล้อง ไม่ย่อภาพ: แท่งบาร์โค้ดบนป้ายเล็กบางมาก
+        // ย่อทั้งเฟรมแล้วเหลือไม่ถึง 2 พิกเซลต่อแท่งจนอ่านไม่ออก
+        const { sx, sy, sw: w, sh: h } = guideRegionInVideo({
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight,
+          clientWidth: video.clientWidth,
+          clientHeight: video.clientHeight,
+        });
         const canvas = barcodeCanvasRef.current ?? (barcodeCanvasRef.current = document.createElement("canvas"));
         canvas.width = w;
         canvas.height = h;
@@ -84,7 +92,7 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
           barcodeBusyRef.current = false;
           return;
         }
-        ctx.drawImage(video, 0, 0, w, h);
+        ctx.drawImage(video, sx, sy, w, h, 0, 0, w, h);
         decodeBarcodeFrame(ctx.getImageData(0, 0, w, h))
           .then((text) => {
             if (text && !cancelled) emit(text);
@@ -104,15 +112,21 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
       const video = videoRef.current;
       const canvas = canvasRef.current;
       if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const result = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
-          if (result?.data) emit(result.data);
-          else tryBarcode(video, Date.now());
+        const now = Date.now();
+        if (now - lastQrAtRef.current >= QR_INTERVAL_MS) {
+          lastQrAtRef.current = now;
+          const scale = Math.min(1, QR_MAX_WIDTH / video.videoWidth);
+          canvas.width = Math.round(video.videoWidth * scale);
+          canvas.height = Math.round(video.videoHeight * scale);
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const result = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+            if (result?.data) emit(result.data);
+          }
+        } else {
+          tryBarcode(video, now);
         }
       }
       rafRef.current = requestAnimationFrame(tick);
@@ -183,7 +197,7 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
             style={{ bottom: "max(2rem, env(safe-area-inset-bottom))" }}
           >
             เล็งกล้องไปที่ QR หรือบาร์โค้ดบนป้ายสินค้า — สแกนต่อเนื่องได้เลย
-            <span className="mt-1 block text-xs text-white/70">บาร์โค้ดวางให้อยู่แนวนอนในกรอบ ห่างป้ายราว 15-20 ซม. ให้ภาพคมชัด</span>
+            <span className="mt-1 block text-xs text-white/70">บาร์โค้ดวางแนวนอน ให้เต็มความกว้างของกรอบ ห่างป้ายราว 10-15 ซม. จนภาพคมชัด</span>
           </p>
         </>
       )}
