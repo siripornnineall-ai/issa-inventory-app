@@ -52,6 +52,15 @@ function CreateTransferForm() {
     setLines((prev) => [...prev, { key: variantId, variantId, qty: 1 }]);
   }
 
+  // สแกนบาร์โค้ด SKU ซ้ำ = จำนวน +1 (บาร์โค้ดรหัสเดียวกันทุกชิ้นของตัวเลือกนั้น) ต่างจากการเลือกจากรายการที่ถือว่าซ้ำ
+  function scanSku(variantId: string) {
+    if (lines.some((l) => l.variantId === variantId)) {
+      setLines((prev) => prev.map((l) => (l.variantId === variantId ? { ...l, qty: l.qty + 1 } : l)));
+      return;
+    }
+    addLine(variantId);
+  }
+
   function updateLine(key: string, qty: number) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, qty } : l)));
   }
@@ -133,7 +142,7 @@ function CreateTransferForm() {
           </FormField>
         </div>
 
-        <VariantPicker warehouseId={fromWarehouseId} onSelect={addLine} />
+        <VariantPicker warehouseId={fromWarehouseId} onSelect={addLine} onScanSku={scanSku} />
 
         {lines.length === 0 ? (
           <EmptyState icon={<ArrowLeftRight className="h-10 w-10" />} title="ยังไม่มีรายการสินค้า" description="ค้นหาและเลือกสินค้าด้านบนเพื่อเพิ่มลงในรายการโอนย้าย" />

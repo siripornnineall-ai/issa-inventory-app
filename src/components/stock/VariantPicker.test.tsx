@@ -27,6 +27,34 @@ function openPicker() {
   fireEvent.click(screen.getByText("Billie Slim", { selector: "span.block" }));
 }
 
+describe("VariantPicker — ยิงบาร์โค้ด SKU", () => {
+  beforeEach(() => cleanup());
+
+  it("sends a scanned SKU (scanner types the SKU then Enter) to onScanSku, not onSelect, so pages can count +1", () => {
+    seed();
+    const variant = Object.values(useStore.getState().variants)[0];
+    const onSelect = vi.fn();
+    const onScanSku = vi.fn();
+    render(<VariantPicker onSelect={onSelect} onScanSku={onScanSku} />);
+    const input = screen.getByPlaceholderText(/ค้นหา/);
+    fireEvent.change(input, { target: { value: variant.sku } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onScanSku).toHaveBeenCalledWith(variant.id);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("falls back to onSelect when the page does not handle scans separately", () => {
+    seed();
+    const variant = Object.values(useStore.getState().variants)[0];
+    const onSelect = vi.fn();
+    render(<VariantPicker onSelect={onSelect} />);
+    const input = screen.getByPlaceholderText(/ค้นหา/);
+    fireEvent.change(input, { target: { value: variant.sku } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onSelect).toHaveBeenCalledWith(variant.id);
+  });
+});
+
 describe("VariantPicker — แสดงสีของรุ่นครบ", () => {
   beforeEach(() => cleanup());
 

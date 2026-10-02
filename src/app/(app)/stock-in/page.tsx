@@ -70,6 +70,15 @@ function StockInForm() {
     setLines((prev) => [...prev, { key: variantId, variantId, qty: 1, unitCost: variant?.purchasePrice ?? 0 }]);
   }
 
+  // สแกนบาร์โค้ด SKU ซ้ำ = จำนวน +1 (บาร์โค้ดรหัสเดียวกันทุกชิ้นของตัวเลือกนั้น) ต่างจากการเลือกจากรายการที่ถือว่าซ้ำ
+  function scanSku(variantId: string) {
+    if (lines.some((l) => l.variantId === variantId)) {
+      setLines((prev) => prev.map((l) => (l.variantId === variantId ? { ...l, qty: l.qty + 1 } : l)));
+      return;
+    }
+    addLine(variantId);
+  }
+
   function handleScanToken(token: UnitToken, variant: ProductVariant) {
     const product = state.products[variant.productId];
     const label = `${product?.sellingName ?? variant.sku} ${variant.color}/${variant.size}`;
@@ -240,7 +249,7 @@ function StockInForm() {
           <CardTitle>รายการสินค้า</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <VariantPicker warehouseId={warehouseId} onSelect={addLine} onScanToken={handleScanToken} />
+          <VariantPicker warehouseId={warehouseId} onSelect={addLine} onScanSku={scanSku} onScanToken={handleScanToken} />
 
           {scanLog.length > 0 && (
             <div className="max-h-40 overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container)] p-2 text-xs">

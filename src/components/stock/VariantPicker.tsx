@@ -22,6 +22,7 @@ export function VariantPicker({
   brandId,
   onSelect,
   onSelectMany,
+  onScanSku,
   onScanToken,
   placeholder = "ค้นหาสินค้าด้วยชื่อ สี ไซซ์ หรือ SKU / สแกนบาร์โค้ด...",
 }: {
@@ -31,6 +32,9 @@ export function VariantPicker({
   // ถ้าส่งมา หน้าต่างเลือกไซซ์จะมีช่องติ๊ก "เลือกทุกไซซ์ของสีนี้" เพิ่มทั้งสีในครั้งเดียว
   // คืนจำนวนที่เพิ่มเข้ารายการจริง (ข้ามตัวที่มีในรายการอยู่แล้ว) เพื่อใช้แสดงข้อความแจ้ง
   onSelectMany?: (variantIds: string[]) => number;
+  // เรียกเมื่อ "สแกน/ยิง" บาร์โค้ด SKU (เครื่องยิงพิมพ์ SKU + Enter หรือกล้อง) ต่างจากการเลือกจากรายการ
+  // บาร์โค้ดทุกชิ้นของตัวเลือกเดียวกันเป็นรหัสเดียวกัน หน้าที่ใช้อาจนับเป็น +1 ได้ ถ้าไม่ส่งมาจะใช้ onSelect เหมือนเดิม
+  onScanSku?: (variantId: string) => void;
   // เรียกเมื่อสแกนได้ป้าย QR ที่มีรหัสเฉพาะตัว (ต่อชิ้นจริง) — ถ้าไม่ส่งมาจะ fallback ไปที่ onSelect แบบเดิม
   onScanToken?: (token: UnitToken, variant: ProductVariant) => void;
   placeholder?: string;
@@ -71,7 +75,7 @@ export function VariantPicker({
 
     const bySku = findBySku(value);
     if (bySku) {
-      onSelect(bySku.id);
+      (onScanSku ?? onSelect)(bySku.id);
       playBeep("success");
       toastSuccess(`เพิ่ม ${state.products[bySku.productId]?.sellingName ?? bySku.sku} แล้ว`);
       return;
@@ -183,7 +187,7 @@ export function VariantPicker({
             const exact = findBySku(query);
             if (exact) {
               e.preventDefault();
-              onSelect(exact.id);
+              (onScanSku ?? onSelect)(exact.id);
               setQuery("");
               setOpen(false);
             }
