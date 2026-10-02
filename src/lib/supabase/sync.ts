@@ -58,6 +58,9 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
     jobs.push(check(supabase.from("warehouses").upsert({ id: w.id, name: w.name, type: w.type, address: w.address ?? null, active: w.active, created_at: w.createdAt })));
   }
 
+  // ลบคลัง: แถว variant_stock/equipment_stock ของคลังนั้นถูกฐานข้อมูลลบตามให้เอง (on delete cascade) ส่วนประวัติกันการลบด้วย foreign key
+  for (const id of wh.removedIds) jobs.push(check(supabase.from("warehouses").delete().eq("id", id)));
+
   const brand = diffRecords(prev.brands, next.brands);
   for (const b of [...brand.added, ...brand.changed]) {
     jobs.push(check(supabase.from("brands").upsert({ id: b.id, name: b.name, code: b.code, active: b.active, logo_url: b.logoUrl ?? null, created_at: b.createdAt })));

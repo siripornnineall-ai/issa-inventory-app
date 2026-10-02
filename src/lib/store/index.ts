@@ -32,6 +32,7 @@ interface Actions {
   upsertWarehouse: (input: Partial<Warehouse> & { id?: string }) => void;
   upsertSupplier: (input: Partial<Supplier> & { id?: string }) => string;
   removeSupplier: (id: string) => void;
+  removeWarehouse: (id: string) => void;
   upsertUser: (input: Partial<AppUser> & { id?: string }) => string;
   // สามตัวนี้อัปเดตเฉพาะ state ในเครื่อง ไม่เรียก sync — เพราะฝั่งฐานข้อมูลถูกเขียนไปแล้วโดย Edge Function admin-users
   // (สร้าง/ลบบัญชี) หรือ RPC clear_must_change_password (ล้างธงหลังเปลี่ยนรหัสผ่าน) ใช้หลังคำสั่งฝั่งเซิร์ฟเวอร์สำเร็จเท่านั้น
@@ -145,6 +146,7 @@ export const useStore = create<Store>()((set, get) => ({
         })
       ),
     upsertWarehouse: (input) => runChecked(set, get, "master.write", (draft) => engine.upsertWarehouse(draft as never, input)),
+    removeWarehouse: (id) => runChecked(set, get, "master.write", (draft) => engine.removeWarehouse(draft as never, id)),
     upsertSupplier: (input) => runChecked(set, get, "master.write", (draft) => engine.upsertSupplier(draft as never, input)),
     removeSupplier: (id) => runChecked(set, get, "master.write", (draft) => engine.removeSupplier(draft as never, id)),
     upsertUser: (input) => runChecked(set, get, "user.manage", (draft) => engine.upsertUser(draft as never, input)),

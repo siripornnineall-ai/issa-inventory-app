@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Pencil, Warehouse as WarehouseIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, Warehouse as WarehouseIcon } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { RequireAccess } from "@/components/layout/RequireAccess";
@@ -11,10 +11,12 @@ import { Input, FormField } from "@/components/ui/Field";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
 import { WarehouseDialog } from "@/components/settings/WarehouseDialog";
+import { ConfirmDialog } from "@/components/ui/Dialog";
+import { warehouseRemovalBlocker } from "@/lib/store/engine";
 import { SingleImageUploader } from "@/components/ui/SingleImageUploader";
 import { FitCoversCard } from "@/components/settings/FitCoversCard";
 import { useStore, useActions } from "@/lib/store";
-import { toastSuccess } from "@/lib/toast";
+import { toastError, toastSuccess } from "@/lib/toast";
 import type { Warehouse } from "@/lib/types";
 
 const TYPE_LABEL: Record<Warehouse["type"], string> = {
@@ -26,12 +28,13 @@ const TYPE_LABEL: Record<Warehouse["type"], string> = {
 
 export default function SettingsPage() {
   const state = useStore();
-  const { upsertWarehouse, updateCompanyInfo, updateStorefrontSettings, upsertBrand } = useActions();
+  const { upsertWarehouse, removeWarehouse, updateCompanyInfo, updateStorefrontSettings, upsertBrand } = useActions();
   const warehouses = Object.values(state.warehouses);
   const brands = Object.values(state.brands);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Warehouse | undefined>(undefined);
+  const [deleting, setDeleting] = useState<Warehouse | undefined>(undefined);
 
   const [companyName, setCompanyName] = useState(state.companyInfo.name);
   const [companyAddress, setCompanyAddress] = useState(state.companyInfo.address ?? "");
@@ -52,6 +55,28 @@ export default function SettingsPage() {
   const [socialTiktok, setSocialTiktok] = useState(state.storefrontSettings.socialTiktok);
   const [heroImageUrl, setHeroImageUrl] = useState(state.storefrontSettings.heroImageUrl);
   const [promoImageUrl, setPromoImageUrl] = useState(state.storefrontSettings.promoImageUrl);
+
+  // กดถังขยะ: ถ้าลบไม่ได้ (มีสินค้า/ประวัติ/เหลือคลังเดียว) บอกเหตุผลทันที ถ้าลบได้ค่อยเปิดหน้าต่างยืนยัน
+  function askDelete(w: Warehouse) {
+    const blocker = warehouseRemovalBlocker(state, w.id);
+    if (blocker) {
+      toastError(blocker);
+      return;
+    }
+    setDeleting(w);
+  }
+
+  function confirmDelete() {
+    if (!deleting) return;
+    try {
+      removeWarehouse(deleting.id);
+      toastSuccess('ลบคลัง "' + deleting.name + '" เรียบร้อยแล้ว');
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
+    } finally {
+      setDeleting(undefined);
+    }
+  }
 
   function toggleActive(w: Warehouse) {
     upsertWarehouse({ id: w.id, active: !w.active });
@@ -268,6 +293,14 @@ export default function SettingsPage() {
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
+                      <button
+                        onClick={() => askDelete(w)}
+                        aria-label={"ลบคลัง " + w.name}
+                        title="ลบคลัง"
+                        className="text-[var(--color-on-surface-variant)] hover:text-[var(--color-danger)]"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -310,6 +343,14 @@ export default function SettingsPage() {
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
+                          <button
+                            onClick={() => askDelete(w)}
+                            aria-label={"ลบคลัง " + w.name}
+                            title="ลบคลัง"
+                            className="text-[var(--color-on-surface-variant)] hover:text-[var(--color-danger)]"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </Td>
                       </Tr>
                     ))}
@@ -322,6 +363,16 @@ export default function SettingsPage() {
       </PageContainer>
 
       <WarehouseDialog open={dialogOpen} onClose={() => setDialogOpen(false)} existing={editing} />
+
+      <ConfirmDialog
+        open={deleting !== undefined}
+        onClose={() => setDeleting(undefined)}
+        danger
+        title={'ลบคลัง "' + (deleting?.name ?? "") + '"?'}
+        description="คลังนี้ยังไม่มีสินค้าและไม่เคยมีประวัติการทำรายการ ลบแล้วกู้คืนไม่ได้ ถ้าแค่เลิกใช้ชั่วคราวให้ปิดการใช้งานแทน"
+        confirmLabel="ลบคลัง"
+        onConfirm={confirmDelete}
+      />
     </>
   );
 }

@@ -120,6 +120,59 @@ describe("product & variant rules", () => {
   });
 });
 
+describe("removeWarehouse", () => {
+  const zeroRow = (variantId: string, warehouseId: string) => ({ itemId: variantId, warehouseId, qtyOnHand: 0, qtyReserved: 0 });
+
+  it("removes an empty warehouse that never had any activity, together with its zero stock rows", () => {
+    const { state: withVariant, variantId } = seedProductWithVariant(seedWarehouses());
+    const state = produce(withVariant, (d) => {
+      d.variantStock[variantId + "::wh-b"] = zeroRow(variantId, "wh-b");
+    });
+    const { state: next } = run(state, (draft) => engine.removeWarehouse(draft, "wh-b"));
+    expect(next.warehouses["wh-b"]).toBeUndefined();
+    expect(next.warehouses["wh-a"]).toBeDefined();
+    expect(Object.values(next.variantStock).some((s) => s.warehouseId === "wh-b")).toBe(false);
+  });
+
+  it("refuses while the warehouse still holds stock", () => {
+    const { state: withVariant, variantId } = seedProductWithVariant(seedWarehouses());
+    const { state: stocked } = run(withVariant, (draft) =>
+      engine.stockIn(draft, { itemType: "product", date: new Date().toISOString(), warehouseId: "wh-a", receivedBy: "u1", receivedByName: "T", lines: [{ itemId: variantId, qty: 3 }] })
+    );
+    expect(() => run(stocked, (draft) => engine.removeWarehouse(draft, "wh-a"))).toThrow(/คงเหลือ/);
+    expect(stocked.warehouses["wh-a"]).toBeDefined();
+  });
+
+  it("refuses when stock is only reserved", () => {
+    const { state: withVariant, variantId } = seedProductWithVariant(seedWarehouses());
+    const state = produce(withVariant, (d) => {
+      d.variantStock[variantId + "::wh-b"] = { ...zeroRow(variantId, "wh-b"), qtyReserved: 2 };
+    });
+    expect(() => run(state, (draft) => engine.removeWarehouse(draft, "wh-b"))).toThrow(BusinessRuleError);
+  });
+
+  it("refuses a warehouse with history even after its stock went back to zero, to protect the audit trail", () => {
+    const { state: withVariant, variantId } = seedProductWithVariant(seedWarehouses());
+    const { state: stocked } = run(withVariant, (draft) =>
+      engine.stockIn(draft, { itemType: "product", date: new Date().toISOString(), warehouseId: "wh-a", receivedBy: "u1", receivedByName: "T", lines: [{ itemId: variantId, qty: 3 }] })
+    );
+    const emptied = produce(stocked, (d) => {
+      for (const s of Object.values(d.variantStock)) s.qtyOnHand = 0;
+    });
+    expect(() => run(emptied, (draft) => engine.removeWarehouse(draft, "wh-a"))).toThrow(/ประวัติ/);
+    expect(engine.warehouseRemovalBlocker(emptied, "wh-b")).toBeNull(); // คลังอื่นที่ไม่เคยใช้ยังลบได้
+  });
+
+  it("refuses to delete the last remaining warehouse", () => {
+    const { state } = run(seedWarehouses(), (draft) => engine.removeWarehouse(draft, "wh-b"));
+    expect(() => run(state, (draft) => engine.removeWarehouse(draft, "wh-a"))).toThrow(/อย่างน้อย 1 แห่ง/);
+  });
+
+  it("explains an unknown warehouse instead of crashing", () => {
+    expect(engine.warehouseRemovalBlocker(seedWarehouses(), "nope")).toBe("ไม่พบคลังนี้");
+  });
+});
+
 describe("removeUser", () => {
   function seedUsers(): AppState {
     return produce(seedWarehouses(), (draft) => {

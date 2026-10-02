@@ -84,6 +84,41 @@ export function upsertWarehouse(draft: Draft<AppState>, input: Partial<Warehouse
   return id;
 }
 
+// เหตุผลที่ลบคลังไม่ได้ (null = ลบได้) ใช้ทั้งใน removeWarehouse และหน้าตั้งค่า เพื่อบอกเหตุผลก่อนเปิดหน้าต่างยืนยัน
+// กฎ: ต้องเหลืออย่างน้อย 1 คลัง, ต้องไม่มีสินค้า/อุปกรณ์คงเหลือหรือจองไว้, และต้องไม่เคยมีประวัติทำรายการ
+// (ประวัติการเคลื่อนไหว/ใบรับเข้า/ใบเบิกออก/ใบโอนย้าย/คำสั่งซื้อ อ้างอิงคลัง และฐานข้อมูลห้ามลบเพื่อรักษาประวัติ)
+export function warehouseRemovalBlocker(state: AppState, id: string): string | null {
+  const wh = state.warehouses[id];
+  if (!wh) return "ไม่พบคลังนี้";
+  if (Object.keys(state.warehouses).length <= 1) return "ต้องมีคลังอย่างน้อย 1 แห่ง จึงลบคลังสุดท้ายไม่ได้";
+
+  const stocks = [...Object.values(state.variantStock), ...Object.values(state.equipmentStock)].filter((s) => s.warehouseId === id);
+  const units = stocks.reduce((n, s) => n + s.qtyOnHand, 0);
+  if (units > 0 || stocks.some((s) => s.qtyReserved > 0)) {
+    return 'คลัง "' + wh.name + '" ยังมีสินค้า/อุปกรณ์คงเหลือหรือถูกจองอยู่ กรุณาโอนย้ายหรือเบิกออกให้หมดก่อน';
+  }
+
+  const hasHistory =
+    Object.values(state.movements).some((m) => m.warehouseFromId === id || m.warehouseToId === id) ||
+    Object.values(state.stockInDocs).some((d) => d.warehouseId === id) ||
+    Object.values(state.stockOutDocs).some((d) => d.warehouseId === id) ||
+    Object.values(state.transfers).some((t) => t.fromWarehouseId === id || t.toWarehouseId === id) ||
+    Object.values(state.orders).some((o) => o.warehouseId === id);
+  if (hasHistory) {
+    return 'คลัง "' + wh.name + '" มีประวัติการทำรายการแล้ว จึงลบไม่ได้ เพราะลบแล้วประวัติจะเสีย กรุณาใช้การปิดการใช้งานแทน';
+  }
+  return null;
+}
+
+export function removeWarehouse(draft: Draft<AppState>, id: string) {
+  const blocker = warehouseRemovalBlocker(draft as unknown as AppState, id);
+  if (blocker) throw new BusinessRuleError(blocker);
+  delete draft.warehouses[id];
+  // แถวสต็อกของคลังนี้ล้วนเป็น 0 (ตรวจแล้วข้างบน) เอาออกจากหน่วยความจำ ฐานข้อมูลลบตามเองอัตโนมัติ (on delete cascade)
+  for (const key of Object.keys(draft.variantStock)) if (draft.variantStock[key].warehouseId === id) delete draft.variantStock[key];
+  for (const key of Object.keys(draft.equipmentStock)) if (draft.equipmentStock[key].warehouseId === id) delete draft.equipmentStock[key];
+}
+
 export function upsertUser(draft: Draft<AppState>, input: Partial<AppUser> & { id?: string }): string {
   const id = input.id ?? newId();
   const existing = draft.users[id];
