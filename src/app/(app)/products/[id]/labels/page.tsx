@@ -14,6 +14,7 @@ import { useLabelCalibration } from "@/lib/utils/labelCalibration";
 import { preloadImages } from "@/lib/utils/preloadImages";
 import { toastError, toastInfo } from "@/lib/toast";
 import { encodeCode128 } from "@/lib/utils/code128";
+import { buildPrintLogos } from "@/lib/utils/printLogo";
 import { isBarcode } from "@/lib/utils/labelPrintCss";
 import type { ProductVariant } from "@/lib/types";
 
@@ -87,7 +88,7 @@ export default function ProductLabelsPage() {
 
   const totalToPrint = variants.reduce((sum, v) => sum + (selected.has(v.id) ? (quantities[v.id] ?? 1) : 0), 0);
 
-  function handlePrint() {
+  async function handlePrint() {
     setMinting(true);
     try {
       const batch: PrintLabelItem[] = [];
@@ -110,7 +111,13 @@ export default function ProductLabelsPage() {
         return;
       }
       if (qrFallback > 0) toastInfo(qrFallback + " ใบ SKU มีภาษาไทยจึงทำบาร์โค้ดไม่ได้ ระบบพิมพ์เป็น QR แทน (แก้ SKU ได้ที่หน้าสินค้า > สร้าง SKU มาตรฐานใหม่)");
-      setPrintBatch(batch);
+      // เครื่องพิมพ์ฉลากพิมพ์ได้แค่ขาวดำ: แปลงโลโก้กลาง QR เป็นขาวดำที่ตัดกันชัด ไม่งั้นโลโก้พื้นสีอ่อนจะกลายเป็นช่องว่าง
+      let finalBatch = batch;
+      if (calibration.paper === "roll" && batch.some((b) => b.token && b.brandLogoUrl)) {
+        const logos = await buildPrintLogos(batch.map((b) => b.brandLogoUrl));
+        finalBatch = batch.map((b) => (b.brandLogoUrl ? { ...b, brandLogoUrl: logos.get(b.brandLogoUrl) ?? b.brandLogoUrl } : b));
+      }
+      setPrintBatch(finalBatch);
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
     } finally {
