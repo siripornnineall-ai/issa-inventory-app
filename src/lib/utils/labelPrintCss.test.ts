@@ -120,9 +120,12 @@ describe("barcode labels", () => {
     expect(css.slice(css.indexOf(".bc-sku"))).toContain("font-size: 7pt");
   });
 
-  it("never lets the barcode be wider than the label, and does not stretch short SKUs past 0.3 mm per module", () => {
+  it("never lets the barcode be wider than the label, and does not stretch very short codes past 0.4 mm per module", () => {
     expect(barcodeWidthMm(190, 47)).toBe(47);
-    expect(barcodeWidthMm(100, 47)).toBe(30);
+    expect(barcodeWidthMm(100, 47)).toBe(40);
+    // รหัสสั้น 8 ตัว: 135 โมดูล เต็มความกว้าง 47 มม. = 0.348 มม. ต่อโมดูล
+    expect(barcodeWidthMm(135, 47)).toBe(47);
+    expect(47 / 135).toBeGreaterThan(0.34);
   });
 
   it("keeps every module at about 2 printer dots (0.25 mm) or wider for a 13-character SKU on 50 mm", () => {

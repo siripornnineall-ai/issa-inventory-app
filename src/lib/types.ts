@@ -153,6 +153,8 @@ export type UnitTokenAction = "in" | "out";
 
 export interface UnitToken {
   id: string;
+  // รหัสสั้น 8 ตัวอักษร (A-Z ไม่มี I/O และ 2-9) ที่พิมพ์เป็นบาร์โค้ด ป้ายที่ทำก่อนมีบาร์โค้ดเฉพาะใบจะไม่มี (QR ใช้ id)
+  code?: string;
   variantId: string;
   lastAction?: UnitTokenAction;
   lastActionAt?: string;

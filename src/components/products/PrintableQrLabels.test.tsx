@@ -32,6 +32,22 @@ describe("PrintableQrLabels", () => {
     expect(without.container.querySelector(".bc-shape")).toBeNull();
   });
 
+  it("prints the label's own short code as the barcode (8 characters, so thicker bars) with SKU and code readable below", () => {
+    const withCode = { ...barcodeItem, token: { ...token, code: "K7F29QXM" } };
+    const { container } = render(<PrintableQrLabels items={[withCode]} calibration={DEFAULT_LABEL_CALIBRATION} />);
+    // 8 ตัวอักษร: 11*8+35 = 123 โมดูล + โซนเงียบ 12 = 135 (ถ้าเป็น SKU 11 ตัวจะเป็น 168)
+    expect(container.querySelector("svg.barcode-svg")?.getAttribute("viewBox")).toBe("-6 0 135 1");
+    expect(container.querySelector(".bc-code-text")?.textContent).toBe("K7F29QXM");
+    expect(container.querySelector(".bc-sku")?.textContent).toBe("IS-BS-BLK-S K7F29QXM");
+  });
+
+  it("makes a barcode for a Thai-SKU product too, because the code is plain ASCII", () => {
+    const thaiWithCode = { ...thaiItem, token: { ...token, code: "K7F29QXM" } };
+    const { container } = render(<PrintableQrLabels items={[thaiWithCode]} calibration={DEFAULT_LABEL_CALIBRATION} />);
+    expect(container.querySelectorAll(".barcode-card").length).toBe(1);
+    expect(container.querySelector(".bc-sku")?.textContent).toContain("ISSA-BILSLI-ดำ-S-004");
+  });
+
   it("prints one barcode label per item, so quantity 3 makes 3 labels", () => {
     const { container } = render(<PrintableQrLabels items={[barcodeItem, barcodeItem, barcodeItem]} calibration={{ ...DEFAULT_LABEL_CALIBRATION, paper: "roll" }} />);
     expect(container.querySelectorAll(".barcode-card").length).toBe(3);

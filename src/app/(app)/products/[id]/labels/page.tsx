@@ -12,10 +12,8 @@ import { productVariants } from "@/lib/store/selectors";
 import { compareSizes } from "@/lib/utils/sizes";
 import { useLabelCalibration } from "@/lib/utils/labelCalibration";
 import { preloadImages } from "@/lib/utils/preloadImages";
-import { toastError, toastInfo } from "@/lib/toast";
-import { encodeCode128 } from "@/lib/utils/code128";
+import { toastError } from "@/lib/toast";
 import { buildPrintLogos } from "@/lib/utils/printLogo";
-import { isBarcode } from "@/lib/utils/labelPrintCss";
 import type { ProductVariant } from "@/lib/types";
 
 export default function ProductLabelsPage() {
@@ -92,17 +90,11 @@ export default function ProductLabelsPage() {
     setMinting(true);
     try {
       const batch: PrintLabelItem[] = [];
-      let qrFallback = 0;
       for (const v of variants) {
         if (!selected.has(v.id)) continue;
         const qty = quantities[v.id] ?? 1;
         if (qty <= 0) continue;
-        // บาร์โค้ดใช้ SKU ไม่ต้องสร้างโทเคนเฉพาะตัว ยกเว้น SKU ที่เข้ารหัสไม่ได้ (มีภาษาไทย) จะพิมพ์เป็น QR แทน
-        if (isBarcode(calibration) && encodeCode128(v.sku)) {
-          for (let i = 0; i < qty; i++) batch.push({ product, variant: v, brandLogoUrl: brand?.logoUrl });
-          continue;
-        }
-        if (isBarcode(calibration)) qrFallback += qty;
+        // ทั้งบาร์โค้ดและ QR สร้างรหัสเฉพาะใบใหม่ทุกครั้งที่พิมพ์ (บาร์โค้ดใช้รหัสสั้น 8 ตัว QR ใช้ id เต็ม)
         const tokens = mintUnitTokens(v.id, qty);
         for (const token of tokens) batch.push({ product, variant: v, token, brandLogoUrl: brand?.logoUrl });
       }
@@ -110,7 +102,6 @@ export default function ProductLabelsPage() {
         toastError("กรุณาเลือกสี/ไซซ์และระบุจำนวนอย่างน้อย 1 ใบ");
         return;
       }
-      if (qrFallback > 0) toastInfo(qrFallback + " ใบ SKU มีภาษาไทยจึงทำบาร์โค้ดไม่ได้ ระบบพิมพ์เป็น QR แทน (แก้ SKU ได้ที่หน้าสินค้า > สร้าง SKU มาตรฐานใหม่)");
       // เครื่องพิมพ์ฉลากพิมพ์ได้แค่ขาวดำ: แปลงโลโก้กลาง QR เป็นขาวดำที่ตัดกันชัด ไม่งั้นโลโก้พื้นสีอ่อนจะกลายเป็นช่องว่าง
       let finalBatch = batch;
       if (calibration.paper === "roll" && batch.some((b) => b.token && b.brandLogoUrl)) {
@@ -141,11 +132,7 @@ export default function ProductLabelsPage() {
       </div>
 
       <h1 className="mb-1 text-lg font-semibold print:hidden">ป้ายสินค้า — {product.sellingName}</h1>
-      <p className="mb-4 text-xs text-[var(--color-on-surface-variant)] print:hidden">
-        {isBarcode(calibration)
-          ? "บาร์โค้ดคือรหัส SKU ของตัวเลือกนั้น ทุกชิ้นของสี/ไซซ์เดียวกันได้รหัสเดียวกัน สแกนด้วยเครื่องยิงบาร์โค้ด"
-          : "แต่ละใบที่ปริ้นจะมีรหัสเฉพาะตัวไม่ซ้ำกัน ใช้กันสแกนซ้ำชิ้นเดิมตอนรับเข้า/เบิกออก/นับสต็อก"}
-      </p>
+      <p className="mb-4 text-xs text-[var(--color-on-surface-variant)] print:hidden">แต่ละใบที่ปริ้นจะมีรหัสเฉพาะตัวไม่ซ้ำกัน (ทั้งบาร์โค้ดและ QR) ใช้กันสแกนซ้ำชิ้นเดิมตอนรับเข้า/เบิกออก/นับสต็อก</p>
 
       {variants.length === 0 ? (
         <p className="text-sm text-[var(--color-on-surface-variant)]">สินค้านี้ยังไม่มีตัวเลือกสี/ไซซ์</p>

@@ -904,12 +904,42 @@ export function adjustStock(
 // ปริ้นทีไรได้รหัสใหม่ไม่ซ้ำใครต่อชิ้น ใช้กันสแกนชิ้นเดิมซ้ำตอนรับเข้า/เบิกออก/นับสต็อก
 export const UNIT_TOKEN_COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3 ชั่วโมง
 
+// รหัสสั้นของป้ายหนึ่งใบ สำหรับพิมพ์เป็นบาร์โค้ด 8 ตัว ตัดตัวอักษรที่อ่านสับสนออก (I, O, 0, 1) เหลือ 32 ตัวพอดี
+// 32^8 ≈ 1.1 ล้านล้านแบบ ซ้ำกันแทบเป็นไปไม่ได้ และฐานข้อมูลมี unique index กันซ้ำอีกชั้น
+export const UNIT_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export const UNIT_CODE_LENGTH = 8;
+export const UNIT_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{8}$/;
+
+export function generateUnitCode(): string {
+  const bytes = new Uint8Array(UNIT_CODE_LENGTH);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => UNIT_CODE_ALPHABET[b & 31]).join("");
+}
+
+// ข้อความนี้หน้าตาเหมือนรหัสป้ายรายชิ้นไหม (id เต็มของ QR หรือรหัสสั้น 8 ตัวของบาร์โค้ด) ใช้แยกจากคำค้นหาปกติ
+export function isUnitScanCode(value: string): boolean {
+  const v = value.trim();
+  if (UNIT_CODE_PATTERN.test(normalizeUnitCode(v))) return true;
+  const parts = v.split("-");
+  return parts.length === 5 && parts.every((p, i) => p.length === [8, 4, 4, 4, 12][i] && p.split("").every((c) => "0123456789abcdefABCDEF".includes(c)));
+}
+
+// ทำข้อความที่สแกนได้ (หรือพิมพ์เอง) ให้อยู่ในรูปเดียวกับรหัส: ตัวพิมพ์ใหญ่ ตัดช่องว่างและขีดคั่นออก
+export function normalizeUnitCode(input: string): string {
+  return input.trim().split(" ").join("").split("-").join("").toUpperCase();
+}
+
 export function mintUnitTokens(draft: Draft<AppState>, variantId: string, qty: number): UnitToken[] {
   if (!draft.variants[variantId]) throw new BusinessRuleError("ไม่พบตัวเลือกสินค้านี้");
   if (qty <= 0) throw new BusinessRuleError("จำนวนต้องมากกว่า 0");
   const tokens: UnitToken[] = [];
+  const usedCodes = new Set<string>();
+  for (const t of Object.values(draft.unitTokens)) if (t.code) usedCodes.add(t.code);
   for (let i = 0; i < qty; i++) {
-    const token: UnitToken = { id: newId(), variantId, createdAt: nowISO() };
+    let code = generateUnitCode();
+    while (usedCodes.has(code)) code = generateUnitCode();
+    usedCodes.add(code);
+    const token: UnitToken = { id: newId(), code, variantId, createdAt: nowISO() };
     draft.unitTokens[token.id] = token;
     tokens.push(token);
   }
@@ -924,7 +954,7 @@ export function checkUnitTokenScan(
   action: UnitTokenAction
 ): { ok: true } | { ok: false; message: string } {
   const token = tokens[tokenId];
-  if (!token) return { ok: false, message: "ไม่พบรหัส QR นี้ในระบบ (อาจยังไม่เคยปริ้นจากระบบนี้)" };
+  if (!token) return { ok: false, message: "ไม่พบรหัสนี้ในระบบ (อาจยังไม่เคยปริ้นจากระบบนี้)" };
   if (token.lastAction === action && token.lastActionAt) {
     const elapsed = Date.now() - new Date(token.lastActionAt).getTime();
     if (elapsed < UNIT_TOKEN_COOLDOWN_MS) {

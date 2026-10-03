@@ -42,6 +42,7 @@ import type {
   Warehouse,
 } from "@/lib/types";
 import { DEFAULT_STOREFRONT_SETTINGS } from "@/lib/store/state";
+import { normalizeUnitCode, UNIT_CODE_PATTERN } from "@/lib/store/engine";
 
 // แปลงชื่อคอลัมน์ snake_case จาก Supabase ให้เป็น AppState ที่ UI ใช้อยู่ (camelCase)
 
@@ -73,16 +74,36 @@ async function fetchProductImagesPaginated(supabase: SupabaseClient, pageSize = 
 // สแกน QR อาจเจอโทเคนที่เพิ่งปริ้นจากอุปกรณ์/แท็บอื่น (เช่น ปริ้นจากคอมแล้วสแกนด้วยมือถือ) ซึ่งข้อมูลในเครื่อง
 // เครื่องนี้ยังไม่มี (โหลด state ครั้งเดียวตอนเปิดแอป ไม่ได้ sync แบบเรียลไทม์ข้ามอุปกรณ์) จึงต้อง fallback
 // ไปถามฐานข้อมูลตรง ๆ เฉพาะโทเคนนั้นก่อนจะสรุปว่า "ไม่พบ"
-export async function fetchUnitTokenById(supabase: SupabaseClient, tokenId: string): Promise<UnitToken | null> {
-  const { data, error } = await supabase.from("unit_tokens").select("*").eq("id", tokenId).maybeSingle();
-  if (error || !data) return null;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type UnitTokenRow = { id: string; code?: string | null; variant_id: string; last_action?: string | null; last_action_at?: string | null; created_at: string };
+
+function rowToUnitToken(row: UnitTokenRow): UnitToken {
   return {
-    id: data.id,
-    variantId: data.variant_id,
-    lastAction: (data.last_action ?? undefined) as UnitTokenAction | undefined,
-    lastActionAt: data.last_action_at ?? undefined,
-    createdAt: data.created_at,
+    id: row.id,
+    code: row.code ?? undefined,
+    variantId: row.variant_id,
+    lastAction: (row.last_action ?? undefined) as UnitTokenAction | undefined,
+    lastActionAt: row.last_action_at ?? undefined,
+    createdAt: row.created_at,
   };
+}
+
+// รับได้ทั้ง id เต็ม (จาก QR) และรหัสสั้น 8 ตัว (จากบาร์โค้ด) — ถ้าเป็นรูปแบบอื่นคืน null โดยไม่ยิงคำสั่งไปฐานข้อมูล
+export async function fetchUnitTokenByScan(supabase: SupabaseClient, value: string): Promise<UnitToken | null> {
+  const trimmed = value.trim();
+  const base = supabase.from("unit_tokens").select("*");
+  let query;
+  if (UUID_PATTERN.test(trimmed)) {
+    query = base.eq("id", trimmed);
+  } else {
+    const code = normalizeUnitCode(trimmed);
+    if (!UNIT_CODE_PATTERN.test(code)) return null;
+    query = base.eq("code", code);
+  }
+  const { data, error } = await query.maybeSingle();
+  if (error || !data) return null;
+  return rowToUnitToken(data as UnitTokenRow);
 }
 
 export async function fetchAppState(supabase: SupabaseClient): Promise<AppState> {
@@ -600,13 +621,7 @@ export async function fetchAppState(supabase: SupabaseClient): Promise<AppState>
 
   const unitTokens: Record<string, UnitToken> = {};
   for (const row of unitTokensRes.data ?? []) {
-    unitTokens[row.id] = {
-      id: row.id,
-      variantId: row.variant_id,
-      lastAction: (row.last_action ?? undefined) as UnitTokenAction | undefined,
-      lastActionAt: row.last_action_at ?? undefined,
-      createdAt: row.created_at,
-    };
+    unitTokens[row.id] = rowToUnitToken(row as UnitTokenRow);
   }
 
   // เริ่มลำดับเลขที่เอกสารต่อจากของเดิม เพื่อไม่ให้เลขซ้ำกับที่มีอยู่แล้วในฐานข้อมูล

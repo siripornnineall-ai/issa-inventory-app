@@ -423,6 +423,7 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
       check(
         supabase.from("unit_tokens").insert({
           id: t.id,
+          code: t.code ?? null,
           variant_id: t.variantId,
           last_action: t.lastAction ?? null,
           last_action_at: t.lastActionAt ?? null,

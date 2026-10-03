@@ -3,6 +3,7 @@ import { produce, type Draft } from "immer";
 import * as engine from "./engine";
 import { emptyState, type AppState } from "./state";
 import { BusinessRuleError } from "./engine";
+import { resolveUnitToken } from "./selectors";
 
 function run<T>(state: AppState, fn: (draft: Draft<AppState>) => T): { state: AppState; result: T } {
   let result!: T;
@@ -590,5 +591,59 @@ describe("unit tokens (ป้าย QR ต่อชิ้น)", () => {
     const check = engine.checkUnitTokenScan(afterIn.unitTokens, tokenId, "in");
     expect(check.ok).toBe(false);
     if (!check.ok) expect(check.message).toContain("สแกนเข้าไปแล้วเมื่อ");
+  });
+});
+
+describe("รหัสสั้นของป้ายรายชิ้น (บาร์โค้ดกันสแกนซ้ำ)", () => {
+  function seedWithVariant() {
+    return seedProductWithVariant(seedWarehouses());
+  }
+
+  it("gives every minted label its own 8-character code from the readable alphabet", () => {
+    const { state, variantId } = seedWithVariant();
+    const { result: tokens } = run(state, (draft) => engine.mintUnitTokens(draft, variantId, 300));
+    const codes = tokens.map((t) => t.code!);
+    expect(new Set(codes).size).toBe(300);
+    for (const c of codes) {
+      expect(c).toMatch(/^[A-HJ-NP-Z2-9]{8}$/); // ไม่มี I O 0 1 กันอ่านสับสน
+    }
+  });
+
+  it("never repeats a code that already exists in the system", () => {
+    const { state, variantId } = seedWithVariant();
+    const { state: s1, result: first } = run(state, (draft) => engine.mintUnitTokens(draft, variantId, 50));
+    const { result: second } = run(s1, (draft) => engine.mintUnitTokens(draft, variantId, 50));
+    const all = new Set([...first, ...second].map((t) => t.code));
+    expect(all.size).toBe(100);
+  });
+
+  it("finds a label by its full id (QR) or by its short code however the scanner or person types it", () => {
+    const { state, variantId } = seedWithVariant();
+    const { state: s1, result: tokens } = run(state, (draft) => engine.mintUnitTokens(draft, variantId, 1));
+    const token = tokens[0];
+    expect(resolveUnitToken(s1, token.id)?.token.id).toBe(token.id);
+    expect(resolveUnitToken(s1, token.code!)?.token.id).toBe(token.id);
+    expect(resolveUnitToken(s1, token.code!.toLowerCase())?.token.id).toBe(token.id);
+    expect(resolveUnitToken(s1, token.code!.slice(0, 4) + " - " + token.code!.slice(4))?.variant.id).toBe(variantId);
+    expect(resolveUnitToken(s1, "ZZZZZZZZ")).toBeUndefined();
+  });
+
+  it("blocks scanning the same barcode label twice, just like QR", () => {
+    const { state, variantId } = seedWithVariant();
+    const { state: s1, result: tokens } = run(state, (draft) => engine.mintUnitTokens(draft, variantId, 1));
+    const tokenId = tokens[0].id;
+    const { state: s2 } = run(s1, (draft) => engine.recordUnitScan(draft, { tokenId, action: "in" }));
+    const found = resolveUnitToken(s2, tokens[0].code!)!;
+    const check = engine.checkUnitTokenScan(s2.unitTokens, found.token.id, "in");
+    expect(check.ok).toBe(false);
+  });
+
+  it("tells a scanned code apart from an ordinary search word", () => {
+    expect(engine.isUnitScanCode("K7F29QXM")).toBe(true);
+    expect(engine.isUnitScanCode("k7f2-9qxm")).toBe(true);
+    expect(engine.isUnitScanCode("7b1f3c2e-9a4d-4e8b-8c55-100000000001")).toBe(true);
+    expect(engine.isUnitScanCode("Billie Slim")).toBe(false);
+    expect(engine.isUnitScanCode("IS-BS-CRM-S")).toBe(false);
+    expect(engine.isUnitScanCode("flow")).toBe(false);
   });
 });

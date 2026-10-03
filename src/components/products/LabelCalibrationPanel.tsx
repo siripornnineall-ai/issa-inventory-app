@@ -68,8 +68,8 @@ export function LabelCalibrationPanel({
   }
 
   const codes: Choice<LabelCodeType>[] = [
-    { key: "barcode", title: "บาร์โค้ด (Code 128)", hint: "รหัส SKU ของตัวเลือกนั้น ใช้กับเครื่องยิงบาร์โค้ด" },
-    { key: "qr", title: "QR รหัสเฉพาะทุกใบ", hint: "สแกนด้วยกล้องมือถือในแอป ตรวจสแกนซ้ำรายชิ้นได้" },
+    { key: "barcode", title: "บาร์โค้ด (Code 128)", hint: "รหัสสั้น 8 ตัวเฉพาะทุกใบ ใช้กับเครื่องยิงหรือกล้อง กันสแกนซ้ำ" },
+    { key: "qr", title: "QR รหัสเฉพาะทุกใบ", hint: "สแกนด้วยกล้องมือถือ กันสแกนซ้ำ" },
   ];
 
   const papers: Choice<LabelPaper>[] = [
@@ -84,7 +84,7 @@ export function LabelCalibrationPanel({
         <ChoiceGroup label="รหัสบนป้าย" choices={codes} value={calibration.codeType ?? "barcode"} onPick={(codeType) => onChange({ codeType })} />
         {barcode && (
           <p className="mt-2 text-xs text-[var(--color-on-surface-variant)]">
-            SKU ยาวเกิน 13 ตัวอักษรจะทำให้แท่งบาร์โค้ดบางลงบนป้าย 50 มม. และสแกนยากขึ้นบนเครื่องพิมพ์ 203 dpi ส่วน SKU ที่มีภาษาไทยทำบาร์โค้ดไม่ได้ ระบบจะพิมพ์ใบนั้นเป็น QR แทน
+            บาร์โค้ดเป็นรหัสสั้น 8 ตัวอักษรที่ระบบสร้างใหม่ทุกครั้งที่พิมพ์ แต่ละใบไม่ซ้ำกัน แท่งหนาอ่านง่ายกว่าบาร์โค้ด SKU แบบเดิม ใต้แท่งมีรหัส SKU และรหัสสั้นให้อ่านด้วยตา ป้ายบาร์โค้ด SKU ที่พิมพ์ไว้ก่อนหน้ายังสแกนได้ แต่กันสแกนซ้ำไม่ได้
           </p>
         )}
       </div>

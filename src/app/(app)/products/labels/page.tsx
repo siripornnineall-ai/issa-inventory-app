@@ -13,10 +13,8 @@ import { LabelCalibrationPanel } from "@/components/products/LabelCalibrationPan
 import { useStore, useActions } from "@/lib/store";
 import { useLabelCalibration } from "@/lib/utils/labelCalibration";
 import { preloadImages } from "@/lib/utils/preloadImages";
-import { toastError, toastInfo } from "@/lib/toast";
-import { encodeCode128 } from "@/lib/utils/code128";
+import { toastError } from "@/lib/toast";
 import { buildPrintLogos } from "@/lib/utils/printLogo";
-import { isBarcode } from "@/lib/utils/labelPrintCss";
 import type { UnitToken } from "@/lib/types";
 
 interface CartLine {
@@ -78,19 +76,13 @@ export default function PrintLabelsBatchPage() {
     setMinting(true);
     try {
       const batch: PrintLabelItem[] = [];
-      let qrFallback = 0;
       for (const line of cart) {
         if (line.qty <= 0) continue;
         const variant = state.variants[line.variantId];
         const product = variant ? state.products[variant.productId] : undefined;
         if (!variant || !product) continue;
         const brand = product.brandId ? state.brands[product.brandId] : undefined;
-        // บาร์โค้ดใช้ SKU ไม่ต้องสร้างโทเคนเฉพาะตัว (ไม่เพิ่มแถวในฐานข้อมูล) ยกเว้น SKU ที่เข้ารหัสไม่ได้ จะพิมพ์เป็น QR แทน
-        if (isBarcode(calibration) && encodeCode128(variant.sku)) {
-          for (let i = 0; i < line.qty; i++) batch.push({ product, variant, brandLogoUrl: brand?.logoUrl });
-          continue;
-        }
-        if (isBarcode(calibration)) qrFallback += line.qty;
+        // ทั้งบาร์โค้ดและ QR สร้างรหัสเฉพาะใบใหม่ทุกครั้งที่พิมพ์ (บาร์โค้ดใช้รหัสสั้น 8 ตัว QR ใช้ id เต็ม)
         const tokens: UnitToken[] = mintUnitTokens(line.variantId, line.qty);
         for (const token of tokens) batch.push({ product, variant, token, brandLogoUrl: brand?.logoUrl });
       }
@@ -98,7 +90,6 @@ export default function PrintLabelsBatchPage() {
         toastError("กรุณาเพิ่มรุ่นสินค้าและระบุจำนวนอย่างน้อย 1 ใบ");
         return;
       }
-      if (qrFallback > 0) toastInfo(qrFallback + " ใบ SKU มีภาษาไทยจึงทำบาร์โค้ดไม่ได้ ระบบพิมพ์เป็น QR แทน (แก้ SKU ได้ที่หน้าสินค้า > สร้าง SKU มาตรฐานใหม่)");
       // เครื่องพิมพ์ฉลากพิมพ์ได้แค่ขาวดำ: แปลงโลโก้กลาง QR เป็นขาวดำที่ตัดกันชัด ไม่งั้นโลโก้พื้นสีอ่อนจะกลายเป็นช่องว่าง
       let finalBatch = batch;
       if (calibration.paper === "roll" && batch.some((b) => b.token && b.brandLogoUrl)) {

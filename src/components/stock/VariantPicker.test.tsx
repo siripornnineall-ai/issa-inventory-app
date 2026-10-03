@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { produce } from "immer";
 import { VariantPicker } from "./VariantPicker";
 import { useStore } from "@/lib/store";
@@ -26,6 +26,37 @@ function openPicker() {
   fireEvent.change(screen.getByPlaceholderText(/ค้นหา/), { target: { value: "Billie" } });
   fireEvent.click(screen.getByText("Billie Slim", { selector: "span.block" }));
 }
+
+describe("VariantPicker — ยิงบาร์โค้ดรหัสสั้นเฉพาะใบ", () => {
+  beforeEach(() => cleanup());
+
+  it("treats a hardware scanner typing the short code + Enter like a camera scan of that label", async () => {
+    seed();
+    const variant = Object.values(useStore.getState().variants)[0];
+    useStore.getState().actions.mergeUnitTokens([{ id: "11111111-2222-4333-8444-555555555555", code: "K7F29QXM", variantId: variant.id, createdAt: "2026-10-03T00:00:00Z" }]);
+    const onScanToken = vi.fn();
+    const onSelect = vi.fn();
+    render(<VariantPicker onSelect={onSelect} onScanToken={onScanToken} />);
+    const input = screen.getByPlaceholderText(/ค้นหา/);
+    fireEvent.change(input, { target: { value: "k7f2 9qxm" } }); // ตัวเล็ก/มีช่องว่าง ก็ต้องหาเจอ
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(onScanToken).toHaveBeenCalledTimes(1));
+    expect(onScanToken.mock.calls[0][0].code).toBe("K7F29QXM");
+    expect(onScanToken.mock.calls[0][1].id).toBe(variant.id);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("does not hijack Enter on an ordinary search word", () => {
+    seed();
+    const onScanToken = vi.fn();
+    render(<VariantPicker onSelect={vi.fn()} onScanToken={onScanToken} />);
+    const input = screen.getByPlaceholderText(/ค้นหา/);
+    fireEvent.change(input, { target: { value: "Billie" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onScanToken).not.toHaveBeenCalled();
+  });
+});
 
 describe("VariantPicker — ยิงบาร์โค้ด SKU", () => {
   beforeEach(() => cleanup());

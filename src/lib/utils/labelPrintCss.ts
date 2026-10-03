@@ -151,8 +151,9 @@ export function isBarcode(c: Pick<LabelCalibration, "codeType">): boolean {
 // ความสูงของบรรทัดทรงสินค้า (ตัวอักษร 9pt x ระยะบรรทัด 1.15 = 3.7 มม.)
 const BARCODE_SHAPE_LINE_MM = 3.7;
 
-// ความกว้างสูงสุดของ 1 โมดูล (มม.) ถ้า SKU สั้นไม่ขยายแท่งให้หนาเกินจำเป็น
-export const BARCODE_MAX_MODULE_MM = 0.3;
+// ความกว้างสูงสุดของ 1 โมดูล (มม.) รหัสสั้น 8 ตัว (135 โมดูล) บนป้าย 47 มม. ได้โมดูลราว 0.35 มม. หนากว่าบาร์โค้ด SKU เดิมมาก
+// อ่านง่ายทั้งเครื่องยิงและกล้องมือถือ จึงให้ขยายเต็มความกว้างป้ายได้ (เพดาน 0.4 มม. กันแท่งหนาเกินจำเป็นบนป้ายกว้างมาก)
+export const BARCODE_MAX_MODULE_MM = 0.4;
 
 function textScale(c: LabelCalibration): number {
   return c.paper === "roll" ? clamp(c.rollTextScalePct ?? 100, 60, 200) / 100 : 1;
@@ -211,6 +212,7 @@ function buildBarcodeCss(c: LabelCalibration): string {
         }
         .barcode-card .bc-variant { flex: none; font-size: ${fs(9.5)}pt; font-weight: 700; line-height: 1.2; white-space: nowrap; }
         .barcode-card .bc-code { display: flex; justify-content: center; }
+        .barcode-card .bc-code-text { font-weight: 700; margin-left: 2mm; }
         .barcode-card svg.barcode-svg { display: block; flex-shrink: 0; width: var(--bc-w) !important; height: var(--bc-h) !important; }
         .barcode-card .bc-sku {
           margin: 0;

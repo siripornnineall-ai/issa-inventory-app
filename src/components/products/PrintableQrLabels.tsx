@@ -19,7 +19,7 @@ export interface PrintLabelItem {
 // - บาร์โค้ด Code 128 ของ SKU (ค่าเริ่มต้น) / QR รหัสเฉพาะตัวทุกใบ
 // - กระดาษ A4 กริดหลายดวงต่อแผ่น (สติกเกอร์ตัดดวงไว้ล่วงหน้า) / ม้วนสติกเกอร์ 1 ดวงต่อ 1 หน้า เช่น 50x30 มม.
 // ตำแหน่ง/ขนาดปรับได้ผ่าน calibration (ตั้งค่าในหน้าพิมพ์ ไม่ต้องแก้โค้ดทุกครั้งที่ไม่ตรงช่อง) CSS สร้างใน labelPrintCss.ts
-// SKU ที่มีอักขระนอก ASCII (เช่นชื่อสีภาษาไทยในรหัสเก่า) เข้ารหัสบาร์โค้ดไม่ได้ ถ้ามีโทเคนจะพิมพ์เป็น QR แทน
+// บาร์โค้ดเข้ารหัสรหัสสั้นของป้ายแต่ละใบ (ASCII ล้วน) ถ้าเข้ารหัสไม่ได้และมีโทเคน จะพิมพ์เป็น QR แทน
 export function PrintableQrLabels({ items, calibration }: { items: PrintLabelItem[]; calibration: LabelCalibration }) {
   if (items.length === 0) return null;
 
@@ -33,9 +33,12 @@ export function PrintableQrLabels({ items, calibration }: { items: PrintLabelIte
       <div className="qr-label-page">
         <div className="qr-label-grid grid grid-cols-2 gap-3 sm:grid-cols-3">
           {items.map(({ product, variant: v, token, brandLogoUrl }, idx) => {
-            const bits = wantBarcode ? encodeCode128(v.sku) : null;
-            if (bits) {
-              const modules = code128TotalModules(v.sku) ?? bits.length;
+            // บาร์โค้ด = รหัสสั้น 8 ตัวเฉพาะใบนี้ (กันสแกนซ้ำเหมือน QR) ป้ายที่ไม่มีรหัส (ทำก่อนมีฟีเจอร์นี้) ใช้ SKU แทน
+            const code = token?.code;
+            const barcodeText = wantBarcode ? (code ?? v.sku) : null;
+            const bits = barcodeText ? encodeCode128(barcodeText) : null;
+            if (barcodeText && bits) {
+              const modules = code128TotalModules(barcodeText) ?? bits.length;
               return (
                 <div key={`${v.id}-${idx}`} className="qr-label-card barcode-card flex flex-col rounded-lg border border-[var(--color-border)] p-2 text-left">
                   <div className="bc-head">
@@ -48,7 +51,15 @@ export function PrintableQrLabels({ items, calibration }: { items: PrintLabelIte
                   <div className="bc-code">
                     <Code128Svg bits={bits} widthMm={barcodeWidthMm(modules, geom.innerWidthMm)} heightMm={geom.heightMm} />
                   </div>
-                  <p className="bc-sku">{v.sku}</p>
+                  <p className="bc-sku">
+                    {v.sku}
+                    {code && (
+                      <>
+                        {" "}
+                        <span className="bc-code-text">{code}</span>
+                      </>
+                    )}
+                  </p>
                 </div>
               );
             }

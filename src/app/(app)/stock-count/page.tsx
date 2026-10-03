@@ -22,7 +22,7 @@ import { playBeep, primeAudio } from "@/lib/utils/beep";
 import { useCurrentUser } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { createClient } from "@/lib/supabase/client";
-import { fetchUnitTokenById } from "@/lib/supabase/fetch";
+import { fetchUnitTokenByScan } from "@/lib/supabase/fetch";
 import type { Product, ProductVariant } from "@/lib/types";
 
 function StockCountForm() {
@@ -117,7 +117,7 @@ function StockCountForm() {
     }
 
     // อาจเป็นป้ายที่เพิ่งปริ้นจากอุปกรณ์/แท็บอื่น ซึ่งเครื่องนี้ยังไม่มีข้อมูล ลองถามฐานข้อมูลตรง ๆ ก่อนสรุปว่าไม่พบ
-    const fetchedToken = await fetchUnitTokenById(createClient(), trimmed);
+    const fetchedToken = await fetchUnitTokenByScan(createClient(), trimmed);
     const fetchedVariant = fetchedToken ? state.variants[fetchedToken.variantId] : undefined;
     if (fetchedToken && fetchedVariant) {
       mergeUnitTokens([fetchedToken]);

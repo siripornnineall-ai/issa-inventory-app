@@ -14,7 +14,8 @@ import { playBeep, primeAudio } from "@/lib/utils/beep";
 import { CameraScanner } from "./CameraScanner";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { createClient } from "@/lib/supabase/client";
-import { fetchUnitTokenById } from "@/lib/supabase/fetch";
+import { fetchUnitTokenByScan } from "@/lib/supabase/fetch";
+import { isUnitScanCode } from "@/lib/store/engine";
 import type { UnitToken, ProductVariant, Product } from "@/lib/types";
 
 export function VariantPicker({
@@ -83,7 +84,7 @@ export function VariantPicker({
 
     // อาจเป็นป้ายที่เพิ่งปริ้นจากอุปกรณ์/แท็บอื่น ซึ่งเครื่องนี้ยังไม่มีข้อมูล (โหลด state ครั้งเดียวตอนเปิดแอป
     // ไม่ได้ sync แบบเรียลไทม์ข้ามอุปกรณ์) ลองถามฐานข้อมูลตรง ๆ เฉพาะโทเคนนี้ก่อนจะสรุปว่าไม่พบ
-    const fetchedToken = await fetchUnitTokenById(createClient(), trimmed);
+    const fetchedToken = await fetchUnitTokenByScan(createClient(), trimmed);
     const fetchedVariant = fetchedToken ? state.variants[fetchedToken.variantId] : undefined;
     if (fetchedToken && fetchedVariant) {
       mergeUnitTokens([fetchedToken]);
@@ -188,6 +189,12 @@ export function VariantPicker({
             if (exact) {
               e.preventDefault();
               (onScanSku ?? onSelect)(exact.id);
+              setQuery("");
+              setOpen(false);
+            } else if (isUnitScanCode(query)) {
+              // เครื่องยิงบาร์โค้ดพิมพ์รหัสสั้น 8 ตัวของป้ายรายชิ้น (หรือ id เต็มของ QR) แล้วกด Enter: ค้นหาป้ายนั้นเหมือนสแกนด้วยกล้อง
+              e.preventDefault();
+              void handleCameraDetect(query.trim());
               setQuery("");
               setOpen(false);
             }

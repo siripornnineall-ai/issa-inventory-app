@@ -1,10 +1,15 @@
 import type { AppState } from "./state";
-import { getStockLevel } from "./engine";
+import { getStockLevel, normalizeUnitCode, UNIT_CODE_PATTERN } from "./engine";
 import type { Invoice, MovementType, Order, Product, StockInDoc, StockMovement } from "@/lib/types";
 import { sumBaht } from "@/lib/utils/money";
 
-export function resolveUnitToken(state: AppState, tokenId: string) {
-  const token = state.unitTokens[tokenId];
+// หาป้ายรายชิ้นจากสิ่งที่สแกนได้: id เต็ม (QR) หรือรหัสสั้น 8 ตัว (บาร์โค้ด) พิมพ์ตัวเล็กตัวใหญ่หรือมีช่องว่าง/ขีดก็ได้
+export function resolveUnitToken(state: AppState, input: string) {
+  let token = state.unitTokens[input];
+  if (!token) {
+    const code = normalizeUnitCode(input);
+    if (UNIT_CODE_PATTERN.test(code)) token = Object.values(state.unitTokens).find((t) => t.code === code) as typeof token;
+  }
   if (!token) return undefined;
   const variant = state.variants[token.variantId];
   if (!variant) return undefined;
