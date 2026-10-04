@@ -417,20 +417,22 @@ export function ProductForm({ existing }: { existing?: Product }) {
         {activeTab === "details" ? (
           <>
             {isEdit && (
-              <Button type="submit" variant="secondary" loading={saving}>
+              <Button key="details-save" type="submit" variant="secondary" loading={saving}>
                 บันทึกการแก้ไข
               </Button>
             )}
-            <Button type="button" onClick={() => goToTab("sales")}>
+            {/* key แยกกันทุกปุ่มสำคัญมาก: ถ้าไม่มี React จะใช้ <button> ตัวเดิมซ้ำแล้วเปลี่ยนจาก "ถัดไป" (button)
+                เป็น "บันทึก" (submit) กลางจังหวะคลิก ทำให้เบราว์เซอร์ส่งฟอร์มบันทึกทันทีที่กดถัดไป */}
+            <Button key="go-sales" type="button" onClick={() => goToTab("sales")}>
               ถัดไป: ข้อมูลการขาย
             </Button>
           </>
         ) : (
           <>
-            <Button type="button" variant="secondary" onClick={() => goToTab("details")}>
+            <Button key="go-details" type="button" variant="secondary" onClick={() => goToTab("details")}>
               ย้อนกลับ
             </Button>
-            <Button type="submit" loading={saving}>
+            <Button key="sales-save" type="submit" loading={saving}>
               {isEdit ? "บันทึกการแก้ไข" : "บันทึกสินค้าใหม่"}
             </Button>
           </>

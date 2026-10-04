@@ -21,12 +21,36 @@ function seedStore() {
   } as never);
 }
 
+const toastError = vi.fn();
+vi.mock("@/lib/toast", () => ({ toastError: (...a: unknown[]) => toastError(...a), toastSuccess: vi.fn() }));
+
 describe("ProductForm: ถัดไป → ข้อมูลการขาย → บันทึก", () => {
   beforeEach(() => {
     cleanup();
     push.mockClear();
     Element.prototype.scrollIntoView = vi.fn();
     seedStore();
+  });
+
+  it("กดถัดไปต้องไม่ส่งฟอร์ม/บันทึกเอง (ปุ่มถัดไปกับปุ่มบันทึกเป็นคนละปุ่มกัน)", () => {
+    const { container } = render(<ProductForm />);
+    const form = container.querySelector("form") as HTMLFormElement;
+    const submitted = vi.fn((e: Event) => e.preventDefault());
+    form.addEventListener("submit", submitted);
+    toastError.mockClear();
+    const nextBtn = screen.getByRole("button", { name: /ถัดไป/ });
+    fireEvent.click(nextBtn);
+    const saveBtn = screen.getByRole("button", { name: "บันทึกสินค้าใหม่" });
+    const backBtn = screen.getByRole("button", { name: "ย้อนกลับ" });
+    // สาเหตุของบั๊ก: ถ้า React ใช้ <button> ตัวเดิมซ้ำแล้วเปลี่ยนชนิดจาก button เป็น submit กลางจังหวะคลิก
+    // เบราว์เซอร์จะส่งฟอร์มทันทีหลังคลิก "ถัดไป" ต้องเป็นคนละ DOM node กันเสมอ
+    expect(saveBtn).not.toBe(nextBtn);
+    expect(backBtn).not.toBe(nextBtn);
+    expect(saveBtn.getAttribute("type")).toBe("submit");
+    expect(nextBtn.isConnected).toBe(false);
+    fireEvent.click(backBtn);
+    expect(submitted).not.toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("หน้าแรกมีปุ่มถัดไปแต่ยังไม่มีปุ่มบันทึก กดถัดไปแล้วถึงมีปุ่มบันทึก", () => {
