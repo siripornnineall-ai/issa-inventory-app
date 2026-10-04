@@ -89,6 +89,44 @@ describe("ProductForm: ถัดไป → ข้อมูลการขาย 
     expect(s).toBeTruthy();
   });
 
+  it("เลือกสีเพิ่มแล้วลืมกดสร้างตัวเลือก: เตือนและไม่ยอมบันทึก ไม่ปล่อยให้สีหายเงียบ ๆ", () => {
+    const { container } = render(<ProductForm />);
+    const byLabel = (text: string) => {
+      const label = Array.from(container.querySelectorAll("label")).find((l) => l.textContent?.includes(text));
+      return label?.parentElement?.querySelector("input, select, textarea") as HTMLInputElement;
+    };
+    fireEvent.change(byLabel("ชื่อรุ่นที่ใช้ขาย"), { target: { value: "Slender Leggings" } });
+    fireEvent.change(byLabel("ราคาขาย (บาท)"), { target: { value: "1090" } });
+    fireEvent.click(screen.getByRole("button", { name: /ถัดไป/ }));
+
+    const nameInput = screen.getByPlaceholderText("ชื่อสี เช่น ดำ, ครีม");
+    fireEvent.change(nameInput, { target: { value: "ดำ" } });
+    fireEvent.click(screen.getByRole("button", { name: "ดำ (BLK)" }));
+    fireEvent.click(screen.getByRole("button", { name: /สร้างตัวเลือกสี\/ไซซ์/ }));
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    // เพิ่มสีที่สองและสามแต่ไม่กดสร้างตัวเลือก
+    fireEvent.change(nameInput, { target: { value: "ครีม" } });
+    fireEvent.click(screen.getByRole("button", { name: "ครีม (CRM)" }));
+    fireEvent.change(nameInput, { target: { value: "ชมพู" } });
+    expect(screen.getByRole("alert").textContent).toContain("ครีม");
+    expect(screen.getByRole("alert").textContent).toContain("ชมพู");
+
+    toastError.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "บันทึกสินค้าใหม่" }));
+    expect(toastError).toHaveBeenCalledTimes(1);
+    expect(String(toastError.mock.calls[0][0])).toContain("ครีม");
+    expect(Object.values(useStore.getState().products)).toHaveLength(0);
+
+    // กดสร้างตัวเลือกให้ครบ (ชมพูต้องกด + ก่อน) แล้วบันทึกได้ ครบทั้ง 3 สี
+    fireEvent.click(screen.getByRole("button", { name: "ชมพู (PNK)" }));
+    fireEvent.click(screen.getByRole("button", { name: /สร้างตัวเลือกสี\/ไซซ์/ }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "บันทึกสินค้าใหม่" }));
+    const colors = new Set(Object.values(useStore.getState().variants).map((v) => v.color));
+    expect(Array.from(colors).sort()).toEqual(["ครีม", "ชมพู", "ดำ"]);
+  });
+
   it("แก้ไขสินค้าที่ยังไม่มีตัวเลือก: เห็นข้อความและเพิ่มตัวเลือกได้จากหน้านี้", () => {
     const productId = "p1";
     useStore.getState().actions.hydrate({

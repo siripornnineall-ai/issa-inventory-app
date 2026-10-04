@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, X, Wand2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, FormField } from "@/components/ui/Field";
@@ -50,6 +50,7 @@ export function VariantMatrixBuilder({
   onChange,
   defaultPurchasePrice,
   defaultSellingPrice,
+  onPendingChange,
 }: {
   productName: string;
   brand?: Brand;
@@ -58,6 +59,8 @@ export function VariantMatrixBuilder({
   onChange: (rows: DraftVariant[]) => void;
   defaultPurchasePrice: number;
   defaultSellingPrice: number;
+  // รายชื่อสีที่เลือก/พิมพ์ไว้แล้วแต่ยังไม่ได้กด "สร้างตัวเลือกสี/ไซซ์" (ใช้กันบันทึกแล้วสีหาย)
+  onPendingChange?: (pending: string[]) => void;
 }) {
   const colorCodes = useStore((s) => s.colorCodes);
   const customSizes = useStore((s) => s.customSizes);
@@ -68,6 +71,18 @@ export function VariantMatrixBuilder({
   const [colors, setColors] = useState<{ name: string; code: string }[]>([]);
   const [sizes, setSizes] = useState<string[]>(["S", "M", "L"]);
   const [customSize, setCustomSize] = useState("");
+
+  const pendingColors = useMemo(() => {
+    const have = new Set(rows.map((r) => r.color));
+    const names = colors.filter((c) => !have.has(c.name)).map((c) => c.name);
+    const typed = colorNameInput.trim();
+    if (typed && !have.has(typed) && !names.includes(typed)) names.push(`${typed} (พิมพ์ไว้แต่ยังไม่ได้กดปุ่ม +)`);
+    return names;
+  }, [rows, colors, colorNameInput]);
+  const pendingKey = pendingColors.join("\u0000");
+  useEffect(() => {
+    onPendingChange?.(pendingKey ? pendingKey.split("\u0000") : []);
+  }, [pendingKey, onPendingChange]);
 
   const [showAllColors, setShowAllColors] = useState(false);
   const colorOptions = useMemo(() => listColorOptions(colorCodes), [colorCodes]);
@@ -322,6 +337,11 @@ export function VariantMatrixBuilder({
         </FormField>
       </div>
 
+      {pendingColors.length > 0 && (
+        <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          ยังไม่ได้สร้างตัวเลือกของสี: <b>{pendingColors.join(", ")}</b> — กดปุ่ม &quot;สร้างตัวเลือกสี/ไซซ์&quot; ก่อน ไม่งั้นสีเหล่านี้จะไม่ถูกบันทึก
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="secondary" onClick={generate} className="w-fit">
           <Wand2 className="h-4 w-4" /> สร้างตัวเลือกสี/ไซซ์

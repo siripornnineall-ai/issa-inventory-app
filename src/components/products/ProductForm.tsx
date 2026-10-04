@@ -83,6 +83,7 @@ export function ProductForm({ existing }: { existing?: Product }) {
   const [submitted, setSubmitted] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "sales">("details");
   const formRef = useRef<HTMLFormElement>(null);
+  const [pendingColors, setPendingColors] = useState<string[]>([]);
 
   function handleSellingNameChange(value: string) {
     setSellingName(value);
@@ -143,6 +144,8 @@ export function ProductForm({ existing }: { existing?: Product }) {
   function validate(): string | null {
     if (!sellingName.trim()) return "กรุณาระบุชื่อรุ่นที่ใช้ขาย";
     if (sellingPrice <= 0) return "กรุณาระบุราคาขายให้ถูกต้อง";
+    // สีที่เลือกไว้แต่ยังไม่ได้สร้างตัวเลือก จะไม่ถูกบันทึก ต้องให้ผู้ใช้กดสร้างก่อนเสมอ ไม่ปล่อยให้สีหายเงียบ ๆ
+    if (pendingColors.length > 0) return `ยังไม่ได้สร้างตัวเลือกของสี ${pendingColors.join(", ")} กรุณากดปุ่ม "สร้างตัวเลือกสี/ไซซ์" ก่อนบันทึก`;
     if (!isEdit && variantRows.length === 0) return "กรุณาเพิ่มตัวเลือกสี/ไซซ์อย่างน้อย 1 รายการ";
     return null;
   }
@@ -394,6 +397,7 @@ export function ProductForm({ existing }: { existing?: Product }) {
             onChange={setVariantRows}
             defaultPurchasePrice={sourcePurchasePrice}
             defaultSellingPrice={sellingPrice}
+            onPendingChange={setPendingColors}
           />
         </CardContent>
       </Card>
