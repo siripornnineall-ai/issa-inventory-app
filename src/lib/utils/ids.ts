@@ -109,14 +109,77 @@ const THAI_COLOR_CODE_DICTIONARY: Record<string, string> = {
   มินท์: "MNT",
   ไวน์: "WIN",
   แดงเลือดหมู: "MRN",
+  เทาอ่อน: "LGY",
+  เทาเข้ม: "DGY",
+  เขียวมิ้นท์: "GMT",
+  เขียวอ่อน: "LGN",
+  เขียวพาสเทล: "PGN",
+  ฟ้าเข้ม: "DSK",
+  น้ำเงินเข้ม: "DBL",
+  แดงเข้ม: "DRD",
+  ชมพูอ่อน: "LPK",
+  ชมพูเข้ม: "DPK",
+  ม่วงอ่อน: "LPL",
+  น้ำตาลอ่อน: "LBR",
+  น้ำตาลเข้ม: "DBR",
+  เหลืองอ่อน: "LYL",
+  เหลืองมัสตาร์ด: "MST",
+  มัสตาร์ด: "MST",
+  ลาเวนเดอร์: "LAV",
+  เทอร์ควอยซ์: "TRQ",
+  เบอร์กันดี: "BGD",
+  กุหลาบ: "ROS",
+  โอลด์โรส: "ORS",
+  ทับทิม: "RBY",
 };
 
-// เดารหัสสีจากชื่อสี (ไม่ต้องพิมพ์เอง) — รหัสที่ได้เป็นภาษาอังกฤษเสมอ
-// 1) เช็คพจนานุกรมสีที่ใช้บ่อยก่อน 2) ถ้าชื่อมีตัวอักษรอังกฤษปนอยู่ใช้ตัวนั้น 3) ถ้าไม่เจอเลยใช้ COL/COL2/...
+// ตัดวรรณยุกต์ (่ ้ ๊ ๋) และช่องว่างออกก่อนเทียบ เพื่อให้ "มิ้นท์" กับ "มินท์" ถือเป็นสีเดียวกัน
+function normalizeThaiColor(name: string): string {
+  let out = "";
+  for (const ch of name.trim()) {
+    const c = ch.charCodeAt(0);
+    if ((c >= 0x0e48 && c <= 0x0e4b) || ch === " ") continue;
+    out += ch;
+  }
+  return out;
+}
+
+const NORMALIZED_DICTIONARY: Record<string, string> = Object.fromEntries(
+  Object.entries(THAI_COLOR_CODE_DICTIONARY).map(([k, v]) => [normalizeThaiColor(k), v]),
+);
+
+// สีหลัก เรียงจากชื่อยาวไปสั้น เพื่อแยกชื่อประกอบ เช่น "เขียวมิ้นท์" = เขียว + มิ้นท์
+const BASE_COLOR_NAMES = ["น้ำตาล", "น้ำเงิน", "เหลือง", "เขียว", "ม่วง", "ชมพู", "ฟ้า", "แดง", "ส้ม", "เทา", "ดำ", "ขาว", "ครีม"].map(normalizeThaiColor);
+const SOFT_TONE = normalizeThaiColor("อ่อน");
+const DEEP_TONE = normalizeThaiColor("เข้ม");
+
+// เดารหัสสีจากชื่อสี (ไม่ต้องพิมพ์เอง) — รหัสที่ได้เป็นตัวย่อภาษาอังกฤษเสมอ ไม่มีตัวเลข
+// 1) พจนานุกรมสีที่ใช้บ่อย 2) ชื่อประกอบ: สีหลัก + อ่อน/เข้ม (LGY, DBR) หรือสีหลัก + สีย่อย (ใช้รหัสสีย่อย)
+// 3) ชื่อที่มีตัวอักษรอังกฤษปนอยู่ใช้ 3 ตัวแรก 4) ถ้าไม่รู้จักเลยใช้ COL (ซ้ำจะต่อเลขเป็นทางสุดท้าย)
+function baseColorCode(name: string, taken: (code: string) => boolean): string {
+  const key = normalizeThaiColor(name);
+  const direct = NORMALIZED_DICTIONARY[key];
+  if (direct) return direct;
+
+  for (const b of BASE_COLOR_NAMES) {
+    if (!key.startsWith(b) || key.length === b.length) continue;
+    const rest = key.slice(b.length);
+    const baseCode = NORMALIZED_DICTIONARY[b];
+    if (rest === SOFT_TONE || rest === DEEP_TONE) {
+      const letter = rest === DEEP_TONE ? "D" : "L";
+      return letter + baseCode[0] + baseCode[baseCode.length - 1];
+    }
+    const sub = NORMALIZED_DICTIONARY[rest];
+    if (sub) return taken(sub) ? baseCode[0] + sub : sub;
+  }
+  return "";
+}
+
 export function suggestColorCode(name: string, existingCodes: Record<string, { thaiName: string }> = {}): string {
   const trimmed = name.trim();
   if (!trimmed) return "COL";
-  let base = THAI_COLOR_CODE_DICTIONARY[trimmed];
+  const taken = (code: string) => Boolean(existingCodes[code]) && existingCodes[code].thaiName !== trimmed;
+  let base = baseColorCode(trimmed, taken);
   if (!base) {
     const latinOnly = trimmed.normalize("NFKD").replace(/[^a-zA-Z]/g, "");
     base = latinOnly.slice(0, 3).toUpperCase();
