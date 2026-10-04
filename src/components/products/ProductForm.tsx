@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -84,6 +84,7 @@ export function ProductForm({ existing }: { existing?: Product }) {
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "sales">("details");
+  const formRef = useRef<HTMLFormElement>(null);
 
   function handleSellingNameChange(value: string) {
     setSellingName(value);
@@ -134,6 +135,12 @@ export function ProductForm({ existing }: { existing?: Product }) {
   useUnsavedChangesGuard(
     !submitted && (sellingName.trim().length > 0 || sourceImages.length > 0 || sellingImages.length > 0 || colorImages.length > 0 || variantRows.length > 0)
   );
+
+  // เปลี่ยนหน้า (รายละเอียด <-> ข้อมูลการขาย) แล้วเลื่อนกลับขึ้นบนสุดของฟอร์ม
+  function goToTab(tab: "details" | "sales") {
+    setActiveTab(tab);
+    formRef.current?.scrollIntoView({ block: "start" });
+  }
 
   function validate(): string | null {
     if (!sellingName.trim()) return "กรุณาระบุชื่อรุ่นที่ใช้ขาย";
@@ -204,7 +211,7 @@ export function ProductForm({ existing }: { existing?: Product }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+    <form ref={formRef} onSubmit={handleSubmit} className="flex scroll-mt-4 flex-col gap-6">
       <Tabs
         tabs={[
           { id: "details", label: "รายละเอียด" },
@@ -380,9 +387,27 @@ export function ProductForm({ existing }: { existing?: Product }) {
         <Button type="button" variant="secondary" onClick={() => router.back()}>
           ยกเลิก
         </Button>
-        <Button type="submit" loading={saving}>
-          {isEdit ? "บันทึกการแก้ไข" : "บันทึกสินค้าใหม่"}
-        </Button>
+        {activeTab === "details" ? (
+          <>
+            {isEdit && (
+              <Button type="submit" variant="secondary" loading={saving}>
+                บันทึกการแก้ไข
+              </Button>
+            )}
+            <Button type="button" onClick={() => goToTab("sales")}>
+              ถัดไป: ข้อมูลการขาย
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button type="button" variant="secondary" onClick={() => goToTab("details")}>
+              ย้อนกลับ
+            </Button>
+            <Button type="submit" loading={saving}>
+              {isEdit ? "บันทึกการแก้ไข" : "บันทึกสินค้าใหม่"}
+            </Button>
+          </>
+        )}
       </div>
     </form>
   );
