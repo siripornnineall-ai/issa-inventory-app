@@ -28,7 +28,7 @@ export function ProductForm({ existing }: { existing?: Product }) {
   const suppliers = state.suppliers;
   const brandsMap = state.brands;
   const shapeOptionsMap = state.productShapeOptions;
-  const { createProduct, updateProduct, addVariant, upsertProductShape, upsertSupplier } = useActions();
+  const { createProduct, updateProduct, removeProduct, addVariant, upsertProductShape, upsertSupplier } = useActions();
   const isEdit = Boolean(existing);
   const brands = useMemo(() => Object.values(brandsMap).filter((b) => b.active), [brandsMap]);
   const shapeOptions = useMemo(() => {
@@ -73,10 +73,8 @@ export function ProductForm({ existing }: { existing?: Product }) {
   );
 
   const [variantRows, setVariantRows] = useState<DraftVariant[]>([]);
-  const existingVariantColors = useMemo(
-    () => (existing ? Array.from(new Set(productVariants(state, existing.id).map((v) => v.color))) : []),
-    [state, existing]
-  );
+  const existingVariants = useMemo(() => (existing ? productVariants(state, existing.id) : []), [state, existing]);
+  const existingVariantColors = useMemo(() => Array.from(new Set(existingVariants.map((v) => v.color))), [existingVariants]);
   const usedColors = useMemo(
     () => Array.from(new Set([...variantRows.map((r) => r.color), ...existingVariantColors])),
     [variantRows, existingVariantColors]
@@ -179,15 +177,9 @@ export function ProductForm({ existing }: { existing?: Product }) {
         images,
       };
 
-      if (isEdit && existing) {
-        updateProduct(existing.id, payload);
-        setSubmitted(true);
-        toastSuccess("บันทึกการแก้ไขสินค้าเรียบร้อยแล้ว");
-        router.push(`/products/${existing.id}`);
-      } else {
-        const id = createProduct(payload);
-        for (const row of variantRows) {
-          addVariant(id, {
+      const addRows = (productId: string, rows: DraftVariant[]) => {
+        for (const row of rows) {
+          addVariant(productId, {
             color: row.color,
             colorCode: row.colorCode || undefined,
             isDefective: row.isDefective,
@@ -198,6 +190,26 @@ export function ProductForm({ existing }: { existing?: Product }) {
             reorderPoint: row.reorderPoint,
             storageLocation: row.storageLocation || undefined,
           });
+        }
+      };
+
+      if (isEdit && existing) {
+        // ตัวเลือกที่เพิ่มใหม่ในหน้านี้ (ข้ามสี/ไซซ์ที่มีอยู่แล้ว ไม่ให้ซ้ำ)
+        const have = new Set(existingVariants.map((v) => `${v.color}|${v.size}|${v.isDefective}`));
+        const newRows = variantRows.filter((r) => !have.has(`${r.color}|${r.size}|${r.isDefective}`));
+        updateProduct(existing.id, payload);
+        addRows(existing.id, newRows);
+        setSubmitted(true);
+        toastSuccess(newRows.length > 0 ? `บันทึกการแก้ไขและเพิ่มตัวเลือก ${newRows.length} รายการเรียบร้อยแล้ว` : "บันทึกการแก้ไขสินค้าเรียบร้อยแล้ว");
+        router.push(`/products/${existing.id}`);
+      } else {
+        const id = createProduct(payload);
+        try {
+          addRows(id, variantRows);
+        } catch (addErr) {
+          // ไม่ทิ้งสินค้าที่ไม่มีตัวเลือกค้างไว้ในระบบ ถ้าสร้างตัวเลือกไม่สำเร็จให้ยกเลิกทั้งชุด
+          removeProduct(id);
+          throw addErr;
         }
         setSubmitted(true);
         toastSuccess("เพิ่มสินค้าใหม่เรียบร้อยแล้ว");
@@ -344,25 +356,47 @@ export function ProductForm({ existing }: { existing?: Product }) {
       </div>
 
       <div className={activeTab === "sales" ? "flex flex-col gap-6" : "hidden"}>
-      {!isEdit && (
+      {isEdit && (
         <Card>
           <CardHeader>
-            <CardTitle>ตัวเลือกสินค้า (สี / ไซซ์)</CardTitle>
-            <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">แต่ละตัวเลือกจะมี SKU จำนวนคงเหลือ ราคา และจุดแจ้งเตือนของตัวเอง</p>
+            <CardTitle>ตัวเลือกสินค้าที่มีอยู่แล้ว ({existingVariants.length} รายการ)</CardTitle>
+            <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+              {existingVariants.length > 0
+                ? "แก้ไข SKU ราคา และสต็อกของแต่ละตัวเลือกได้ที่หน้ารายละเอียดสินค้า"
+                : "สินค้านี้ยังไม่มีตัวเลือกสี/ไซซ์ในระบบ เพิ่มได้ในช่องด้านล่างแล้วกดบันทึกการแก้ไข"}
+            </p>
           </CardHeader>
-          <CardContent className="pt-0">
-            <VariantMatrixBuilder
-              productName={sellingName || "ISSA"}
-              brand={selectedBrand}
-              modelCode={modelCode || undefined}
-              rows={variantRows}
-              onChange={setVariantRows}
-              defaultPurchasePrice={sourcePurchasePrice}
-              defaultSellingPrice={sellingPrice}
-            />
-          </CardContent>
+          {existingVariants.length > 0 && (
+            <CardContent className="pt-0">
+              <div className="flex flex-wrap gap-1.5">
+                {existingVariants.map((v) => (
+                  <span key={v.id} className="rounded-lg bg-[var(--color-surface-container)] px-2 py-1 text-xs">
+                    {v.color} / {v.size}
+                    {v.isDefective ? " (ตำหนิ)" : ""} · {v.sku}
+                  </span>
+                ))}
+              </div>
+            </CardContent>
+          )}
         </Card>
       )}
+      <Card>
+        <CardHeader>
+          <CardTitle>{isEdit ? "เพิ่มตัวเลือกสินค้าใหม่ (สี / ไซซ์)" : "ตัวเลือกสินค้า (สี / ไซซ์)"}</CardTitle>
+          <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">แต่ละตัวเลือกจะมี SKU จำนวนคงเหลือ ราคา และจุดแจ้งเตือนของตัวเอง</p>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <VariantMatrixBuilder
+            productName={sellingName || "ISSA"}
+            brand={selectedBrand}
+            modelCode={modelCode || undefined}
+            rows={variantRows}
+            onChange={setVariantRows}
+            defaultPurchasePrice={sourcePurchasePrice}
+            defaultSellingPrice={sellingPrice}
+          />
+        </CardContent>
+      </Card>
       {usedColors.length > 0 && (
         <Card>
           <CardHeader>
@@ -371,13 +405,6 @@ export function ProductForm({ existing }: { existing?: Product }) {
           </CardHeader>
           <CardContent className="pt-0">
             <ColorImageManager colors={usedColors} images={colorImages} onChange={setColorImages} availableImages={sellingImages} />
-          </CardContent>
-        </Card>
-      )}
-      {isEdit && usedColors.length === 0 && (
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-[var(--color-on-surface-variant)]">
-            จัดการตัวเลือกสี/ไซซ์และสต็อกได้ที่หน้ารายละเอียดสินค้า หลังบันทึกการแก้ไข
           </CardContent>
         </Card>
       )}
