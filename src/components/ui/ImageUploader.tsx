@@ -39,6 +39,8 @@ export function ImageUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewImg, setPreviewImg] = useState<ProductImage | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -89,15 +91,61 @@ export function ImageUploader({
     onChange(next.map((img, i) => ({ ...img, sortOrder: i })));
   }
 
+  // ลากรูปไปวางบนรูปอื่นเพื่อย้ายตำแหน่ง: รูปที่ลากไปอยู่ตำแหน่งของรูปที่วางทับ ที่เหลือขยับตาม
+  function dropOn(targetId: string) {
+    const fromId = draggingId;
+    setDraggingId(null);
+    setOverId(null);
+    if (!fromId || fromId === targetId) return;
+    const from = images.findIndex((i) => i.id === fromId);
+    const to = images.findIndex((i) => i.id === targetId);
+    if (from < 0 || to < 0) return;
+    const next = [...images];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    onChange(next.map((img, i) => ({ ...img, sortOrder: i })));
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm font-medium text-[var(--color-on-surface)]">{label}</p>
       <div className="flex flex-wrap gap-3">
         {images.map((img) => (
-          <div key={img.id} className="group relative h-28 w-28 overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container)]">
-            <button type="button" onClick={() => setPreviewImg(img)} className="block h-full w-full cursor-zoom-in" title="ดูรูปขนาดใหญ่">
+          <div
+            key={img.id}
+            data-testid="image-tile"
+            draggable
+            onDragStart={(e) => {
+              setDraggingId(img.id);
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", img.id);
+            }}
+            onDragOver={(e) => {
+              if (!draggingId) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              if (overId !== img.id) setOverId(img.id);
+            }}
+            onDragLeave={() => setOverId((cur) => (cur === img.id ? null : cur))}
+            onDrop={(e) => {
+              e.preventDefault();
+              dropOn(img.id);
+            }}
+            onDragEnd={() => {
+              setDraggingId(null);
+              setOverId(null);
+            }}
+            className={cn(
+              "group relative h-28 w-28 cursor-grab overflow-hidden rounded-xl border bg-[var(--color-surface-container)] active:cursor-grabbing",
+              overId === img.id && draggingId !== img.id
+                ? "border-[var(--color-primary-container)] ring-4 ring-[var(--color-primary-container)]/25"
+                : "border-[var(--color-border)]",
+              draggingId === img.id && "opacity-40"
+            )}
+          >
+            <button type="button" onClick={() => setPreviewImg(img)} className="block h-full w-full" title="ดูรูปขนาดใหญ่ (กดค้างแล้วลากเพื่อสลับตำแหน่ง)">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.url} alt="รูปสินค้า" className="h-full w-full object-cover" />
+              <img src={img.url} alt="รูปสินค้า" draggable={false} className="h-full w-full object-cover" />
             </button>
             {img.isMain && (
               <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded-md bg-[var(--color-primary-container)] px-1.5 py-0.5 text-[10px] font-semibold text-white">
