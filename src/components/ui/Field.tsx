@@ -1,12 +1,26 @@
 import { forwardRef } from "react";
 import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
+import { stripLeadingZeros } from "@/lib/utils/numberInput";
 
 const fieldBase =
   "w-full rounded-xl border border-[var(--color-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--color-on-surface)] placeholder:text-[var(--color-on-surface-variant)]/60 outline-none transition-shadow focus:border-[var(--color-primary-container)] focus:ring-4 focus:ring-[var(--color-primary-container)]/10 disabled:bg-[var(--color-surface-container)] disabled:text-[var(--color-on-surface-variant)]";
 
-export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(({ className, ...props }, ref) => (
-  <input ref={ref} className={cn(fieldBase, className)} {...props} />
+// ช่องตัวเลขตัดเลข 0 นำหน้าให้เอง (0180 -> 180) ทุกช่องทั้งแอปใช้ตัวนี้ จึงแก้ที่เดียว
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(({ className, onChange, ...props }, ref) => (
+  <input
+    ref={ref}
+    className={cn(fieldBase, className)}
+    onChange={
+      props.type === "number"
+        ? (e) => {
+            stripLeadingZeros(e.currentTarget);
+            onChange?.(e);
+          }
+        : onChange
+    }
+    {...props}
+  />
 ));
 Input.displayName = "Input";
 

@@ -14,6 +14,7 @@ import { useLabelCalibration } from "@/lib/utils/labelCalibration";
 import { preloadImages } from "@/lib/utils/preloadImages";
 import { toastError } from "@/lib/toast";
 import { buildPrintLogos } from "@/lib/utils/printLogo";
+import { stripLeadingZeros } from "@/lib/utils/numberInput";
 import type { ProductVariant } from "@/lib/types";
 
 export default function ProductLabelsPage() {
@@ -184,7 +185,10 @@ export default function ProductLabelsPage() {
                             min={0}
                             value={quantities[v.id] ?? 1}
                             onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => setQty(v.id, e.target.value)}
+                            onChange={(e) => {
+                              stripLeadingZeros(e.currentTarget);
+                              setQty(v.id, e.target.value);
+                            }}
                             disabled={!selected.has(v.id)}
                             className="w-12 rounded border border-[var(--color-border)] bg-white px-1 py-0.5 text-xs disabled:bg-[var(--color-surface-container)]"
                           />
