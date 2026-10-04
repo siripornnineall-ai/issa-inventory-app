@@ -7,7 +7,8 @@ import { Input, FormField } from "@/components/ui/Field";
 import { useActions, useStore } from "@/lib/store";
 import type { ProductVariant } from "@/lib/types";
 import { toastError, toastSuccess } from "@/lib/toast";
-import { genSkuV2, suggestColorCode } from "@/lib/utils/ids";
+import { genSkuV2, normalizeThaiColor, suggestColorCode } from "@/lib/utils/ids";
+import { filterColorOptions, listColorOptions } from "@/lib/utils/colorOptions";
 
 interface VariantDialogProps {
   open: boolean;
@@ -50,11 +51,12 @@ function VariantDialogForm({ open, onClose, productId, existing }: VariantDialog
   const [storageLocation, setStorageLocation] = useState(existing?.storageLocation ?? "");
   const [saving, setSaving] = useState(false);
 
+  const colorOptions = useMemo(() => listColorOptions(colorCodes), [colorCodes]);
   const colorSuggestions = useMemo(() => {
-    const q = color.trim().toLowerCase();
-    if (!q) return [];
-    return Object.values(colorCodes).filter((c) => c.thaiName.toLowerCase().includes(q)).slice(0, 5);
-  }, [colorCodes, color]);
+    // ถ้าพิมพ์ตรงกับสีใดสีหนึ่งครบแล้ว ไม่ต้องเสนอซ้ำ
+    const exact = new Set([normalizeThaiColor(color)]);
+    return filterColorOptions(colorOptions, color, exact, 12);
+  }, [colorOptions, color]);
 
   const canPreview = Boolean(brand && product?.modelCode && colorCode && size && !existing);
   const previewSku = canPreview
@@ -125,13 +127,13 @@ function VariantDialogForm({ open, onClose, productId, existing }: VariantDialog
                   key={c.code}
                   type="button"
                   onClick={() => {
-                    setColor(c.thaiName);
+                    setColor(c.name);
                     setColorCode(c.code);
                     setColorCodeTouched(true);
                   }}
                   className="rounded-lg border border-dashed border-[var(--color-border-strong)] px-2 py-1 text-xs text-[var(--color-on-surface-variant)] hover:border-[var(--color-primary-container)] hover:text-[var(--color-primary-container)]"
                 >
-                  {c.thaiName} ({c.code})
+                  {c.name} ({c.code})
                 </button>
               ))}
             </div>

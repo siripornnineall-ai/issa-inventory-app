@@ -123,7 +123,6 @@ const THAI_COLOR_CODE_DICTIONARY: Record<string, string> = {
   น้ำตาลอ่อน: "LBR",
   น้ำตาลเข้ม: "DBR",
   เหลืองอ่อน: "LYL",
-  เหลืองมัสตาร์ด: "MST",
   มัสตาร์ด: "MST",
   ลาเวนเดอร์: "LAV",
   เทอร์ควอยซ์: "TRQ",
@@ -131,10 +130,33 @@ const THAI_COLOR_CODE_DICTIONARY: Record<string, string> = {
   กุหลาบ: "ROS",
   โอลด์โรส: "ORS",
   ทับทิม: "RBY",
+  เทาดำ: "CHR",
+  ขาวนวล: "OFW",
+  ชาเขียว: "MCH",
+  ทราย: "SND",
+  สีเนื้อ: "NDE",
+  ลายพราง: "CMO",
+  ชมพูพาสเทล: "PPK",
+  ฟ้าพาสเทล: "PSK",
+  ม่วงพาสเทล: "PPP",
+  เหลืองพาสเทล: "PYL",
 };
 
+// รายการสีสำเร็จรูปสำหรับให้เลือกตอนพิมพ์ (ชื่อไทยที่ไม่ซ้ำกันเมื่อไม่นับวรรณยุกต์)
+export const PRESET_COLOR_NAMES: string[] = (() => {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const name of Object.keys(THAI_COLOR_CODE_DICTIONARY)) {
+    const key = normalizeThaiColor(name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+})();
+
 // ตัดวรรณยุกต์ (่ ้ ๊ ๋) และช่องว่างออกก่อนเทียบ เพื่อให้ "มิ้นท์" กับ "มินท์" ถือเป็นสีเดียวกัน
-function normalizeThaiColor(name: string): string {
+export function normalizeThaiColor(name: string): string {
   let out = "";
   for (const ch of name.trim()) {
     const c = ch.charCodeAt(0);

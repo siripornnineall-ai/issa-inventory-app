@@ -5,7 +5,8 @@ import { Plus, X, Wand2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, FormField } from "@/components/ui/Field";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/Table";
-import { genSku, genSkuV2, suggestColorCode } from "@/lib/utils/ids";
+import { genSku, genSkuV2, normalizeThaiColor, suggestColorCode } from "@/lib/utils/ids";
+import { filterColorOptions, listColorOptions } from "@/lib/utils/colorOptions";
 import { SIZE_PRESETS } from "@/lib/utils/sizes";
 import { useStore, useActions } from "@/lib/store";
 import { toastError } from "@/lib/toast";
@@ -68,13 +69,12 @@ export function VariantMatrixBuilder({
   const [sizes, setSizes] = useState<string[]>(["S", "M", "L"]);
   const [customSize, setCustomSize] = useState("");
 
+  const [showAllColors, setShowAllColors] = useState(false);
+  const colorOptions = useMemo(() => listColorOptions(colorCodes), [colorCodes]);
   const colorSuggestions = useMemo(() => {
-    const q = colorNameInput.trim().toLowerCase();
-    const used = new Set(colors.map((c) => c.name));
-    const all = Object.values(colorCodes).filter((c) => !used.has(c.thaiName));
-    if (!q) return all.slice(0, 8);
-    return all.filter((c) => c.thaiName.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)).slice(0, 8);
-  }, [colorCodes, colorNameInput, colors]);
+    const used = new Set(colors.map((c) => normalizeThaiColor(c.name)));
+    return filterColorOptions(colorOptions, colorNameInput, used, showAllColors || colorNameInput.trim() ? 60 : 12);
+  }, [colorOptions, colorNameInput, colors, showAllColors]);
 
   const customSizeSuggestions = useMemo(() => {
     const used = new Set(sizes);
@@ -213,6 +213,12 @@ export function VariantMatrixBuilder({
               onChange={(e) => setColorNameInput(e.target.value)}
               placeholder="ชื่อสี เช่น ดำ, ครีม"
               className="flex-1"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addColorEntry(colorNameInput, colorCodeInput);
+                }
+              }}
             />
             <Input
               value={colorCodeInput}
@@ -236,12 +242,17 @@ export function VariantMatrixBuilder({
                 <button
                   key={c.code}
                   type="button"
-                  onClick={() => addColorEntry(c.thaiName, c.code)}
+                  onClick={() => addColorEntry(c.name, c.code)}
                   className="rounded-lg border border-dashed border-[var(--color-border-strong)] px-2 py-1 text-xs text-[var(--color-on-surface-variant)] hover:border-[var(--color-primary-container)] hover:text-[var(--color-primary-container)]"
                 >
-                  {c.thaiName} ({c.code})
+                  {c.name} ({c.code})
                 </button>
               ))}
+              {!colorNameInput.trim() && !showAllColors && (
+                <button type="button" onClick={() => setShowAllColors(true)} className="px-2 py-1 text-xs font-medium text-[var(--color-primary-container)]">
+                  ดูสีทั้งหมด
+                </button>
+              )}
             </div>
           )}
           <div className="mt-2 flex flex-wrap gap-1.5">
