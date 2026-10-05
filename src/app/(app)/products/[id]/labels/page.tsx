@@ -91,7 +91,9 @@ export default function ProductLabelsPage() {
     setMinting(true);
     try {
       const batch: PrintLabelItem[] = [];
-      for (const v of variants) {
+      // พิมพ์ตามลำดับเดียวกับที่เห็นในหน้าจอ: ไล่ทีละสี และในแต่ละสีเรียงไซซ์จากเล็กไปใหญ่
+      // (ห้ามวนตาม variants ตรง ๆ เพราะเป็นลำดับที่เก็บในฐานข้อมูล ไม่ได้เรียงไซซ์)
+      for (const v of groups.flatMap((g) => g.rows)) {
         if (!selected.has(v.id)) continue;
         const qty = quantities[v.id] ?? 1;
         if (qty <= 0) continue;

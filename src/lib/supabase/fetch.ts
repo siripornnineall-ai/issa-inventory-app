@@ -62,6 +62,8 @@ async function fetchProductImagesPaginated(supabase: SupabaseClient, pageSize = 
     const { data, error } = await supabase
       .from("product_images")
       .select("*")
+      // ต้อง order ให้แน่นอน ไม่งั้นแบ่งหน้าแล้วแต่ละหน้าอาจซ้ำ/ตกหล่นรูป
+      .order("id", { ascending: true })
       .range(from, from + pageSize - 1);
     if (error) throw error;
     rows.push(...(data ?? []));
@@ -167,37 +169,37 @@ export async function fetchAppState(supabase: SupabaseClient): Promise<AppState>
     invoicesRes,
     unitTokensRes,
   ] = await Promise.all([
-    fetchAllRows(supabase, "profiles", ["id"]),
-    fetchAllRows(supabase, "warehouses", ["id"]),
-    fetchAllRows(supabase, "suppliers", ["id"]),
-    fetchAllRows(supabase, "supplier_images", ["id"]),
-    fetchAllRows(supabase, "brands", ["id"]),
-    fetchAllRows(supabase, "color_codes", ["code"]),
-    fetchAllRows(supabase, "custom_sizes", ["id"]),
-    fetchAllRows(supabase, "product_shape_options", ["id"]),
-    fetchAllRows(supabase, "products", ["id"]),
-    fetchAllRows(supabase, "product_variants", ["id"]),
+    fetchAllRows(supabase, "profiles", ["created_at", "id"]),
+    fetchAllRows(supabase, "warehouses", ["created_at", "id"]),
+    fetchAllRows(supabase, "suppliers", ["created_at", "id"]),
+    fetchAllRows(supabase, "supplier_images", ["sort_order", "id"]),
+    fetchAllRows(supabase, "brands", ["created_at", "id"]),
+    fetchAllRows(supabase, "color_codes", ["created_at", "code"]),
+    fetchAllRows(supabase, "custom_sizes", ["sort_order", "id"]),
+    fetchAllRows(supabase, "product_shape_options", ["sort_order", "id"]),
+    fetchAllRows(supabase, "products", ["created_at", "id"]),
+    fetchAllRows(supabase, "product_variants", ["created_at", "id"]),
     fetchAllRows(supabase, "variant_stock", ["variant_id", "warehouse_id"]),
-    fetchAllRows(supabase, "equipment", ["id"]),
-    fetchAllRows(supabase, "equipment_images", ["id"]),
+    fetchAllRows(supabase, "equipment", ["created_at", "id"]),
+    fetchAllRows(supabase, "equipment_images", ["sort_order", "id"]),
     fetchAllRows(supabase, "equipment_stock", ["equipment_id", "warehouse_id"]),
-    fetchAllRows(supabase, "equipment_type_options", ["code"]),
-    fetchAllRows(supabase, "equipment_requisitions", ["id"]),
-    fetchAllRows(supabase, "notifications", ["id"]),
-    fetchAllRows(supabase, "stock_movements", ["id"]),
-    fetchAllRows(supabase, "stock_in_docs", ["id"]),
-    fetchAllRows(supabase, "stock_in_lines", ["id"]),
-    fetchAllRows(supabase, "stock_out_docs", ["id"]),
-    fetchAllRows(supabase, "stock_out_lines", ["id"]),
-    fetchAllRows(supabase, "transfers", ["id"]),
-    fetchAllRows(supabase, "transfer_lines", ["id"]),
-    fetchAllRows(supabase, "orders", ["id"]),
-    fetchAllRows(supabase, "order_lines", ["id"]),
+    fetchAllRows(supabase, "equipment_type_options", ["sort_order", "code"]),
+    fetchAllRows(supabase, "equipment_requisitions", ["created_at", "id"]),
+    fetchAllRows(supabase, "notifications", ["created_at", "id"]),
+    fetchAllRows(supabase, "stock_movements", ["created_at", "id"]),
+    fetchAllRows(supabase, "stock_in_docs", ["created_at", "id"]),
+    fetchAllRows(supabase, "stock_in_lines", ["created_at", "id"]),
+    fetchAllRows(supabase, "stock_out_docs", ["created_at", "id"]),
+    fetchAllRows(supabase, "stock_out_lines", ["created_at", "id"]),
+    fetchAllRows(supabase, "transfers", ["created_at", "id"]),
+    fetchAllRows(supabase, "transfer_lines", ["created_at", "id"]),
+    fetchAllRows(supabase, "orders", ["created_at", "id"]),
+    fetchAllRows(supabase, "order_lines", ["created_at", "id"]),
     fetchAllRows(supabase, "company_info", ["id"]),
     fetchAllRows(supabase, "storefront_settings", ["id"]),
-    fetchAllRows(supabase, "po_signatories", ["id"]),
-    fetchAllRows(supabase, "invoices", ["id"]),
-    fetchAllRows(supabase, "unit_tokens", ["id"]),
+    fetchAllRows(supabase, "po_signatories", ["created_at", "id"]),
+    fetchAllRows(supabase, "invoices", ["created_at", "id"]),
+    fetchAllRows(supabase, "unit_tokens", ["created_at", "id"]),
   ]);
   const productImagesRows = await productImagesPromise;
 
