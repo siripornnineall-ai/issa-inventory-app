@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, FileText } from "lucide-react";
 import { Header } from "@/components/layout/Header";
@@ -56,7 +56,7 @@ function NewInvoiceForm() {
         note: note || undefined,
       });
       toastSuccess("สร้างใบกำกับภาษีเรียบร้อยแล้ว");
-      router.push(`/invoices/${invoice.id}`);
+      router.replace(`/invoices/${invoice.id}`);
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
     } finally {
@@ -136,7 +136,7 @@ function NewInvoiceForm() {
       </Card>
 
       <div className="flex justify-end gap-3">
-        <Button variant="secondary" onClick={() => router.push("/orders")}>
+        <Button variant="secondary" onClick={() => router.replace("/orders")}>
           ยกเลิก
         </Button>
         <Button onClick={handleSubmit} loading={saving}>
@@ -154,9 +154,9 @@ export default function NewInvoicePage() {
         title="สร้างใบกำกับภาษี"
         description="รวมคำสั่งซื้อที่เลือกเป็นใบกำกับภาษี/ใบเสร็จรับเงินเดียว"
         actions={
-          <Link href="/orders" className="flex items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
+          <BackLink href="/orders" className="flex items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
             <ArrowLeft className="h-4 w-4" /> กลับ
-          </Link>
+          </BackLink>
         }
       />
       <PageContainer className="max-w-4xl">

@@ -160,7 +160,7 @@ function StockInForm() {
         }
       }
       toastSuccess("บันทึกการรับสินค้าเข้าเรียบร้อยแล้ว");
-      router.push(issuePo ? `/stock-in/${doc.id}/po` : "/products/all");
+      router.replace(issuePo ? `/stock-in/${doc.id}/po` : "/products/all");
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
     } finally {
@@ -382,7 +382,7 @@ function StockInForm() {
       </Card>
 
       <div className="flex justify-end gap-3">
-        <Button variant="secondary" onClick={() => router.push("/products/all")}>
+        <Button variant="secondary" onClick={() => router.replace("/products/all")}>
           ยกเลิก
         </Button>
         <Button onClick={handleSubmit} loading={saving}>

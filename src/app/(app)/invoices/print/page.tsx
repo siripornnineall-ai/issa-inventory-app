@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ArrowLeft, Printer } from "lucide-react";
@@ -20,9 +20,9 @@ export default function InvoicesPrintPage() {
   return (
     <div>
       <div className="mx-auto flex max-w-3xl items-center justify-between p-8 pb-0 print:hidden">
-        <Link href="/invoices" className="flex items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
+        <BackLink href="/invoices" className="flex items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
           <ArrowLeft className="h-4 w-4" /> กลับ
-        </Link>
+        </BackLink>
         <div className="flex items-center gap-3">
           <VatToggle value={vatEnabled} onChange={setVatEnabled} />
           <Button onClick={() => window.print()}>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Printer } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -127,9 +127,9 @@ export default function ProductLabelsPage() {
   return (
     <div className="qr-print-root mx-auto max-w-5xl p-6">
       <div className="mb-6 flex items-center justify-between print:hidden">
-        <Link href={`/products/${product.id}`} className="flex items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
+        <BackLink href={`/products/${product.id}`} className="flex items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
           <ArrowLeft className="h-4 w-4" /> กลับไปหน้าสินค้า
-        </Link>
+        </BackLink>
         <Button onClick={handlePrint} disabled={totalToPrint === 0} loading={minting}>
           <Printer className="h-4 w-4" /> พิมพ์ป้าย ({totalToPrint} ใบ)
         </Button>

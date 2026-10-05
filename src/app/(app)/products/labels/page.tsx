@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
 import { ArrowLeft, Printer, Trash2, Barcode as Barcode2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
@@ -108,9 +108,9 @@ export default function PrintLabelsBatchPage() {
   return (
     <div className="qr-print-root mx-auto max-w-5xl p-6">
       <div className="mb-6 flex items-center justify-between print:hidden">
-        <Link href="/products" className="flex items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
+        <BackLink href="/products" className="flex items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
           <ArrowLeft className="h-4 w-4" /> กลับ
-        </Link>
+        </BackLink>
         <Button onClick={handlePrint} disabled={totalQty === 0} loading={minting}>
           <Printer className="h-4 w-4" /> พิมพ์ป้าย ({totalQty} ใบ)
         </Button>

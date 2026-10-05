@@ -179,7 +179,7 @@ export default function EquipmentDetailPage() {
           try {
             removeEquipment(equipment.id);
             toastSuccess("ลบอุปกรณ์เรียบร้อยแล้ว");
-            router.push("/equipment");
+            router.replace("/equipment");
           } catch (e) {
             toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
           } finally {

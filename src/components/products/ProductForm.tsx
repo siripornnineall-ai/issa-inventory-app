@@ -204,7 +204,7 @@ export function ProductForm({ existing }: { existing?: Product }) {
         addRows(existing.id, newRows);
         setSubmitted(true);
         toastSuccess(newRows.length > 0 ? `บันทึกการแก้ไขและเพิ่มตัวเลือก ${newRows.length} รายการเรียบร้อยแล้ว` : "บันทึกการแก้ไขสินค้าเรียบร้อยแล้ว");
-        router.push(`/products/${existing.id}`);
+        router.replace(`/products/${existing.id}`);
       } else {
         const id = createProduct(payload);
         try {
@@ -216,7 +216,7 @@ export function ProductForm({ existing }: { existing?: Product }) {
         }
         setSubmitted(true);
         toastSuccess("เพิ่มสินค้าใหม่เรียบร้อยแล้ว");
-        router.push(`/products/${id}`);
+        router.replace(`/products/${id}`);
       }
     } catch (e2) {
       toastError(e2 instanceof Error ? e2.message : "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");

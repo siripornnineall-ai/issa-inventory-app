@@ -156,7 +156,7 @@ function StockOutForm() {
         }
       }
       toastSuccess("บันทึกการเบิกสินค้าออกเรียบร้อยแล้ว");
-      router.push("/products/all");
+      router.replace("/products/all");
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
     } finally {
@@ -370,7 +370,7 @@ function StockOutForm() {
       </Card>
 
       <div className="flex justify-end gap-3">
-        <Button variant="secondary" onClick={() => router.push("/products/all")}>
+        <Button variant="secondary" onClick={() => router.replace("/products/all")}>
           ยกเลิก
         </Button>
         <Button onClick={handleSubmit} loading={saving}>

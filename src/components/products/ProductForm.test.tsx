@@ -5,8 +5,9 @@ import { useStore } from "@/lib/store";
 import { emptyState } from "@/lib/store/state";
 
 const push = vi.fn();
+const replace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push, back: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push, back: vi.fn(), replace }),
   usePathname: () => "/products/new",
 }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => { throw new Error("no supabase in test"); } }));
@@ -28,6 +29,7 @@ describe("ProductForm: ถัดไป → ข้อมูลการขาย 
   beforeEach(() => {
     cleanup();
     push.mockClear();
+    replace.mockClear();
     Element.prototype.scrollIntoView = vi.fn();
     seedStore();
   });
@@ -85,6 +87,9 @@ describe("ProductForm: ถัดไป → ข้อมูลการขาย 
     const after = useStore.getState();
     expect(Object.values(after.products)).toHaveLength(1);
     expect(Object.values(after.variants).length).toBeGreaterThanOrEqual(3);
+    // บันทึกเสร็จต้อง "แทนที่" หน้าฟอร์มในประวัติ ไม่ใช่ push เพิ่ม ไม่งั้นกดย้อนกลับจะวนกลับมาหน้าฟอร์ม
+    expect(replace).toHaveBeenCalledWith(`/products/${Object.keys(after.products)[0]}`);
+    expect(push).not.toHaveBeenCalled();
     expect(within(container).queryByText("ผิดพลาด")).toBeNull();
     expect(s).toBeTruthy();
   });

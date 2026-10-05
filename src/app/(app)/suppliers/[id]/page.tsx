@@ -203,7 +203,7 @@ export default function SupplierDetailPage() {
           try {
             removeSupplier(supplier.id);
             toastSuccess("ลบร้านค้าเรียบร้อยแล้ว");
-            router.push("/suppliers");
+            router.replace("/suppliers");
           } catch (e) {
             toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
           } finally {

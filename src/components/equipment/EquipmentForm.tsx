@@ -97,12 +97,12 @@ export function EquipmentForm({ existing }: { existing?: Equipment }) {
         updateEquipment(existing.id, payload);
         setSubmitted(true);
         toastSuccess("บันทึกการแก้ไขอุปกรณ์เรียบร้อยแล้ว");
-        router.push(`/equipment/${existing.id}`);
+        router.replace(`/equipment/${existing.id}`);
       } else {
         const id = createEquipment(payload);
         setSubmitted(true);
         toastSuccess("เพิ่มอุปกรณ์ใหม่เรียบร้อยแล้ว");
-        router.push(`/equipment/${id}`);
+        router.replace(`/equipment/${id}`);
       }
     } catch (e2) {
       toastError(e2 instanceof Error ? e2.message : "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");

@@ -538,7 +538,7 @@ export default function ProductDetailPage() {
           try {
             removeProduct(product.id);
             toastSuccess("ลบสินค้าเรียบร้อยแล้ว");
-            router.push("/products/all");
+            router.replace("/products/all");
           } catch (e) {
             toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
           } finally {

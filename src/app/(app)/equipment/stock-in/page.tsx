@@ -91,7 +91,7 @@ function EquipmentStockInForm() {
         lines: lines.map((l) => ({ itemId: l.equipmentId, qty: l.qty, unitCost: l.unitCost })),
       });
       toastSuccess("บันทึกการรับอุปกรณ์เข้าเรียบร้อยแล้ว");
-      router.push("/equipment");
+      router.replace("/equipment");
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
     } finally {
@@ -259,7 +259,7 @@ function EquipmentStockInForm() {
       </Card>
 
       <div className="flex justify-end gap-3">
-        <Button variant="secondary" onClick={() => router.push("/equipment")}>
+        <Button variant="secondary" onClick={() => router.replace("/equipment")}>
           ยกเลิก
         </Button>
         <Button onClick={handleSubmit} loading={saving}>

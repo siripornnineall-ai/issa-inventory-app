@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { BackLink } from "@/components/ui/BackLink";
 import { ArrowLeft, Camera, ClipboardCheck, RotateCcw, ClipboardList } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -415,9 +415,9 @@ export default function StockCountPage() {
         title="นับสต็อก"
         description="เลือกรุ่นสินค้าที่จะนับ แล้วสแกน QR ทีละชิ้นเพื่อนับจำนวนจริง เทียบกับระบบและปรับยอดให้ตรง"
         actions={
-          <Link href="/products/all" className="flex items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
+          <BackLink href="/products/all" className="flex items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
             <ArrowLeft className="h-4 w-4" /> กลับ
-          </Link>
+          </BackLink>
         }
       />
       <PageContainer className="max-w-5xl">
