@@ -160,7 +160,6 @@ function EquipmentStockInForm() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium leading-tight">{equipment?.name}</p>
-                          <p className="truncate text-xs text-[var(--color-on-surface-variant)]">{equipment?.code}</p>
                         </div>
                         <button onClick={() => removeLine(l.key)} className="shrink-0 text-[var(--color-danger)]" aria-label="ลบรายการ">
                           <Trash2 className="h-3.5 w-3.5" />
@@ -213,7 +212,6 @@ function EquipmentStockInForm() {
                         <Tr key={l.key}>
                           <Td>
                             <p className="font-medium">{equipment?.name}</p>
-                            <p className="text-xs text-[var(--color-on-surface-variant)]">{equipment?.code}</p>
                           </Td>
                           <Td>
                             <Input

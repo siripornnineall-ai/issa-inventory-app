@@ -150,7 +150,6 @@ function CreateEquipmentTransferForm() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium leading-tight">{equipment?.name}</p>
-                        <p className="truncate text-xs text-[var(--color-on-surface-variant)]">{equipment?.code}</p>
                         <p className={`text-xs ${insufficient ? "font-semibold text-[var(--color-danger)]" : "text-[var(--color-on-surface-variant)]"}`}>
                           คงเหลือที่ต้นทาง {formatNumber(onHand)} {equipment?.unit}
                         </p>
@@ -188,7 +187,6 @@ function CreateEquipmentTransferForm() {
                       <Tr key={l.key}>
                         <Td>
                           <p className="font-medium">{equipment?.name}</p>
-                          <p className="text-xs text-[var(--color-on-surface-variant)]">{equipment?.code}</p>
                         </Td>
                         <Td className={insufficient ? "font-semibold text-[var(--color-danger)]" : ""}>
                           {formatNumber(onHand)} {equipment?.unit}

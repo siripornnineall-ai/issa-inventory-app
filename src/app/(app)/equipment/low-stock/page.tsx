@@ -41,7 +41,7 @@ export default function EquipmentLowStockPage() {
                           {equipment.name}
                         </Link>
                         <p className="truncate text-xs text-[var(--color-on-surface-variant)]">
-                          {equipment.code} · {typeLabel(equipment.type)}
+                          {typeLabel(equipment.type)}
                         </p>
                         <p className="text-xs">
                           คงเหลือ <span className="font-semibold text-[var(--color-danger)]">{formatNumber(stock.onHand)} {equipment.unit}</span>{" "}
@@ -77,7 +77,6 @@ export default function EquipmentLowStockPage() {
                             <Link href={`/equipment/${equipment.id}`} className="hover:text-[var(--color-primary-container)]">
                               {equipment.name}
                             </Link>
-                            <p className="text-xs font-normal text-[var(--color-on-surface-variant)]">{equipment.code}</p>
                           </Td>
                           <Td>{typeLabel(equipment.type)}</Td>
                           <Td className="font-semibold text-[var(--color-danger)]">

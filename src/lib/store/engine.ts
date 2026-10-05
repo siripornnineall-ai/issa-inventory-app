@@ -386,14 +386,29 @@ export function upsertEquipmentType(draft: Draft<AppState>, code: string, labelT
   return normalizedCode;
 }
 
-export function createEquipment(draft: Draft<AppState>, input: Omit<Equipment, "id" | "createdAt" | "updatedAt">): string {
+// รหัสอุปกรณ์ไม่แสดง/ไม่ให้กรอกแล้ว แต่ฐานข้อมูลยังต้องมีค่าไม่ซ้ำ (คอลัมน์ code unique) และใช้เป็น SKU ในประวัติสต็อก
+// จึงสร้างให้เองแบบ EQ-0001, EQ-0002, ... โดยต่อจากเลขสูงสุดที่มีอยู่
+export function nextEquipmentCode(draft: Draft<AppState>): string {
+  let max = 0;
+  for (const e of Object.values(draft.equipment)) {
+    const m = /^EQ-(\d+)$/.exec(e.code);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return `EQ-${String(max + 1).padStart(4, "0")}`;
+}
+
+export function createEquipment(
+  draft: Draft<AppState>,
+  input: Omit<Equipment, "id" | "createdAt" | "updatedAt" | "code"> & { code?: string }
+): string {
   if (!input.name?.trim()) throw new BusinessRuleError("กรุณาระบุชื่ออุปกรณ์");
-  if (input.code && Object.values(draft.equipment).some((e) => e.code.toLowerCase() === input.code.toLowerCase())) {
-    throw new BusinessRuleError(`รหัสอุปกรณ์ "${input.code}" ถูกใช้งานแล้ว`);
+  const code = input.code?.trim() || nextEquipmentCode(draft);
+  if (Object.values(draft.equipment).some((e) => e.code.toLowerCase() === code.toLowerCase())) {
+    throw new BusinessRuleError(`รหัสอุปกรณ์ "${code}" ถูกใช้งานแล้ว`);
   }
   const id = newId();
   const now = nowISO();
-  draft.equipment[id] = { ...input, id, createdAt: now, updatedAt: now } as Equipment;
+  draft.equipment[id] = { ...input, code, id, createdAt: now, updatedAt: now } as Equipment;
   for (const wh of Object.values(draft.warehouses)) {
     writeStockLevel(draft, draft.equipmentStock, id, wh.id, { itemId: id, warehouseId: wh.id, qtyOnHand: 0, qtyReserved: 0 });
   }

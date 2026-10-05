@@ -10,7 +10,7 @@ import { formatNumber } from "@/lib/utils/money";
 export function EquipmentPicker({
   warehouseId,
   onSelect,
-  placeholder = "ค้นหาอุปกรณ์ด้วยชื่อหรือรหัส...",
+  placeholder = "ค้นหาอุปกรณ์ด้วยชื่อ...",
 }: {
   warehouseId?: string;
   onSelect: (equipmentId: string) => void;
@@ -26,7 +26,7 @@ export function EquipmentPicker({
     if (!q) return [];
     return Object.values(state.equipment)
       .filter((e) => e.status === "active")
-      .filter((e) => e.name.toLowerCase().includes(q) || e.code.toLowerCase().includes(q))
+      .filter((e) => e.name.toLowerCase().includes(q))
       .slice(0, 20);
   }, [query, state.equipment]);
 
@@ -70,7 +70,6 @@ export function EquipmentPicker({
               >
                 <span>
                   <span className="block font-medium text-[var(--color-on-surface)]">{equipment.name}</span>
-                  <span className="block text-xs text-[var(--color-on-surface-variant)]">{equipment.code}</span>
                 </span>
                 {stock && (
                   <span className="shrink-0 text-xs font-medium text-[var(--color-on-surface-variant)]">

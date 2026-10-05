@@ -29,7 +29,6 @@ export function EquipmentForm({ existing }: { existing?: Equipment }) {
   }, [equipmentTypeOptions]);
 
   const [name, setName] = useState(existing?.name ?? "");
-  const [code, setCode] = useState(existing?.code ?? "");
   const [type, setType] = useState<EquipmentType>(existing?.type ?? "packaging");
   const [newTypeLabel, setNewTypeLabel] = useState("");
   const [newTypeCode, setNewTypeCode] = useState("");
@@ -69,7 +68,6 @@ export function EquipmentForm({ existing }: { existing?: Equipment }) {
 
   function validate(): string | null {
     if (!name.trim()) return "กรุณาระบุชื่ออุปกรณ์";
-    if (!code.trim()) return "กรุณาระบุรหัสอุปกรณ์";
     return null;
   }
 
@@ -84,7 +82,6 @@ export function EquipmentForm({ existing }: { existing?: Equipment }) {
     try {
       const payload = {
         name: name.trim(),
-        code: code.trim(),
         type,
         description: description || undefined,
         images,
@@ -121,11 +118,8 @@ export function EquipmentForm({ existing }: { existing?: Equipment }) {
           <CardTitle>ข้อมูลอุปกรณ์</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-3 pt-0 sm:gap-4">
-          <FormField label="ชื่ออุปกรณ์" required>
+          <FormField label="ชื่ออุปกรณ์" required className="col-span-2">
             <Input value={name} onChange={(e) => setName(e.target.value)} required />
-          </FormField>
-          <FormField label="รหัสอุปกรณ์" required>
-            <Input value={code} onChange={(e) => setCode(e.target.value)} required />
           </FormField>
           <FormField label="ประเภท" className="col-span-2">
             <Select value={type} onChange={(e) => setType(e.target.value as EquipmentType)}>

@@ -55,7 +55,7 @@ interface Actions {
   regenerateProductSkus: (productId: string) => number;
 
   upsertEquipmentType: (code: string, labelTh: string) => string;
-  createEquipment: (input: Omit<Equipment, "id" | "createdAt" | "updatedAt">) => string;
+  createEquipment: (input: Omit<Equipment, "id" | "createdAt" | "updatedAt" | "code"> & { code?: string }) => string;
   updateEquipment: (id: string, input: Partial<Equipment>) => void;
   removeEquipment: (id: string) => void;
 

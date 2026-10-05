@@ -42,8 +42,7 @@ export default function EquipmentPage() {
 
   const filtered = useMemo(() => {
     return equipmentList.filter((e) => {
-      const matchesSearch =
-        !search || e.name.toLowerCase().includes(search.toLowerCase()) || e.code.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = !search || e.name.toLowerCase().includes(search.toLowerCase());
       const matchesType = type === "all" || e.type === type;
       const matchesStatus = status === "all" || e.status === status;
       return matchesSearch && matchesType && matchesStatus;
@@ -71,7 +70,6 @@ export default function EquipmentPage() {
       const stock = equipmentStockAcrossWarehouses(state, e.id);
       return {
         "ชื่ออุปกรณ์": e.name,
-        "รหัส": e.code,
         "ประเภท": typeLabel(e.type),
         "หน่วยนับ": e.unit,
         "คงเหลือ": stock.onHand,
@@ -94,7 +92,7 @@ export default function EquipmentPage() {
         actions={
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-on-surface-variant)]" />
-            <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="ค้นหาตามชื่อหรือรหัส..." className="w-72 pl-9" />
+            <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="ค้นหาตามชื่ออุปกรณ์..." className="w-72 pl-9" />
           </div>
         }
       />
@@ -174,7 +172,7 @@ export default function EquipmentPage() {
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium text-[var(--color-on-surface)]">{e.name}</p>
-                        <p className="truncate text-xs text-[var(--color-on-surface-variant)]">{e.code} · {typeLabel(e.type)}</p>
+                        <p className="truncate text-xs text-[var(--color-on-surface-variant)]">{typeLabel(e.type)}</p>
                         <div className="mt-1 flex items-center gap-3 text-xs">
                           <span className={low ? "font-semibold text-[var(--color-danger)]" : "font-medium text-[var(--color-on-surface)]"}>
                             คงเหลือ {formatNumber(stock.onHand)} {e.unit}
@@ -195,7 +193,6 @@ export default function EquipmentPage() {
                     <Tr>
                       <Th>รูป</Th>
                       <Th>ชื่ออุปกรณ์</Th>
-                      <Th>รหัส</Th>
                       <Th>ประเภท</Th>
                       <Th>คงเหลือ</Th>
                       {canViewCost && <Th>ราคาต่อหน่วย</Th>}
@@ -226,7 +223,6 @@ export default function EquipmentPage() {
                               {e.name}
                             </Link>
                           </Td>
-                          <Td className="font-mono text-xs">{e.code}</Td>
                           <Td>{typeLabel(e.type)}</Td>
                           <Td>
                             <span className={low ? "font-semibold text-[var(--color-danger)]" : "font-semibold"}>{formatNumber(stock.onHand)}</span> {e.unit}

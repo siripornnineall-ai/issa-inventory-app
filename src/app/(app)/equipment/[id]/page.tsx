@@ -110,7 +110,6 @@ export default function EquipmentDetailPage() {
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-x-4 gap-y-3 pt-0 sm:gap-x-6">
               <Info label="ชื่ออุปกรณ์" value={equipment.name} />
-              <Info label="รหัสอุปกรณ์" value={equipment.code} />
               <Info label="ประเภท" value={typeLabel} />
               <Info label="หน่วยนับ" value={equipment.unit} />
               {canViewCost && <Info label="ราคาต่อหน่วย" value={formatTHB(equipment.purchasePricePerUnit)} />}

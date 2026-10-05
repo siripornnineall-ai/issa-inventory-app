@@ -113,7 +113,6 @@ export default function ReportsPage() {
 
     const lowStockEquipRows = lowStockEquip.map(({ equipment, stock }) => ({
       "ชื่ออุปกรณ์": equipment.name,
-      "รหัส": equipment.code,
       "คงเหลือ": stock.onHand,
       "หน่วย": equipment.unit,
       "จุดแจ้งเตือน": equipment.reorderPoint,
