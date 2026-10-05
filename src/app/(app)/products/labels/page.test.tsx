@@ -53,8 +53,19 @@ describe("พิมพ์บาร์โค้ดหลายรุ่นพร�
     expect(screen.getByRole("button", { name: /พิมพ์ป้าย \(4 ใบ\)/ })).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("ตั้งจำนวนใบทุกรายการพร้อมกัน"), { target: { value: "5" } });
-    fireEvent.click(screen.getByRole("button", { name: "อัปเดตทั้งหมด" }));
+    const applyBtn = screen.getByRole("button", { name: "อัปเดตทั้งหมด" });
+    expect(applyBtn.getAttribute("data-applied")).toBe("false");
+    fireEvent.click(applyBtn);
     expect(screen.getByRole("button", { name: /พิมพ์ป้าย \(20 ใบ\)/ })).toBeTruthy();
+
+    // กดแล้วปุ่มเป็นสีเขียว (อัปเดตแล้ว) จนกว่าจะแก้ตัวเลขในช่องใหม่
+    const done = screen.getByRole("button", { name: "อัปเดตแล้ว" });
+    expect(done.getAttribute("data-applied")).toBe("true");
+    expect(done.className).toContain("bg-[var(--color-success)]");
+    fireEvent.change(screen.getByLabelText("ตั้งจำนวนใบทุกรายการพร้อมกัน"), { target: { value: "6" } });
+    expect(screen.getByRole("button", { name: "อัปเดตทั้งหมด" }).getAttribute("data-applied")).toBe("false");
+    fireEvent.change(screen.getByLabelText("ตั้งจำนวนใบทุกรายการพร้อมกัน"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "อัปเดตทั้งหมด" }));
 
     fireEvent.click(screen.getByRole("button", { name: /พิมพ์ป้าย/ }));
     await waitFor(() => expect(printed.items).not.toBeNull());
