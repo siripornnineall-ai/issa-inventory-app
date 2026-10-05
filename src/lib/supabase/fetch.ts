@@ -106,6 +106,31 @@ export async function fetchUnitTokenByScan(supabase: SupabaseClient, value: stri
   return rowToUnitToken(data as UnitTokenRow);
 }
 
+// Supabase/PostgREST ตัดผลลัพธ์ที่ 1,000 แถวต่อคำสั่ง (ไม่ error ไม่เตือน แค่ส่งมาไม่ครบ)
+// เมื่อ product_variants/variant_stock เกิน 1,000 แถว สินค้าใหม่ ๆ จึงขึ้น "0 ตัวเลือก" ทั้งที่ข้อมูลอยู่ครบในฐานข้อมูล
+// ดึงทีละหน้าตามลำดับคีย์หลัก (ต้อง order ให้แน่นอน ไม่งั้นแต่ละหน้าอาจซ้ำ/ตกหล่น) จนกว่าจะได้หน้าที่ไม่เต็ม
+export const FETCH_PAGE_SIZE = 1000;
+
+export async function fetchAllRows(
+  supabase: SupabaseClient,
+  table: string,
+  orderBy: string[],
+  pageSize = FETCH_PAGE_SIZE
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<{ data: any[]; error: any }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows: any[] = [];
+  for (let from = 0; ; from += pageSize) {
+    let query = supabase.from(table).select("*");
+    for (const col of orderBy) query = query.order(col, { ascending: true });
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) return { data: [], error };
+    rows.push(...(data ?? []));
+    if (!data || data.length < pageSize) break;
+  }
+  return { data: rows, error: null };
+}
+
 export async function fetchAppState(supabase: SupabaseClient): Promise<AppState> {
   const productImagesPromise = fetchProductImagesPaginated(supabase);
 
@@ -142,37 +167,37 @@ export async function fetchAppState(supabase: SupabaseClient): Promise<AppState>
     invoicesRes,
     unitTokensRes,
   ] = await Promise.all([
-    supabase.from("profiles").select("*"),
-    supabase.from("warehouses").select("*"),
-    supabase.from("suppliers").select("*"),
-    supabase.from("supplier_images").select("*"),
-    supabase.from("brands").select("*"),
-    supabase.from("color_codes").select("*"),
-    supabase.from("custom_sizes").select("*"),
-    supabase.from("product_shape_options").select("*"),
-    supabase.from("products").select("*"),
-    supabase.from("product_variants").select("*"),
-    supabase.from("variant_stock").select("*"),
-    supabase.from("equipment").select("*"),
-    supabase.from("equipment_images").select("*"),
-    supabase.from("equipment_stock").select("*"),
-    supabase.from("equipment_type_options").select("*"),
-    supabase.from("equipment_requisitions").select("*"),
-    supabase.from("notifications").select("*"),
-    supabase.from("stock_movements").select("*"),
-    supabase.from("stock_in_docs").select("*"),
-    supabase.from("stock_in_lines").select("*"),
-    supabase.from("stock_out_docs").select("*"),
-    supabase.from("stock_out_lines").select("*"),
-    supabase.from("transfers").select("*"),
-    supabase.from("transfer_lines").select("*"),
-    supabase.from("orders").select("*"),
-    supabase.from("order_lines").select("*"),
-    supabase.from("company_info").select("*"),
-    supabase.from("storefront_settings").select("*"),
-    supabase.from("po_signatories").select("*"),
-    supabase.from("invoices").select("*"),
-    supabase.from("unit_tokens").select("*"),
+    fetchAllRows(supabase, "profiles", ["id"]),
+    fetchAllRows(supabase, "warehouses", ["id"]),
+    fetchAllRows(supabase, "suppliers", ["id"]),
+    fetchAllRows(supabase, "supplier_images", ["id"]),
+    fetchAllRows(supabase, "brands", ["id"]),
+    fetchAllRows(supabase, "color_codes", ["code"]),
+    fetchAllRows(supabase, "custom_sizes", ["id"]),
+    fetchAllRows(supabase, "product_shape_options", ["id"]),
+    fetchAllRows(supabase, "products", ["id"]),
+    fetchAllRows(supabase, "product_variants", ["id"]),
+    fetchAllRows(supabase, "variant_stock", ["variant_id", "warehouse_id"]),
+    fetchAllRows(supabase, "equipment", ["id"]),
+    fetchAllRows(supabase, "equipment_images", ["id"]),
+    fetchAllRows(supabase, "equipment_stock", ["equipment_id", "warehouse_id"]),
+    fetchAllRows(supabase, "equipment_type_options", ["code"]),
+    fetchAllRows(supabase, "equipment_requisitions", ["id"]),
+    fetchAllRows(supabase, "notifications", ["id"]),
+    fetchAllRows(supabase, "stock_movements", ["id"]),
+    fetchAllRows(supabase, "stock_in_docs", ["id"]),
+    fetchAllRows(supabase, "stock_in_lines", ["id"]),
+    fetchAllRows(supabase, "stock_out_docs", ["id"]),
+    fetchAllRows(supabase, "stock_out_lines", ["id"]),
+    fetchAllRows(supabase, "transfers", ["id"]),
+    fetchAllRows(supabase, "transfer_lines", ["id"]),
+    fetchAllRows(supabase, "orders", ["id"]),
+    fetchAllRows(supabase, "order_lines", ["id"]),
+    fetchAllRows(supabase, "company_info", ["id"]),
+    fetchAllRows(supabase, "storefront_settings", ["id"]),
+    fetchAllRows(supabase, "po_signatories", ["id"]),
+    fetchAllRows(supabase, "invoices", ["id"]),
+    fetchAllRows(supabase, "unit_tokens", ["id"]),
   ]);
   const productImagesRows = await productImagesPromise;
 
