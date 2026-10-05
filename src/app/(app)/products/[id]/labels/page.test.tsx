@@ -58,4 +58,17 @@ describe("พิมพ์ป้ายของสินค้าแต่ละ�
     // สีเรียงตามที่เห็นครั้งแรก (ดำก่อนขาว) แล้วแต่ละสีเรียง S, M, L, XL, 2XL
     expect(order).toEqual(["ดำ/S", "ดำ/M", "ดำ/L", "ดำ/XL", "ดำ/2XL", "ขาว/S", "ขาว/M", "ขาว/2XL"]);
   });
+
+  it("ตั้งจำนวนทุกไซซ์พร้อมกัน: ใส่ 5 กดอัปเดตทั้งหมด แล้วทุกไซซ์พิมพ์ไซซ์ละ 5 ใบ", async () => {
+    render(<ProductLabelsPage />);
+    fireEvent.change(screen.getByLabelText("ตั้งจำนวนใบทุกรายการพร้อมกัน"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "อัปเดตทั้งหมด" }));
+    expect(screen.getByRole("button", { name: /พิมพ์ป้าย \(40 ใบ\)/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /พิมพ์ป้าย/ }));
+    await waitFor(() => expect(printed.items).not.toBeNull());
+    expect(printed.items).toHaveLength(40);
+    const perVariant = new Map<string, number>();
+    for (const i of printed.items!) perVariant.set(i.variant.id, (perVariant.get(i.variant.id) ?? 0) + 1);
+    expect(Array.from(perVariant.values()).every((n) => n === 5)).toBe(true);
+  });
 });

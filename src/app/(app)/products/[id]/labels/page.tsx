@@ -15,6 +15,7 @@ import { preloadImages } from "@/lib/utils/preloadImages";
 import { toastError } from "@/lib/toast";
 import { buildPrintLogos } from "@/lib/utils/printLogo";
 import { stripLeadingZeros } from "@/lib/utils/numberInput";
+import { BulkQtyControl } from "@/components/products/BulkQtyControl";
 import type { ProductVariant } from "@/lib/types";
 
 export default function ProductLabelsPage() {
@@ -153,6 +154,7 @@ export default function ProductLabelsPage() {
                 </button>
               </div>
             </div>
+            <BulkQtyControl onApply={(qty) => setQuantities(Object.fromEntries(variants.map((v) => [v.id, qty])))} />
             <div className="flex flex-col gap-3">
               {groups.map((group) => {
                 const ids = group.rows.map((v) => v.id);

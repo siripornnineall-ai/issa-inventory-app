@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { VariantPicker } from "@/components/stock/VariantPicker";
 import { PrintableQrLabels, type PrintLabelItem } from "@/components/products/PrintableQrLabels";
 import { LabelCalibrationPanel } from "@/components/products/LabelCalibrationPanel";
+import { BulkQtyControl } from "@/components/products/BulkQtyControl";
 import { useStore, useActions } from "@/lib/store";
 import { useLabelCalibration } from "@/lib/utils/labelCalibration";
 import { preloadImages } from "@/lib/utils/preloadImages";
@@ -130,6 +131,7 @@ export default function PrintLabelsBatchPage() {
           <EmptyState icon={<Barcode2 className="h-10 w-10" />} title="ยังไม่มีรุ่นในรายการ" description="ค้นหาสินค้าด้านบนแล้วเลือกสี/ไซซ์เพื่อเพิ่มลงรายการพิมพ์" />
         ) : (
           <>
+            <BulkQtyControl className="mb-3" onApply={(qty) => setCart((prev) => prev.map((l) => ({ ...l, qty })))} />
             {/* การ์ดสำหรับจอมือถือ */}
             <div className="mb-6 flex flex-col gap-2 sm:hidden">
               {cart.map((line) => {
