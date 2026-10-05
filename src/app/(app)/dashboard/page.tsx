@@ -4,10 +4,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   ClipboardList,
-  Wallet,
   ArrowDownToLine,
   ArrowUpFromLine,
-  XCircle,
   PackagePlus,
   LogIn,
   LogOut,
@@ -63,20 +61,13 @@ export default function DashboardPage() {
         actions={<DateRangePicker value={range} onChange={setRange} />}
       />
       <PageContainer>
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
           <KpiCard
             icon={<ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" />}
             label="จำนวนปัจจุบัน"
             value={formatNumber(stats.currentQty)}
             unit="ชิ้น"
             onClick={() => setDrillKind("currentQty")}
-          />
-          <KpiCard
-            icon={<Wallet className="h-4 w-4 sm:h-5 sm:w-5" />}
-            label="ยอดขาย"
-            value={formatTHB(stats.sales.baht, { compact: true })}
-            unit={`· ${formatNumber(stats.sales.qty)} ชิ้น · ${formatNumber(stats.sales.orders)} ออเดอร์`}
-            onClick={() => setDrillKind("sales")}
           />
           <KpiCard
             icon={<ArrowDownToLine className="h-4 w-4 sm:h-5 sm:w-5" />}
@@ -91,13 +82,6 @@ export default function DashboardPage() {
             value={formatNumber(stats.stockOut.qty)}
             unit={`ชิ้น · ${stats.stockOut.docs} รายการ`}
             onClick={() => setDrillKind("stockOut")}
-          />
-          <KpiCard
-            icon={<XCircle className="h-4 w-4 sm:h-5 sm:w-5" />}
-            label="ยอดยกเลิก"
-            value={formatTHB(stats.cancelled.baht, { compact: true })}
-            unit={`· ${stats.cancelled.orders} ออเดอร์`}
-            onClick={() => setDrillKind("cancelled")}
           />
         </div>
 
