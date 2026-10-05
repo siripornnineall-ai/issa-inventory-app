@@ -45,7 +45,12 @@ export default function ProductDetailPage() {
   }, [variants]);
   const warehouses = Object.values(state.warehouses);
   const brand = product?.brandId ? state.brands[product.brandId] : undefined;
-  const hasLegacySku = useMemo(() => variants.some((v) => /[^\x00-\x7F]/.test(v.sku)), [variants]);
+  // SKU ที่ต้องสร้างใหม่: มีอักษรไทยปน (สร้างบาร์โค้ดไม่ได้) หรือสินค้ามีแบรนด์+รหัสรุ่นแล้ว แต่ SKU ยังไม่ขึ้นต้นด้วย แบรนด์-รหัสรุ่น
+  // (เช่นลืมใส่แบรนด์ตอนสร้างสินค้า แล้วมาใส่ทีหลัง SKU เลยยังเป็น ISSA-ชื่อรุ่น-... แบบเก่า)
+  const skuNeedsRegen = useMemo(() => {
+    const prefix = brand && product?.modelCode ? `${brand.code}-${product.modelCode}-`.toUpperCase() : null;
+    return variants.some((v) => /[^\x00-\x7F]/.test(v.sku) || (prefix !== null && !v.sku.toUpperCase().startsWith(prefix)));
+  }, [variants, brand, product]);
 
   const [variantDialogOpen, setVariantDialogOpen] = useState(false);
   const [editingVariant, setEditingVariant] = useState<ProductVariant | undefined>(undefined);
@@ -282,9 +287,13 @@ export default function ProductDetailPage() {
               </Button>
             )}
           </CardHeader>
-          {canWrite && hasLegacySku && (
+          {canWrite && skuNeedsRegen && (
             <div className="mx-6 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-warning)] bg-[var(--color-warning-container)] p-3 text-xs">
-              <p>พบ SKU รุ่นเก่าที่มีอักษรไทยปนอยู่ ทำให้สร้างบาร์โค้ดสแกนไม่ได้ กดปุ่มนี้เพื่อสร้าง SKU ใหม่ (รูปแบบมาตรฐาน แบรนด์-รหัสรุ่น-รหัสสี-ไซซ์) ให้สแกนได้</p>
+              <p>
+                {brand && product?.modelCode
+                  ? `พบ SKU ที่ยังไม่ตรงกับแบรนด์ ${brand.code} และรหัสรุ่น ${product.modelCode} (หรือมีอักษรไทยปนอยู่) กดปุ่มนี้เพื่อสร้าง SKU ใหม่ตามรูปแบบมาตรฐาน แบรนด์-รหัสรุ่น-รหัสสี-ไซซ์`
+                  : "พบ SKU รุ่นเก่าที่มีอักษรไทยปนอยู่ ทำให้สร้างบาร์โค้ดสแกนไม่ได้ กดปุ่มนี้เพื่อสร้าง SKU ใหม่ (รูปแบบมาตรฐาน แบรนด์-รหัสรุ่น-รหัสสี-ไซซ์) ให้สแกนได้"}
+              </p>
               <Button size="sm" variant="secondary" onClick={() => setRegenSkuOpen(true)}>
                 <RefreshCw className="h-3.5 w-3.5" /> สร้าง SKU ใหม่ให้สแกนได้
               </Button>
