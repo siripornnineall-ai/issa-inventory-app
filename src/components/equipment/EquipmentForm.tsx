@@ -20,7 +20,7 @@ export function EquipmentForm({ existing }: { existing?: Equipment }) {
   const router = useRouter();
   const suppliers = useStore((s) => s.suppliers);
   const equipmentTypeOptions = useStore((s) => s.equipmentTypeOptions);
-  const { createEquipment, updateEquipment, upsertEquipmentType } = useActions();
+  const { createEquipment, updateEquipment, removeEquipment, upsertEquipmentType } = useActions();
   const isEdit = Boolean(existing);
 
   const typeOptions = useMemo(() => {
@@ -31,6 +31,20 @@ export function EquipmentForm({ existing }: { existing?: Equipment }) {
 
   const [name, setName] = useState(existing?.name ?? "");
   const [size, setSize] = useState(existing?.size ?? "");
+  // โหมดเพิ่มใหม่เลือกได้หลายไซซ์ (สร้างอุปกรณ์ไซซ์ละรายการ) โหมดแก้ไขแก้ไซซ์ของรายการนี้รายการเดียว
+  const [sizes, setSizes] = useState<string[]>([]);
+  const [customSize, setCustomSize] = useState("");
+
+  function toggleSize(s: string) {
+    setSizes((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+  }
+
+  function addCustomSize() {
+    const s = customSize.trim();
+    if (!s) return;
+    setSizes((prev) => (prev.includes(s) ? prev : [...prev, s]));
+    setCustomSize("");
+  }
   const [type, setType] = useState<EquipmentType>(existing?.type ?? "packaging");
   const [newTypeLabel, setNewTypeLabel] = useState("");
   const [newTypeCode, setNewTypeCode] = useState("");
@@ -102,10 +116,21 @@ export function EquipmentForm({ existing }: { existing?: Equipment }) {
         toastSuccess("บันทึกการแก้ไขอุปกรณ์เรียบร้อยแล้ว");
         router.replace(`/equipment/${existing.id}`);
       } else {
-        const id = createEquipment(payload);
+        // ไซซ์ที่พิมพ์ค้างช่องไว้แต่ยังไม่ได้กด + ก็นับด้วย ไม่ปล่อยให้หายเงียบ ๆ
+        const pending = customSize.trim();
+        const chosen = pending && !sizes.includes(pending) ? [...sizes, pending] : sizes;
+        const sizeList: (string | undefined)[] = chosen.length > 0 ? chosen : [undefined];
+        const createdIds: string[] = [];
+        try {
+          for (const s of sizeList) createdIds.push(createEquipment({ ...payload, size: s }));
+        } catch (createErr) {
+          // ไม่ทิ้งอุปกรณ์ที่สร้างไปแล้วครึ่งทาง ถ้ารายการใดพลาดให้ยกเลิกทั้งชุด
+          for (const id of createdIds) removeEquipment(id);
+          throw createErr;
+        }
         setSubmitted(true);
-        toastSuccess("เพิ่มอุปกรณ์ใหม่เรียบร้อยแล้ว");
-        router.replace(`/equipment/${id}`);
+        toastSuccess(createdIds.length > 1 ? `เพิ่มอุปกรณ์ ${createdIds.length} ไซซ์เรียบร้อยแล้ว` : "เพิ่มอุปกรณ์ใหม่เรียบร้อยแล้ว");
+        router.replace(createdIds.length > 1 ? "/equipment" : `/equipment/${createdIds[0]}`);
       }
     } catch (e2) {
       toastError(e2 instanceof Error ? e2.message : "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
@@ -150,15 +175,51 @@ export function EquipmentForm({ existing }: { existing?: Equipment }) {
               </Button>
             </div>
           </FormField>
-          <FormField label="ไซซ์ (ไม่บังคับ)" hint="ถ้าอุปกรณ์มีหลายไซซ์ ให้เพิ่มแยกเป็นรายการละไซซ์ จะได้นับสต็อกแยกกัน" className="col-span-2">
-            <Input value={size} onChange={(e) => setSize(e.target.value)} list="equipment-size-options" placeholder="เช่น S, M, L, XL หรือ 5x3 ซม." />
-            <datalist id="equipment-size-options">
-              {SIZE_PRESETS.map((s) => (
-                <option key={s} value={s} />
-              ))}
-              <option value="Freesize" />
-            </datalist>
-          </FormField>
+          {isEdit ? (
+            <FormField label="ไซซ์ (ไม่บังคับ)" className="col-span-2">
+              <Input value={size} onChange={(e) => setSize(e.target.value)} placeholder="เช่น S, M, L, XL หรือ 5x3 ซม." />
+            </FormField>
+          ) : (
+            <FormField
+              label="ไซซ์ (ไม่บังคับ)"
+              hint="เลือกได้หลายไซซ์ ระบบจะสร้างอุปกรณ์แยกให้ไซซ์ละรายการ (ข้อมูลอื่นเหมือนกัน) แต่ละไซซ์นับสต็อกแยกกัน"
+              className="col-span-2"
+            >
+              <div className="flex flex-wrap gap-1.5">
+                {[...SIZE_PRESETS.slice(0, 6), "Freesize", ...sizes.filter((s) => !SIZE_PRESETS.slice(0, 6).includes(s) && s !== "Freesize")].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    aria-pressed={sizes.includes(s)}
+                    onClick={() => toggleSize(s)}
+                    className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${
+                      sizes.includes(s)
+                        ? "border-[var(--color-primary-container)] bg-[var(--color-primary-container)] text-white"
+                        : "border-[var(--color-border)] text-[var(--color-on-surface-variant)]"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <Input
+                  value={customSize}
+                  onChange={(e) => setCustomSize(e.target.value)}
+                  placeholder="ไซซ์อื่น ๆ เช่น 5x3 ซม., 7XL"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addCustomSize();
+                    }
+                  }}
+                />
+                <Button type="button" variant="secondary" onClick={addCustomSize}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </FormField>
+          )}
           <FormField label="หน่วยนับ">
             <Select value={unit} onChange={(e) => setUnit(e.target.value as EquipmentUnit)}>
               {UNIT_OPTIONS.map((u) => (
