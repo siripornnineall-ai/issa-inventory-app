@@ -35,7 +35,7 @@ describe("หน้ารายการอุปกรณ์: รวมหล�
     render(<EquipmentPage />);
     expect(screen.getAllByText("เลเบิ้ล Issa").length).toBeGreaterThan(0);
     expect(screen.queryByText("เลเบิ้ล Issa (XL)")).toBeNull();
-    expect(screen.getAllByText(/4 ไซซ์: S, M, L, XL/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/ไซซ์:/)).toBeNull(); // ไม่โชว์รายชื่อไซซ์ในตารางรายการ
     // รวมสต็อก 100 + 50 และช่วงราคา 3 - 4
     expect(screen.getAllByText("150").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/฿3\.00 - ฿4\.00/).length).toBeGreaterThan(0);

@@ -35,6 +35,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "อุปกรณ์",
     items: [
       { href: "/equipment", label: "อุปกรณ์ทั้งหมด", icon: "Wrench" },
+      { href: "/equipment/stock-overview", label: "สต็อกภาพรวมอุปกรณ์", icon: "Grid3x3" },
       { href: "/equipment/new", label: "เพิ่มอุปกรณ์ใหม่", icon: "PackagePlus", perm: "equipment.write" },
       { href: "/equipment/stock-in", label: "รับอุปกรณ์เข้า", icon: "LogIn", perm: "stock.in" },
       { href: "/equipment/stock-out", label: "เบิกอุปกรณ์ออก", icon: "LogOut", perm: "stock.out" },

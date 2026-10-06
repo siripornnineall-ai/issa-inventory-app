@@ -67,9 +67,6 @@ export default function EquipmentPage() {
     const max = Math.max(...prices);
     return { onHand, low, price: min === max ? formatTHB(min) : `${formatTHB(min)} - ${formatTHB(max)}` };
   }
-  function sizesText(items: Equipment[]) {
-    return items.some((i) => i.size) ? `${items.length} ไซซ์: ${items.map((i) => i.size).join(", ")}` : null;
-  }
 
   const totalValue = useMemo(
     () =>
@@ -182,7 +179,6 @@ export default function EquipmentPage() {
                 {paged.map((g) => {
                   const e = g.primary;
                   const stock = groupStats(g.items);
-                  const sizes = sizesText(g.items);
                   const mainImage = e.images.find((i) => i.isMain) ?? e.images[0];
                   const low = stock.low;
                   return (
@@ -197,7 +193,7 @@ export default function EquipmentPage() {
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium text-[var(--color-on-surface)]">{e.name}</p>
-                        <p className="truncate text-xs text-[var(--color-on-surface-variant)]">{typeLabel(e.type)}{sizes ? ` · ${sizes}` : ""}</p>
+                        <p className="truncate text-xs text-[var(--color-on-surface-variant)]">{typeLabel(e.type)}</p>
                         <div className="mt-1 flex items-center gap-3 text-xs">
                           <span className={low ? "font-semibold text-[var(--color-danger)]" : "font-medium text-[var(--color-on-surface)]"}>
                             คงเหลือ {formatNumber(stock.onHand)} {e.unit}
@@ -228,7 +224,6 @@ export default function EquipmentPage() {
                     {paged.map((g) => {
                       const e = g.primary;
                       const stock = groupStats(g.items);
-                      const sizes = sizesText(g.items);
                       const mainImage = e.images.find((i) => i.isMain) ?? e.images[0];
                       const low = stock.low;
                       return (
@@ -249,7 +244,6 @@ export default function EquipmentPage() {
                             <Link href={`/equipment/${e.id}`} className="font-medium text-[var(--color-on-surface)] hover:text-[var(--color-primary-container)]">
                               {e.name}
                             </Link>
-                            {sizes && <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">{sizes}</p>}
                           </Td>
                           <Td>{typeLabel(e.type)}</Td>
                           <Td>
