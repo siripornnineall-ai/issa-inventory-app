@@ -5,7 +5,8 @@ import { KeyRound, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
-import { Input, FormField } from "@/components/ui/Field";
+import { FormField } from "@/components/ui/Field";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { createClient } from "@/lib/supabase/client";
 import { MIN_PASSWORD_LENGTH } from "@/lib/supabase/adminUsers";
 import { useStore, useActions } from "@/lib/store";
@@ -70,14 +71,14 @@ function useChangePassword(forced: boolean, onDone: () => void) {
     <div className="grid grid-cols-1 gap-4">
       {!forced && (
         <FormField label="รหัสผ่านปัจจุบัน" required>
-          <Input id="cp-current" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+          <PasswordInput id="cp-current" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
         </FormField>
       )}
       <FormField label="รหัสผ่านใหม่" required hint={`อย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`}>
-        <Input id="cp-new" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
+        <PasswordInput id="cp-new" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
       </FormField>
       <FormField label="ยืนยันรหัสผ่านใหม่" required>
-        <Input id="cp-confirm" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+        <PasswordInput id="cp-confirm" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
       </FormField>
       {error && <p className="text-sm font-medium text-[var(--color-danger)]">{error}</p>}
     </div>
