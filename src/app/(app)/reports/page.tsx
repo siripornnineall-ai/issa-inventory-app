@@ -1,5 +1,6 @@
 "use client";
 
+import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import { useMemo } from "react";
 import { Download, Wallet, ArrowDownToLine, ArrowUpFromLine, XCircle, Trophy, AlertTriangle } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -112,7 +113,7 @@ export default function ReportsPage() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lowStockRows), "สินค้าใกล้หมด");
 
     const lowStockEquipRows = lowStockEquip.map(({ equipment, stock }) => ({
-      "ชื่ออุปกรณ์": equipment.name,
+      "ชื่ออุปกรณ์": equipmentLabel(equipment),
       "คงเหลือ": stock.onHand,
       "หน่วย": equipment.unit,
       "จุดแจ้งเตือน": equipment.reorderPoint,
@@ -281,7 +282,7 @@ export default function ReportsPage() {
                   <Tbody>
                     {lowStockEquip.slice(0, 8).map(({ equipment, stock }) => (
                       <Tr key={equipment.id}>
-                        <Td className="font-medium">{equipment.name}</Td>
+                        <Td className="font-medium">{equipmentLabel(equipment)}</Td>
                         <Td className="font-semibold text-[var(--color-danger)]">
                           {formatNumber(stock.onHand)} {equipment.unit}
                         </Td>

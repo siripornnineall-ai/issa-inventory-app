@@ -196,6 +196,7 @@ export interface Equipment {
   name: string;
   code: string;
   type: EquipmentType;
+  size?: string; // ไซซ์ (ไม่บังคับ) แต่ละไซซ์เป็นอุปกรณ์แยกรายการ มีสต็อกของตัวเอง
   description?: string;
   images: ProductImage[];
   supplierId?: string;

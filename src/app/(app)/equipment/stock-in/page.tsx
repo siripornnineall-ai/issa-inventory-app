@@ -1,5 +1,6 @@
 "use client";
 
+import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, PackagePlus } from "lucide-react";
@@ -159,7 +160,7 @@ function EquipmentStockInForm() {
                     <div key={l.key} className="rounded-lg border border-[var(--color-border)] p-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium leading-tight">{equipment?.name}</p>
+                          <p className="truncate text-sm font-medium leading-tight">{equipmentLabel(equipment)}</p>
                         </div>
                         <button onClick={() => removeLine(l.key)} className="shrink-0 text-[var(--color-danger)]" aria-label="ลบรายการ">
                           <Trash2 className="h-3.5 w-3.5" />
@@ -211,7 +212,7 @@ function EquipmentStockInForm() {
                       return (
                         <Tr key={l.key}>
                           <Td>
-                            <p className="font-medium">{equipment?.name}</p>
+                            <p className="font-medium">{equipmentLabel(equipment)}</p>
                           </Td>
                           <Td>
                             <Input

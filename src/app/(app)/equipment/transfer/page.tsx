@@ -1,5 +1,6 @@
 "use client";
 
+import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import { useMemo, useState } from "react";
 import { Trash2, ArrowLeftRight, CheckCircle2, XCircle } from "lucide-react";
 import { Header } from "@/components/layout/Header";
@@ -149,7 +150,7 @@ function CreateEquipmentTransferForm() {
                   <div key={l.key} className="rounded-lg border border-[var(--color-border)] p-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium leading-tight">{equipment?.name}</p>
+                        <p className="truncate text-sm font-medium leading-tight">{equipmentLabel(equipment)}</p>
                         <p className={`text-xs ${insufficient ? "font-semibold text-[var(--color-danger)]" : "text-[var(--color-on-surface-variant)]"}`}>
                           คงเหลือที่ต้นทาง {formatNumber(onHand)} {equipment?.unit}
                         </p>
@@ -186,7 +187,7 @@ function CreateEquipmentTransferForm() {
                     return (
                       <Tr key={l.key}>
                         <Td>
-                          <p className="font-medium">{equipment?.name}</p>
+                          <p className="font-medium">{equipmentLabel(equipment)}</p>
                         </Td>
                         <Td className={insufficient ? "font-semibold text-[var(--color-danger)]" : ""}>
                           {formatNumber(onHand)} {equipment?.unit}

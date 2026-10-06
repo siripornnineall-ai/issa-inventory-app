@@ -390,6 +390,7 @@ export async function fetchAppState(supabase: SupabaseClient): Promise<AppState>
       name: row.name,
       code: row.code,
       type: row.type as EquipmentType,
+      size: row.size ?? undefined,
       description: row.description ?? undefined,
       images: (imagesByEquipment.get(row.id) ?? []).sort((a, b) => a.sortOrder - b.sortOrder),
       supplierId: row.supplier_id ?? undefined,

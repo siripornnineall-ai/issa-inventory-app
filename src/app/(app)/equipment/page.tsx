@@ -1,5 +1,6 @@
 "use client";
 
+import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Search, SlidersHorizontal, PackagePlus, LogIn, LogOut, Download, ImageOff, Wrench } from "lucide-react";
@@ -42,7 +43,7 @@ export default function EquipmentPage() {
 
   const filtered = useMemo(() => {
     return equipmentList.filter((e) => {
-      const matchesSearch = !search || e.name.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = !search || equipmentLabel(e).toLowerCase().includes(search.toLowerCase());
       const matchesType = type === "all" || e.type === type;
       const matchesStatus = status === "all" || e.status === status;
       return matchesSearch && matchesType && matchesStatus;
@@ -70,6 +71,7 @@ export default function EquipmentPage() {
       const stock = equipmentStockAcrossWarehouses(state, e.id);
       return {
         "ชื่ออุปกรณ์": e.name,
+        "ไซซ์": e.size ?? "",
         "ประเภท": typeLabel(e.type),
         "หน่วยนับ": e.unit,
         "คงเหลือ": stock.onHand,
@@ -171,7 +173,7 @@ export default function EquipmentPage() {
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-[var(--color-on-surface)]">{e.name}</p>
+                        <p className="truncate font-medium text-[var(--color-on-surface)]">{equipmentLabel(e)}</p>
                         <p className="truncate text-xs text-[var(--color-on-surface-variant)]">{typeLabel(e.type)}</p>
                         <div className="mt-1 flex items-center gap-3 text-xs">
                           <span className={low ? "font-semibold text-[var(--color-danger)]" : "font-medium text-[var(--color-on-surface)]"}>
@@ -220,7 +222,7 @@ export default function EquipmentPage() {
                           </Td>
                           <Td>
                             <Link href={`/equipment/${e.id}`} className="font-medium text-[var(--color-on-surface)] hover:text-[var(--color-primary-container)]">
-                              {e.name}
+                              {equipmentLabel(e)}
                             </Link>
                           </Td>
                           <Td>{typeLabel(e.type)}</Td>

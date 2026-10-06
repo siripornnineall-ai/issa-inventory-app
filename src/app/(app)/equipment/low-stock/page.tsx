@@ -1,5 +1,6 @@
 "use client";
 
+import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import Link from "next/link";
 import { AlertTriangle, LogIn } from "lucide-react";
 import { Header } from "@/components/layout/Header";
@@ -38,7 +39,7 @@ export default function EquipmentLowStockPage() {
                     <div key={equipment.id} className="flex items-center justify-between gap-3 p-3">
                       <div className="min-w-0">
                         <Link href={`/equipment/${equipment.id}`} className="block truncate text-sm font-medium hover:text-[var(--color-primary-container)]">
-                          {equipment.name}
+                          {equipmentLabel(equipment)}
                         </Link>
                         <p className="truncate text-xs text-[var(--color-on-surface-variant)]">
                           {typeLabel(equipment.type)}
@@ -75,7 +76,7 @@ export default function EquipmentLowStockPage() {
                         <Tr key={equipment.id}>
                           <Td className="font-medium">
                             <Link href={`/equipment/${equipment.id}`} className="hover:text-[var(--color-primary-container)]">
-                              {equipment.name}
+                              {equipmentLabel(equipment)}
                             </Link>
                           </Td>
                           <Td>{typeLabel(equipment.type)}</Td>

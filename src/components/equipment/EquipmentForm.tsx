@@ -1,5 +1,6 @@
 "use client";
 
+import { SIZE_PRESETS } from "@/lib/utils/sizes";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
@@ -29,6 +30,7 @@ export function EquipmentForm({ existing }: { existing?: Equipment }) {
   }, [equipmentTypeOptions]);
 
   const [name, setName] = useState(existing?.name ?? "");
+  const [size, setSize] = useState(existing?.size ?? "");
   const [type, setType] = useState<EquipmentType>(existing?.type ?? "packaging");
   const [newTypeLabel, setNewTypeLabel] = useState("");
   const [newTypeCode, setNewTypeCode] = useState("");
@@ -82,6 +84,7 @@ export function EquipmentForm({ existing }: { existing?: Equipment }) {
     try {
       const payload = {
         name: name.trim(),
+        size: size.trim() || undefined,
         type,
         description: description || undefined,
         images,
@@ -146,6 +149,15 @@ export function EquipmentForm({ existing }: { existing?: Equipment }) {
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
+          </FormField>
+          <FormField label="ไซซ์ (ไม่บังคับ)" hint="ถ้าอุปกรณ์มีหลายไซซ์ ให้เพิ่มแยกเป็นรายการละไซซ์ จะได้นับสต็อกแยกกัน" className="col-span-2">
+            <Input value={size} onChange={(e) => setSize(e.target.value)} list="equipment-size-options" placeholder="เช่น S, M, L, XL หรือ 5x3 ซม." />
+            <datalist id="equipment-size-options">
+              {SIZE_PRESETS.map((s) => (
+                <option key={s} value={s} />
+              ))}
+              <option value="Freesize" />
+            </datalist>
           </FormField>
           <FormField label="หน่วยนับ">
             <Select value={unit} onChange={(e) => setUnit(e.target.value as EquipmentUnit)}>

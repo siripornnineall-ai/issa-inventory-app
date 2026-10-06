@@ -1,5 +1,6 @@
 "use client";
 
+import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -49,7 +50,7 @@ export default function EquipmentDetailPage() {
   return (
     <>
       <Header
-        title={equipment.name}
+        title={equipmentLabel(equipment)}
         description={`${typeLabel} · เพิ่มเมื่อ ${formatThaiDate(equipment.createdAt)}`}
         actions={
           canWrite && (
@@ -110,6 +111,7 @@ export default function EquipmentDetailPage() {
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-x-4 gap-y-3 pt-0 sm:gap-x-6">
               <Info label="ชื่ออุปกรณ์" value={equipment.name} />
+              {equipment.size && <Info label="ไซซ์" value={equipment.size} />}
               <Info label="ประเภท" value={typeLabel} />
               <Info label="หน่วยนับ" value={equipment.unit} />
               {canViewCost && <Info label="ราคาต่อหน่วย" value={formatTHB(equipment.purchasePricePerUnit)} />}

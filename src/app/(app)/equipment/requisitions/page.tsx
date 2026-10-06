@@ -1,5 +1,6 @@
 "use client";
 
+import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import { useMemo, useState } from "react";
 import { ClipboardList, Plus, Check, X, Ban } from "lucide-react";
 import { Header } from "@/components/layout/Header";
@@ -137,7 +138,7 @@ export default function RequisitionsPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate font-mono text-xs text-[var(--color-on-surface-variant)]">{r.reqNo}</p>
-                          <p className="truncate text-sm font-medium">{equipment?.name ?? "-"}</p>
+                          <p className="truncate text-sm font-medium">{equipment ? equipmentLabel(equipment) : "-"}</p>
                           <p className="text-xs text-[var(--color-on-surface-variant)]">
                             {r.qtyRequested} {equipment?.unit} · {r.requesterName}
                             {r.department ? ` (${r.department})` : ""}
@@ -204,7 +205,7 @@ export default function RequisitionsPage() {
                         {r.department && <span className="block text-xs text-[var(--color-on-surface-variant)]">{r.department}</span>}
                       </Td>
                       <Td>
-                        {equipment?.name ?? "-"}
+                        {equipment ? equipmentLabel(equipment) : "-"}
                         {r.reason && <span className="block text-xs text-[var(--color-on-surface-variant)]">{r.reason}</span>}
                       </Td>
                       <Td>

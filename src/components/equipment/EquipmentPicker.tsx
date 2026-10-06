@@ -1,5 +1,6 @@
 "use client";
 
+import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -26,7 +27,7 @@ export function EquipmentPicker({
     if (!q) return [];
     return Object.values(state.equipment)
       .filter((e) => e.status === "active")
-      .filter((e) => e.name.toLowerCase().includes(q))
+      .filter((e) => equipmentLabel(e).toLowerCase().includes(q))
       .slice(0, 20);
   }, [query, state.equipment]);
 
@@ -69,7 +70,7 @@ export function EquipmentPicker({
                 className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm hover:bg-[var(--color-surface-container)]"
               >
                 <span>
-                  <span className="block font-medium text-[var(--color-on-surface)]">{equipment.name}</span>
+                  <span className="block font-medium text-[var(--color-on-surface)]">{equipmentLabel(equipment)}</span>
                 </span>
                 {stock && (
                   <span className="shrink-0 text-xs font-medium text-[var(--color-on-surface-variant)]">

@@ -1,5 +1,6 @@
 "use client";
 
+import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, PackageMinus } from "lucide-react";
@@ -150,7 +151,7 @@ function EquipmentStockOutForm() {
                     <div key={l.key} className="rounded-lg border border-[var(--color-border)] p-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium leading-tight">{equipment?.name}</p>
+                          <p className="truncate text-sm font-medium leading-tight">{equipmentLabel(equipment)}</p>
                           <p className={`text-xs ${insufficient ? "font-semibold text-[var(--color-danger)]" : "text-[var(--color-on-surface-variant)]"}`}>
                             คงเหลือ {formatNumber(onHand)} {equipment?.unit}
                           </p>
@@ -187,7 +188,7 @@ function EquipmentStockOutForm() {
                       return (
                         <Tr key={l.key}>
                           <Td>
-                            <p className="font-medium">{equipment?.name}</p>
+                            <p className="font-medium">{equipmentLabel(equipment)}</p>
                           </Td>
                           <Td className={insufficient ? "font-semibold text-[var(--color-danger)]" : ""}>
                             {formatNumber(onHand)} {equipment?.unit}

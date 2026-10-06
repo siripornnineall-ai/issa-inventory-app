@@ -183,6 +183,7 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
           name: e.name,
           code: e.code,
           type: e.type,
+          size: e.size ?? null,
           description: e.description ?? null,
           supplier_id: e.supplierId ?? null,
           purchase_price_per_unit: e.purchasePricePerUnit,

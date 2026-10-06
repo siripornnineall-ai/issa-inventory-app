@@ -1,5 +1,6 @@
 "use client";
 
+import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
@@ -223,7 +224,7 @@ export default function DashboardPage() {
                 {lowStockEquipmentList.map(({ e, onHand }) => (
                   <div key={e.id} className="flex items-center justify-between text-sm">
                     <span className="flex items-center gap-2">
-                      <Wrench className="h-4 w-4 text-white/60" /> {e.name}
+                      <Wrench className="h-4 w-4 text-white/60" /> {equipmentLabel(e)}
                     </span>
                     <span className="text-white/70">
                       คงเหลือ {onHand} {e.unit}

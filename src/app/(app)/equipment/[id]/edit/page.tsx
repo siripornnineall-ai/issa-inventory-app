@@ -1,5 +1,6 @@
 "use client";
 
+import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Header } from "@/components/layout/Header";
@@ -16,7 +17,7 @@ export default function EditEquipmentPage() {
 
   return (
     <>
-      <Header title="แก้ไขอุปกรณ์" description={equipment ? equipment.name : ""} />
+      <Header title="แก้ไขอุปกรณ์" description={equipment ? equipmentLabel(equipment) : ""} />
       <PageContainer className="max-w-3xl">
         <RequireAccess perm="equipment.write">
           {equipment ? (
