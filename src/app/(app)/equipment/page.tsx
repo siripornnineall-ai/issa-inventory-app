@@ -17,7 +17,8 @@ import { useStore } from "@/lib/store";
 import { equipmentStockAcrossWarehouses } from "@/lib/store/selectors";
 import { formatNumber, formatTHB } from "@/lib/utils/money";
 import { useCan, useCanViewCost } from "@/lib/auth/session";
-import { EQUIPMENT_TYPE_LABEL_TH, type EquipmentType } from "@/lib/types";
+import { EQUIPMENT_TYPE_LABEL_TH, type Equipment, type EquipmentType } from "@/lib/types";
+import { groupEquipment } from "@/lib/utils/equipmentGroups";
 
 const PAGE_SIZE = 10;
 
@@ -41,6 +42,7 @@ export default function EquipmentPage() {
     return state.equipmentTypeOptions[code]?.labelTh ?? EQUIPMENT_TYPE_LABEL_TH[code] ?? code;
   }
 
+  // รายการที่ตรงเงื่อนไขเป็นรายตัว (ไซซ์ละรายการ) ใช้ตอนส่งออก Excel
   const filtered = useMemo(() => {
     return equipmentList.filter((e) => {
       const matchesSearch = !search || equipmentLabel(e).toLowerCase().includes(search.toLowerCase());
@@ -49,6 +51,25 @@ export default function EquipmentPage() {
       return matchesSearch && matchesType && matchesStatus;
     });
   }, [equipmentList, search, type, status]);
+
+  // ในตารางแสดงเป็น 1 แถวต่อ 1 รายการ (อุปกรณ์เดียวกันหลายไซซ์รวมเป็นแถวเดียว เหมือนสินค้าที่มีหลายตัวเลือก)
+  const groups = useMemo(() => groupEquipment(filtered), [filtered]);
+  function groupStats(items: Equipment[]) {
+    let onHand = 0;
+    let low = false;
+    for (const it of items) {
+      const s = equipmentStockAcrossWarehouses(state, it.id).onHand;
+      onHand += s;
+      if (s <= it.reorderPoint) low = true;
+    }
+    const prices = items.map((i) => i.purchasePricePerUnit);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    return { onHand, low, price: min === max ? formatTHB(min) : `${formatTHB(min)} - ${formatTHB(max)}` };
+  }
+  function sizesText(items: Equipment[]) {
+    return items.some((i) => i.size) ? `${items.length} ไซซ์: ${items.map((i) => i.size).join(", ")}` : null;
+  }
 
   const totalValue = useMemo(
     () =>
@@ -63,8 +84,8 @@ export default function EquipmentPage() {
     [equipmentList, state]
   );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
+  const paged = groups.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   function exportExcel() {
     const rows = filtered.map((e) => {
@@ -123,7 +144,7 @@ export default function EquipmentPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3">
-          <KpiCard label="อุปกรณ์ทั้งหมด" value={formatNumber(equipmentList.length)} unit="รายการ" />
+          <KpiCard label="อุปกรณ์ทั้งหมด" value={formatNumber(groupEquipment(equipmentList).length)} unit="รายการ" />
           <KpiCard label="ใกล้หมด / ต้องสั่งเพิ่ม" value={<span className="text-[var(--color-danger)]">{lowStockCount}</span>} unit="รายการ" />
           {canViewCost && <KpiCard label="มูลค่าคงเหลือรวม" value={formatTHB(totalValue, { compact: true })} />}
         </div>
@@ -158,10 +179,12 @@ export default function EquipmentPage() {
             <>
               {/* การ์ดสำหรับจอมือถือ */}
               <div className="divide-y divide-[var(--color-border)] sm:hidden">
-                {paged.map((e) => {
-                  const stock = equipmentStockAcrossWarehouses(state, e.id);
+                {paged.map((g) => {
+                  const e = g.primary;
+                  const stock = groupStats(g.items);
+                  const sizes = sizesText(g.items);
                   const mainImage = e.images.find((i) => i.isMain) ?? e.images[0];
-                  const low = stock.onHand <= e.reorderPoint;
+                  const low = stock.low;
                   return (
                     <Link key={e.id} href={`/equipment/${e.id}`} className="flex items-center gap-3 p-3">
                       {mainImage ? (
@@ -173,13 +196,13 @@ export default function EquipmentPage() {
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-[var(--color-on-surface)]">{equipmentLabel(e)}</p>
-                        <p className="truncate text-xs text-[var(--color-on-surface-variant)]">{typeLabel(e.type)}</p>
+                        <p className="truncate font-medium text-[var(--color-on-surface)]">{e.name}</p>
+                        <p className="truncate text-xs text-[var(--color-on-surface-variant)]">{typeLabel(e.type)}{sizes ? ` · ${sizes}` : ""}</p>
                         <div className="mt-1 flex items-center gap-3 text-xs">
                           <span className={low ? "font-semibold text-[var(--color-danger)]" : "font-medium text-[var(--color-on-surface)]"}>
                             คงเหลือ {formatNumber(stock.onHand)} {e.unit}
                           </span>
-                          {canViewCost && <span className="font-medium text-[var(--color-on-surface)]">{formatTHB(e.purchasePricePerUnit)}</span>}
+                          {canViewCost && <span className="font-medium text-[var(--color-on-surface)]">{stock.price}</span>}
                         </div>
                       </div>
                       <Badge tone={e.status === "active" ? "success" : "neutral"}>{e.status === "active" ? "ใช้งานอยู่" : "ปิด"}</Badge>
@@ -202,12 +225,14 @@ export default function EquipmentPage() {
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {paged.map((e) => {
-                      const stock = equipmentStockAcrossWarehouses(state, e.id);
+                    {paged.map((g) => {
+                      const e = g.primary;
+                      const stock = groupStats(g.items);
+                      const sizes = sizesText(g.items);
                       const mainImage = e.images.find((i) => i.isMain) ?? e.images[0];
-                      const low = stock.onHand <= e.reorderPoint;
+                      const low = stock.low;
                       return (
-                        <Tr key={e.id} className="cursor-pointer">
+                        <Tr key={g.key} className="cursor-pointer">
                           <Td>
                             <Link href={`/equipment/${e.id}`}>
                               {mainImage ? (
@@ -222,14 +247,15 @@ export default function EquipmentPage() {
                           </Td>
                           <Td>
                             <Link href={`/equipment/${e.id}`} className="font-medium text-[var(--color-on-surface)] hover:text-[var(--color-primary-container)]">
-                              {equipmentLabel(e)}
+                              {e.name}
                             </Link>
+                            {sizes && <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">{sizes}</p>}
                           </Td>
                           <Td>{typeLabel(e.type)}</Td>
                           <Td>
                             <span className={low ? "font-semibold text-[var(--color-danger)]" : "font-semibold"}>{formatNumber(stock.onHand)}</span> {e.unit}
                           </Td>
-                          {canViewCost && <Td>{formatTHB(e.purchasePricePerUnit)}</Td>}
+                          {canViewCost && <Td>{stock.price}</Td>}
                           <Td>
                             <Badge tone={e.status === "active" ? "success" : "neutral"}>{e.status === "active" ? "ใช้งานอยู่" : "ปิดการใช้งาน"}</Badge>
                           </Td>
@@ -241,7 +267,7 @@ export default function EquipmentPage() {
               </div>
             </>
           )}
-          <Pagination page={page} totalPages={totalPages} onChange={setPage} totalItems={filtered.length} pageSize={PAGE_SIZE} />
+          <Pagination page={page} totalPages={totalPages} onChange={setPage} totalItems={groups.length} pageSize={PAGE_SIZE} />
         </Card>
       </PageContainer>
     </>

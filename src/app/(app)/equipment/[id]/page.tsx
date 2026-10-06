@@ -4,7 +4,9 @@ import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Pencil, Trash2, LogIn, LogOut, ArrowLeftRight, ImageOff } from "lucide-react";
+import { Pencil, Plus, Trash2, LogIn, LogOut, ArrowLeftRight, ImageOff } from "lucide-react";
+import { Input } from "@/components/ui/Field";
+import { equipmentSiblings } from "@/lib/utils/equipmentGroups";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -25,7 +27,8 @@ export default function EquipmentDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const state = useStore();
-  const { removeEquipment } = useActions();
+  const { removeEquipment, createEquipment } = useActions();
+  const [newSize, setNewSize] = useState("");
   const canWrite = useCan("equipment.write");
   const canViewCost = useCanViewCost();
 
@@ -46,6 +49,40 @@ export default function EquipmentDetailPage() {
   }
 
   const stock = equipmentStockAcrossWarehouses(state, equipment.id);
+  const siblings = equipmentSiblings(Object.values(state.equipment), equipment);
+
+  function addSize() {
+    const s = newSize.trim();
+    if (!s) {
+      toastError("กรุณาระบุไซซ์ที่จะเพิ่ม");
+      return;
+    }
+    if (siblings.some((x) => (x.size ?? "").toLowerCase() === s.toLowerCase())) {
+      toastError(`มีไซซ์ "${s}" อยู่แล้ว`);
+      return;
+    }
+    try {
+      // สร้างรายการไซซ์ใหม่ชื่อเดียวกัน ข้อมูลอื่นคัดลอกจากไซซ์ที่กำลังดู ระบบรวมเป็นกลุ่มเดียวกันให้เองจากชื่อ+ไซซ์
+      createEquipment({
+        name: equipment.name,
+        size: s,
+        type: equipment.type,
+        description: equipment.description,
+        images: equipment.images,
+        supplierId: equipment.supplierId,
+        purchasePricePerUnit: equipment.purchasePricePerUnit,
+        unit: equipment.unit,
+        reorderPoint: equipment.reorderPoint,
+        reorderQty: equipment.reorderQty,
+        storageLocation: equipment.storageLocation,
+        status: equipment.status,
+      });
+      setNewSize("");
+      toastSuccess(`เพิ่มไซซ์ ${s} เรียบร้อยแล้ว`);
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
+    }
+  }
 
   return (
     <>
@@ -122,6 +159,71 @@ export default function EquipmentDetailPage() {
             </CardContent>
           </Card>
         </div>
+
+        {(siblings.length > 1 || equipment.size) && (
+          <Card>
+            <CardHeader>
+              <CardTitle>ไซซ์ของอุปกรณ์นี้ ({siblings.length} ไซซ์)</CardTitle>
+              <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">แต่ละไซซ์นับสต็อกแยกกัน กดที่ไซซ์เพื่อดูหรือแก้ไขรายละเอียดของไซซ์นั้น</p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Table>
+                <Thead>
+                  <Tr>
+                    <Th>ไซซ์</Th>
+                    <Th>คงเหลือ</Th>
+                    {canViewCost && <Th>ราคาต่อหน่วย</Th>}
+                    <Th>จุดแจ้งเตือน</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {siblings.map((s) => {
+                    const onHand = equipmentStockAcrossWarehouses(state, s.id).onHand;
+                    const isCurrent = s.id === equipment.id;
+                    return (
+                      <Tr key={s.id} className={isCurrent ? "bg-[var(--color-surface-container)]" : undefined}>
+                        <Td>
+                          {isCurrent ? (
+                            <span className="font-semibold">{s.size || "-"} (กำลังดูอยู่)</span>
+                          ) : (
+                            <Link href={`/equipment/${s.id}`} className="font-medium text-[var(--color-primary-container)] hover:underline">
+                              {s.size || "-"}
+                            </Link>
+                          )}
+                        </Td>
+                        <Td>
+                          <span className={onHand <= s.reorderPoint ? "font-semibold text-[var(--color-danger)]" : "font-semibold"}>{formatNumber(onHand)}</span> {s.unit}
+                        </Td>
+                        {canViewCost && <Td>{formatTHB(s.purchasePricePerUnit)}</Td>}
+                        <Td>{formatNumber(s.reorderPoint)}</Td>
+                      </Tr>
+                    );
+                  })}
+                </Tbody>
+              </Table>
+              {canWrite && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Input
+                    value={newSize}
+                    onChange={(e) => setNewSize(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addSize();
+                      }
+                    }}
+                    placeholder="เพิ่มไซซ์ เช่น XL, 5x3 ซม."
+                    className="h-9 w-56 px-2 py-1 text-sm"
+                  />
+                  <Button type="button" variant="secondary" onClick={addSize}>
+                    <Plus className="h-4 w-4" /> เพิ่มไซซ์
+                  </Button>
+                  <span className="text-xs text-[var(--color-on-surface-variant)]">ข้อมูลอื่นเหมือนไซซ์ที่กำลังดู เริ่มสต็อก 0</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
