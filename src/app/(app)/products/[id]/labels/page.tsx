@@ -33,7 +33,8 @@ export default function ProductLabelsPage() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   if (variantIdsKey !== selectedKey) {
     setSelectedKey(variantIdsKey);
-    setSelected(new Set(variants.map((v) => v.id)));
+    // ไม่ติ๊กเลือกอะไรไว้ล่วงหน้า ให้ผู้ใช้เลือกสี/ไซซ์ที่จะพิมพ์เอง (มีปุ่ม "เลือกทั้งหมด" ให้กดเมื่อต้องการ)
+    setSelected(new Set());
     setQuantities(Object.fromEntries(variants.map((v) => [v.id, 1])));
   }
 

@@ -52,6 +52,7 @@ describe("พิมพ์ป้ายของสินค้าแต่ละ�
 
   it("ป้ายที่พิมพ์ออกมาเรียงไซซ์จากเล็กไปใหญ่ในแต่ละสี เหมือนที่เห็นบนหน้าจอ", async () => {
     render(<ProductLabelsPage />);
+    fireEvent.click(screen.getByRole("button", { name: "เลือกทั้งหมด" }));
     fireEvent.click(screen.getByRole("button", { name: /พิมพ์ป้าย/ }));
     await waitFor(() => expect(printed.items).not.toBeNull());
     const order = printed.items!.map((i) => `${i.variant.color}/${i.variant.size}`);
@@ -61,6 +62,7 @@ describe("พิมพ์ป้ายของสินค้าแต่ละ�
 
   it("ตั้งจำนวนทุกไซซ์พร้อมกัน: ใส่ 5 กดอัปเดตทั้งหมด แล้วทุกไซซ์พิมพ์ไซซ์ละ 5 ใบ", async () => {
     render(<ProductLabelsPage />);
+    fireEvent.click(screen.getByRole("button", { name: "เลือกทั้งหมด" }));
     fireEvent.change(screen.getByLabelText("ตั้งจำนวนใบทุกรายการพร้อมกัน"), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: "อัปเดตทั้งหมด" }));
     expect(screen.getByRole("button", { name: /พิมพ์ป้าย \(40 ใบ\)/ })).toBeTruthy();
@@ -70,5 +72,21 @@ describe("พิมพ์ป้ายของสินค้าแต่ละ�
     const perVariant = new Map<string, number>();
     for (const i of printed.items!) perVariant.set(i.variant.id, (perVariant.get(i.variant.id) ?? 0) + 1);
     expect(Array.from(perVariant.values()).every((n) => n === 5)).toBe(true);
+  });
+  it("เปิดหน้ามาไม่ติ๊กเลือกอะไรไว้ก่อน ปุ่มพิมพ์ใช้ไม่ได้จนกว่าจะเลือกเอง และพิมพ์เฉพาะที่เลือก", async () => {
+    render(<ProductLabelsPage />);
+    const checkboxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
+    expect(checkboxes.every((c) => !c.checked)).toBe(true);
+    const printBtn = screen.getByRole("button", { name: /พิมพ์ป้าย \(0 ใบ\)/ }) as HTMLButtonElement;
+    expect(printBtn.disabled).toBe(true);
+
+    // เลือกเอง: ดำ ไซซ์ S กับ ขาว ไซซ์ 2XL
+    const sizeBox = (color: string, size: string) =>
+      screen.getAllByText(size).map((el) => el.closest("label")).filter(Boolean).find((l) => l!.closest("div.flex.flex-col.gap-1\\.5")?.textContent?.startsWith(color))!.querySelector("input[type=checkbox]") as HTMLInputElement;
+    fireEvent.click(sizeBox("ดำ", "S"));
+    fireEvent.click(sizeBox("ขาว", "2XL"));
+    fireEvent.click(screen.getByRole("button", { name: /พิมพ์ป้าย \(2 ใบ\)/ }));
+    await waitFor(() => expect(printed.items).not.toBeNull());
+    expect(printed.items!.map((i) => `${i.variant.color}/${i.variant.size}`).sort()).toEqual(["ขาว/2XL", "ดำ/S"]);
   });
 });
