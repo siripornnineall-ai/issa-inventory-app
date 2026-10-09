@@ -408,7 +408,10 @@ export function createEquipment(
   }
   const id = newId();
   const now = nowISO();
-  draft.equipment[id] = { ...input, code, id, createdAt: now, updatedAt: now } as Equipment;
+  // รูปต้องได้ id ใหม่เสมอ: ตาราง equipment_images ใช้ id เป็นคีย์หลัก ถ้าหลายรายการ (เช่นหลายไซซ์) ใช้รูปชุดเดียวกัน
+  // id ซ้ำกันจะบันทึกลงฐานข้อมูลไม่ได้ และทำให้สต็อกของรายการเหล่านั้นไม่ถูกบันทึกตามไปด้วย
+  const images = (input.images ?? []).map((img) => ({ ...img, id: newId() }));
+  draft.equipment[id] = { ...input, images, code, id, createdAt: now, updatedAt: now } as Equipment;
   for (const wh of Object.values(draft.warehouses)) {
     writeStockLevel(draft, draft.equipmentStock, id, wh.id, { itemId: id, warehouseId: wh.id, qtyOnHand: 0, qtyReserved: 0 });
   }
