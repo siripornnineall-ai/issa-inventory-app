@@ -65,7 +65,12 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
     function emit(value: string) {
       const now = Date.now();
       const last = lastScanRef.current;
-      if (last && last.value === value && now - last.at <= RESCAN_COOLDOWN_MS) return;
+      if (last && last.value === value && now - last.at <= RESCAN_COOLDOWN_MS) {
+        // ป้ายใบเดิมยังอยู่หน้ากล้อง: ต่ออายุช่วงพักไปเรื่อย ๆ จนกว่าป้ายจะพ้นกรอบไปจริง (หายจากภาพนานกว่าช่วงพัก)
+        // ไม่งั้นถือป้ายค้างไว้เกิน 1.5 วินาทีจะถูกนับเป็นสแกนซ้ำอีกใบ ทั้งที่ยังเป็นป้ายใบเดียว
+        last.at = now;
+        return;
+      }
       lastScanRef.current = { value, at: now };
       setFlash(true);
       setTimeout(() => setFlash(false), 200);

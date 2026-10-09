@@ -83,7 +83,7 @@ function StockOutForm() {
     const alreadyScanned = Object.values(scannedTokensByVariant).some((ids) => ids.includes(token.id));
     if (alreadyScanned) {
       playBeep("duplicate");
-      toastError("ใบนี้สแกนไปแล้วในรายการนี้");
+      toastError(`ป้ายใบนี้ (รหัส ${token.code ?? token.id.slice(0, 8).toUpperCase()}) สแกนไปแล้วในรายการนี้ — ถ้าชิ้นนี้เป็นชิ้นใหม่ ป้ายอาจถูกถ่ายสำเนามา ให้พิมพ์ป้ายใหม่จากระบบแทนการสั่งพิมพ์หลายสำเนา`);
       logScan(`${label} — สแกนซ้ำ`, false);
       return;
     }

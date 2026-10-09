@@ -118,7 +118,7 @@ export default function PrintLabelsBatchPage() {
 
       <h1 className="mb-1 text-lg font-semibold print:hidden">พิมพ์บาร์โค้ด — หลายรุ่นพร้อมกัน</h1>
       <p className="mb-4 text-xs text-[var(--color-on-surface-variant)] print:hidden">
-        ค้นหาแต่ละรุ่น เลือกสี/ไซซ์ แล้วใส่จำนวนที่ต้องการ ทำซ้ำได้หลายรุ่น แล้วพิมพ์รวมกันในครั้งเดียว
+        ค้นหาแต่ละรุ่น เลือกสี/ไซซ์ แล้วใส่จำนวนที่ต้องการ ทำซ้ำได้หลายรุ่น แล้วพิมพ์รวมกันในครั้งเดียว <b>ต้องการกี่ใบให้ใส่จำนวนใบในช่องด้านล่าง ห้ามใช้ตัวเลือกจำนวนสำเนา (Copies) ของเครื่องพิมพ์</b> เพราะสำเนาจะมีรหัสเดียวกันและสแกนซ้ำไม่ได้
       </p>
 
       <div className="mb-6 flex flex-col gap-3 rounded-xl border border-[var(--color-border)] p-4 print:hidden">

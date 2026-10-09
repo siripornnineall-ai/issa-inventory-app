@@ -137,7 +137,7 @@ export default function ProductLabelsPage() {
       </div>
 
       <h1 className="mb-1 text-lg font-semibold print:hidden">ป้ายสินค้า — {product.sellingName}</h1>
-      <p className="mb-4 text-xs text-[var(--color-on-surface-variant)] print:hidden">แต่ละใบที่ปริ้นจะมีรหัสเฉพาะตัวไม่ซ้ำกัน (ทั้งบาร์โค้ดและ QR) ใช้กันสแกนซ้ำชิ้นเดิมตอนรับเข้า/เบิกออก/นับสต็อก</p>
+      <p className="mb-4 text-xs text-[var(--color-on-surface-variant)] print:hidden">แต่ละใบที่ปริ้นจะมีรหัสเฉพาะตัวไม่ซ้ำกัน (ทั้งบาร์โค้ดและ QR) ใช้กันสแกนซ้ำชิ้นเดิมตอนรับเข้า/เบิกออก/นับสต็อก <b>ต้องการกี่ใบให้ใส่จำนวนใบในช่องด้านล่าง ห้ามใช้ตัวเลือกจำนวนสำเนา (Copies) ของเครื่องพิมพ์</b> เพราะสำเนาจะมีรหัสเดียวกันและสแกนซ้ำไม่ได้</p>
 
       {variants.length === 0 ? (
         <p className="text-sm text-[var(--color-on-surface-variant)]">สินค้านี้ยังไม่มีตัวเลือกสี/ไซซ์</p>
