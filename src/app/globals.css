@@ -40,6 +40,16 @@
 body {
   background: var(--color-bg);
   color: var(--color-on-surface);
+  /* ภาษาไทยไม่มีช่องว่างระหว่างคำ: ให้เบราว์เซอร์ตัดบรรทัดตามคำ และจัดบรรทัดให้สมดุล ไม่ทิ้งคำเดียวไว้บรรทัดสุดท้ายบนจอแคบ */
+  text-wrap: pretty;
+  overflow-wrap: break-word;
+  line-break: auto;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
 }
 
 * {

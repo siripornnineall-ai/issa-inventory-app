@@ -17,7 +17,7 @@ export function Th({ className, ...props }: ThHTMLAttributes<HTMLTableCellElemen
   return (
     <th
       className={cn(
-        "px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[var(--color-on-surface-variant)]",
+        "whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[var(--color-on-surface-variant)]",
         className
       )}
       {...props}
@@ -34,7 +34,7 @@ export function Tr({ className, ...props }: HTMLAttributes<HTMLTableRowElement>)
 }
 
 export function Td({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("px-4 py-4 align-middle text-[var(--color-on-surface)]", className)} {...props} />;
+  return <td className={cn("px-4 py-4 align-middle text-[var(--color-on-surface)] max-sm:whitespace-nowrap", className)} {...props} />;
 }
 
 export function Pagination({
