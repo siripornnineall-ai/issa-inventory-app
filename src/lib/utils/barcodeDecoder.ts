@@ -41,6 +41,61 @@ export function preloadBarcodeDecoder(): Promise<unknown> {
   return load();
 }
 
+// ตัวอ่านบาร์โค้ดของเบราว์เซอร์เอง (BarcodeDetector) ใช้ ML Kit ของ Google บน Android Chrome/แอปที่ติดตั้งจากหน้าจอหลัก
+// อ่านภาพที่เบลอเล็กน้อย/เอียงได้ดีกว่า ZXing มาก และทำงานเร็ว จึงลองตัวนี้ก่อนเสมอถ้าเครื่องมี
+// iPhone Safari ไม่มี ก็ตกไปใช้ ZXing (wasm) เหมือนเดิม
+interface NativeDetectedBarcode {
+  rawValue: string;
+}
+interface NativeBarcodeDetector {
+  detect(source: CanvasImageSource): Promise<NativeDetectedBarcode[]>;
+}
+interface NativeBarcodeDetectorCtor {
+  new (opts?: { formats?: string[] }): NativeBarcodeDetector;
+  getSupportedFormats?: () => Promise<string[]>;
+}
+
+let nativeDetector: Promise<NativeBarcodeDetector | null> | null = null;
+
+function getNativeDetector(): Promise<NativeBarcodeDetector | null> {
+  if (!nativeDetector) {
+    nativeDetector = (async () => {
+      const Ctor = (globalThis as unknown as { BarcodeDetector?: NativeBarcodeDetectorCtor }).BarcodeDetector;
+      if (!Ctor) return null;
+      try {
+        const formats = Ctor.getSupportedFormats ? await Ctor.getSupportedFormats() : ["code_128"];
+        if (!formats.includes("code_128")) return null;
+        return new Ctor({ formats: ["code_128"] });
+      } catch {
+        return null;
+      }
+    })();
+  }
+  return nativeDetector;
+}
+
+export function nativeBarcodeSupported(): Promise<boolean> {
+  return getNativeDetector().then((d) => d !== null);
+}
+
+// ใช้ในเทสต์เท่านั้น: ล้างตัวจำว่าเครื่องมี BarcodeDetector หรือไม่
+export function resetNativeDetectorForTests() {
+  nativeDetector = null;
+}
+
+// อ่านบาร์โค้ด Code 128 จากภาพ/วิดีโอด้วยตัวอ่านของเบราว์เซอร์ (null = เครื่องไม่รองรับหรืออ่านไม่เจอ)
+export async function decodeBarcodeNative(source: CanvasImageSource): Promise<string | null> {
+  const detector = await getNativeDetector();
+  if (!detector) return null;
+  try {
+    const found = await detector.detect(source);
+    const hit = found.find((b) => b.rawValue);
+    return hit ? hit.rawValue : null;
+  } catch {
+    return null;
+  }
+}
+
 // คืนข้อความของบาร์โค้ด Code 128 ที่เจอในภาพ (ถ้าไม่เจอคืน null)
 export async function decodeBarcodeFrame(image: ImageData): Promise<string | null> {
   const m = await load();

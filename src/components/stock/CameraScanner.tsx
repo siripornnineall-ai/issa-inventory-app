@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X, Camera } from "lucide-react";
 import jsQR from "jsqr";
-import { decodeBarcodeFrame, preloadBarcodeDecoder } from "@/lib/utils/barcodeDecoder";
+import { decodeBarcodeFrame, decodeBarcodeNative, nativeBarcodeSupported, preloadBarcodeDecoder } from "@/lib/utils/barcodeDecoder";
 import { guideRegionInVideo } from "@/lib/utils/scanRegion";
 
 const RESCAN_COOLDOWN_MS = 1500;
@@ -50,6 +50,7 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
   const onDetectRef = useRef(onDetect);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState(false);
+  const [decoderError, setDecoderError] = useState(false);
 
   useLockBodyScroll();
 
@@ -75,6 +76,25 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
       if (barcodeBusyRef.current || now - lastBarcodeAtRef.current < BARCODE_INTERVAL_MS) return;
       barcodeBusyRef.current = true;
       lastBarcodeAtRef.current = now;
+      // ลองตัวอ่านของเบราว์เซอร์ก่อน (Android Chrome/แอปที่ติดตั้ง) อ่านทั้งเฟรม ไม่ต้องเล็งในกรอบเป๊ะ
+      // ถ้าเครื่องไม่มี หรืออ่านไม่เจอ จึงตกมาใช้ ZXing กับภาพที่ตัดตามกรอบเล็งต่อ
+      decodeBarcodeNative(video)
+        .then((text) => {
+          if (cancelled) {
+            barcodeBusyRef.current = false;
+            return;
+          }
+          if (text) {
+            emit(text);
+            barcodeBusyRef.current = false;
+            return;
+          }
+          runZxing(video);
+        })
+        .catch(() => runZxing(video));
+    }
+
+    function runZxing(video: HTMLVideoElement) {
       try {
         // ตัดเฉพาะส่วนที่อยู่ในกรอบเล็ง ที่ความละเอียดเต็มของกล้อง ไม่ย่อภาพ: แท่งบาร์โค้ดบนป้ายเล็กบางมาก
         // ย่อทั้งเฟรมแล้วเหลือไม่ถึง 2 พิกเซลต่อแท่งจนอ่านไม่ออก
@@ -159,8 +179,13 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
       }
     }
 
-    // เริ่มโหลดตัวถอดรหัสบาร์โค้ดไว้ล่วงหน้า ระหว่างกล้องกำลังเปิด
-    preloadBarcodeDecoder().catch(() => {});
+    // เริ่มโหลดตัวถอดรหัสบาร์โค้ดไว้ล่วงหน้า ระหว่างกล้องกำลังเปิด ถ้าโหลดไม่สำเร็จและเครื่องก็ไม่มีตัวอ่านของเบราว์เซอร์
+    // ต้องบอกผู้ใช้ ไม่งั้นจะเห็นแค่ว่ากล้องเปิดแต่อ่านบาร์โค้ดเงียบ ๆ ไม่ได้ (QR ยังอ่านได้ตามปกติ)
+    nativeBarcodeSupported()
+      .then((native) => (native ? null : preloadBarcodeDecoder()))
+      .catch(() => {
+        if (!cancelled) setDecoderError(true);
+      });
     start();
     return () => {
       cancelled = true;
@@ -191,6 +216,11 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="h-44 w-[min(90vw,28rem)] rounded-2xl border-2 border-white/60" />
             </div>
+          )}
+          {decoderError && (
+            <p role="alert" className="absolute left-4 right-4 rounded-xl bg-amber-100 px-3 py-2 text-center text-xs text-amber-900" style={{ top: "max(4rem, calc(env(safe-area-inset-top) + 3rem))" }}>
+              โหลดตัวอ่านบาร์โค้ดไม่สำเร็จ (อ่านได้เฉพาะ QR) ตรวจสอบอินเทอร์เน็ตแล้วปิดเปิดกล้องใหม่
+            </p>
           )}
           <p
             className="pointer-events-none absolute left-0 right-0 px-4 text-center text-sm text-white/90 [text-shadow:0_1px_3px_rgb(0_0_0)]"
