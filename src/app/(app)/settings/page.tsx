@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/components/ui/Dialog";
 import { warehouseRemovalBlocker } from "@/lib/store/engine";
 import { SingleImageUploader } from "@/components/ui/SingleImageUploader";
 import { FitCoversCard } from "@/components/settings/FitCoversCard";
+import { StockAuditCard } from "@/components/settings/StockAuditCard";
 import { useStore, useActions } from "@/lib/store";
 import { toastError, toastSuccess } from "@/lib/toast";
 import type { Warehouse } from "@/lib/types";
@@ -249,6 +250,10 @@ export default function SettingsPage() {
 
         <RequireAccess perm="settings.write">
           <FitCoversCard />
+        </RequireAccess>
+
+        <RequireAccess perm="master.write">
+          <StockAuditCard />
         </RequireAccess>
 
         <RequireAccess perm="master.write">

@@ -93,14 +93,37 @@ type GetFn = () => Store;
 // ต่อเนื่องกัน (เช่น สร้างสินค้าแล้วเพิ่มตัวเลือกหลายตัวติดกัน) มี foreign key อ้างอิงกัน
 // ถ้ายิงพร้อมกันอาจเกิด race ที่แถวลูกถูกบันทึกก่อนแถวแม่จะถูกสร้างเสร็จ
 let syncQueue: Promise<void> = Promise.resolve();
+// จำนวนรายการที่ยังบันทึกลงฐานข้อมูลไม่เสร็จ: ถ้าปิดแท็บ/ออกจากหน้านี้ตอนยังค้างอยู่ คำขอที่กำลังส่งจะถูกตัดทิ้ง
+// ทำให้ข้อมูลบางส่วนหาย (เช่นประวัติเข้าแต่ยอดคงเหลือไม่เข้า) จึงเตือนผู้ใช้ก่อนปิด
+let pendingSyncs = 0;
+let unloadGuardInstalled = false;
+
+function installUnloadGuard() {
+  if (unloadGuardInstalled || typeof window === "undefined") return;
+  unloadGuardInstalled = true;
+  window.addEventListener("beforeunload", (e) => {
+    if (pendingSyncs > 0) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+  });
+}
+
+export function pendingSyncCount(): number {
+  return pendingSyncs;
+}
 
 function persistDiff(prev: AppState, next: AppState) {
+  installUnloadGuard();
+  pendingSyncs += 1;
   syncQueue = syncQueue.then(async () => {
     try {
       const supabase = createClient();
       await syncStateDiff(supabase, prev, next);
     } catch (e) {
       toastError(e instanceof Error ? e.message : "บันทึกข้อมูลลงฐานข้อมูลไม่สำเร็จ");
+    } finally {
+      pendingSyncs -= 1;
     }
   });
 }

@@ -8,10 +8,30 @@ import type { Invoice, Order, Product, ProductImage, StockInDoc, StockOutDoc, Tr
 
 // supabase-js resolve (ไม่ reject) แม้เกิด error จากฐานข้อมูล/RLS ต้องเช็ค .error เองแล้วโยน
 // เป็น rejection จริง ๆ ไม่งั้น Promise.allSettled ด้านล่างจะไม่เห็นความล้มเหลวเลย
-async function check<T>(builder: PromiseLike<PostgrestSingleResponse<T>>): Promise<T | null> {
-  const { data, error } = await builder;
-  if (error) throw new Error(error.message);
-  return data;
+// ความผิดพลาดชั่วคราว (เน็ตหลุด/เซิร์ฟเวอร์ช้า/ติดขัดชั่วขณะ) ลองใหม่ได้ ส่วนข้อผิดพลาดเชิงข้อมูล (ซ้ำ/ผิดเงื่อนไข/ไม่มีสิทธิ์) ลองกี่รอบก็เหมือนเดิม
+// รหัสผิดพลาดว่าง = ส่งคำขอไม่ถึงเซิร์ฟเวอร์ (เช่น Failed to fetch)
+function isTransient(error: { code?: string; message?: string }, status: number): boolean {
+  if (status >= 500 || status === 408 || status === 429) return true;
+  const code = error.code ?? "";
+  if (code === "") return true;
+  return /^(08|53|57|40)/.test(code);
+}
+
+export const SYNC_RETRY_DELAYS_MS = [800, 2500];
+
+// supabase-js builder ส่งคำขอใหม่ทุกครั้งที่ await จึงรอแล้วลองซ้ำได้ ก่อนหน้านี้คำขอที่หลุดครั้งเดียว (เช่นเน็ตสะดุดตอนบันทึกการนับสต็อก)
+// ทำให้ข้อมูลบางส่วนไม่ถูกบันทึก (ประวัติเข้าแต่ยอดคงเหลือไม่เข้า) ถ้าครั้งแรกสำเร็จที่เซิร์ฟเวอร์แต่ตอบกลับไม่ทัน
+// การลองซ้ำของ insert จะชนคีย์ซ้ำ (23505) ซึ่งแปลว่าบันทึกไปแล้ว นับเป็นสำเร็จ (เฉพาะรอบลองซ้ำ ไม่ซ่อนข้อผิดพลาดซ้ำจริงของรอบแรก)
+export async function check<T>(builder: PromiseLike<PostgrestSingleResponse<T>>, delays: number[] = SYNC_RETRY_DELAYS_MS): Promise<T | null> {
+  let attempt = 0;
+  for (;;) {
+    const res = await builder;
+    if (!res.error) return res.data;
+    if (attempt > 0 && res.error.code === "23505") return res.data ?? null;
+    if (attempt >= delays.length || !isTransient(res.error, res.status)) throw new Error(res.error.message);
+    await new Promise((r) => setTimeout(r, delays[attempt]));
+    attempt += 1;
+  }
 }
 
 function diffRecords<T>(prev: Record<string, T>, next: Record<string, T>) {
