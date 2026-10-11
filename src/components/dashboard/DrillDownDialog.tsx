@@ -6,6 +6,7 @@ import { Input, Select } from "@/components/ui/Field";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useStore } from "@/lib/store";
+import { isStockOutMovement } from "@/lib/store/selectors";
 import { formatNumber, formatTHB } from "@/lib/utils/money";
 import { formatThaiDateTime } from "@/lib/utils/date";
 import { MOVEMENT_TYPE_LABEL_TH, SALES_CHANNEL_LABEL_TH, ORDER_STATUS_LABEL_TH } from "@/lib/types";
@@ -124,7 +125,7 @@ function buildRows(state: AppState, kind: DrillKind, fromISO: string, toISO: str
     const t = new Date(m.createdAt).getTime();
     if (t < from || t > to) continue;
     if (kind === "stockIn" && m.movementType !== "stock_in") continue;
-    if (kind === "stockOut" && !(m.qtyChange < 0 && m.movementType !== "cancel_restock")) continue;
+    if (kind === "stockOut" && !isStockOutMovement(m)) continue;
     const variant = m.variantId ? state.variants[m.variantId] : undefined;
     const { brand, model } = variant ? brandModel(variant.productId) : { brand: "-", model: "-" };
     rows.push({

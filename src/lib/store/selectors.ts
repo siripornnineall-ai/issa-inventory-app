@@ -121,13 +121,19 @@ export interface DashboardStats {
   cancelled: { orders: number; qty: number; baht: number };
 }
 
+// ถือเป็น "สต็อกออก" เฉพาะการเบิก/ขาย/ใช้จริงเท่านั้น: การปรับยอดจากการนับสต็อก (ปรับลงเมื่อนับใหม่แล้วพบว่าน้อยกว่า) ไม่ใช่ของออกจากคลัง
+// และการคืนสต็อกจากการยกเลิกออเดอร์ก็ไม่ใช่ (เป็นยอดเข้า)
+export function isStockOutMovement(m: { qtyChange: number; movementType: string }): boolean {
+  return m.qtyChange < 0 && m.movementType !== "cancel_restock" && m.movementType !== "adjustment";
+}
+
 export function dashboardStats(state: AppState, fromISO: string, toISO: string): DashboardStats {
   const asOf = totalProductQtyNow(state);
   const movements = movementsInRange(state, fromISO, toISO).filter((m) => m.itemType === "product");
   const orders = ordersInRange(state, fromISO, toISO).filter((o) => o.status !== "cancelled");
 
   const stockInMovs = movements.filter((m) => m.movementType === "stock_in");
-  const stockOutMovs = movements.filter((m) => m.qtyChange < 0 && m.movementType !== "cancel_restock");
+  const stockOutMovs = movements.filter(isStockOutMovement);
 
   const byReason: Record<string, number> = {};
   for (const m of stockOutMovs) {
@@ -228,7 +234,7 @@ export function equipmentOverview(state: AppState, fromISO: string, toISO: strin
   const onHand = Object.values(state.equipment).reduce((s, e) => s + equipmentStockAcrossWarehouses(state, e.id).onHand, 0);
   const movs = movementsInRange(state, fromISO, toISO).filter((m) => m.itemType === "equipment");
   const stockIn = movs.filter((m) => m.movementType === "stock_in").reduce((s, m) => s + m.qtyChange, 0);
-  const stockOut = movs.filter((m) => m.qtyChange < 0).reduce((s, m) => s + Math.abs(m.qtyChange), 0);
+  const stockOut = movs.filter(isStockOutMovement).reduce((s, m) => s + Math.abs(m.qtyChange), 0);
   return { onHand, stockIn, stockOut, lowStockCount: lowStockEquipment(state).length };
 }
 
