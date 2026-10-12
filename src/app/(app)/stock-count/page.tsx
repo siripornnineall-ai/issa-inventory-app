@@ -249,7 +249,7 @@ function StockCountForm() {
   });
 
   function handleSave() {
-    if (!user || !warehouseId || diffRows.length === 0) return;
+    if (!user || !warehouseId || touchedRows.length === 0) return;
     setSaving(true);
     try {
       const summaryNow = {
@@ -261,20 +261,21 @@ function StockCountForm() {
         totalAfter: allRows.reduce((s, r) => s + (r.touched ? r.counted : r.system), 0),
         products: groups.length,
       };
-      for (const row of diffRows) {
+      // รายการที่นับแล้วตรงกับระบบก็บันทึกด้วย (จำนวนไม่เปลี่ยน) เป็นหลักฐานว่าตรวจนับแล้ว ณ เวลานี้ ไม่ใช่แค่ไม่ได้แตะ
+      for (const row of touchedRows) {
         const product = state.products[row.variant.productId];
         adjustStock({
           itemType: "product",
           itemId: row.variant.id,
           warehouseId,
           newQty: row.counted,
-          reason: `นับสต็อก — ${product?.sellingName ?? row.variant.sku}`,
+          reason: row.diff === 0 ? `นับสต็อก (ตรงกับระบบ) — ${product?.sellingName ?? row.variant.sku}` : `นับสต็อก — ${product?.sellingName ?? row.variant.sku}`,
           actorId: user.id,
           actorName: user.name,
         });
       }
       draft.clear();
-      toastSuccess(`ปรับสต็อกเรียบร้อยแล้ว ${diffRows.length} รายการ`);
+      toastSuccess(`บันทึกผลการนับแล้ว: ปรับยอด ${diffRows.length} รายการ, ยืนยันยอดที่ตรง ${touchedRows.length - diffRows.length} รายการ`);
       setConfirmOpen(false);
       setSummary(summaryNow);
       setCounts({});
@@ -552,16 +553,14 @@ function StockCountForm() {
 
       {productIds.length > 0 && (
         <div className="flex flex-wrap items-center justify-end gap-3">
-          {/* ปุ่มกดไม่ได้เมื่อไม่มีรายการที่ต้องปรับ: บอกเหตุผลให้ชัด ไม่ให้งงว่าสแกนแล้วทำไมกดไม่ได้ */}
-          {diffRows.length === 0 && (
+          {/* กดบันทึกได้ทันทีที่นับแล้วอย่างน้อย 1 รายการ แม้ทุกรายการจะตรงกับระบบ (ตรงกัน = บันทึกเป็นการยืนยันยอด จำนวนไม่เปลี่ยน) */}
+          {touchedRows.length === 0 && (
             <p role="status" className="text-sm text-[var(--color-on-surface-variant)]">
-              {touchedRows.length === 0
-                ? "ยังไม่ได้นับรายการไหนเลย สแกนหรือกรอกจำนวนที่นับได้ก่อน"
-                : `นับแล้ว ${touchedRows.length} รายการ ทุกรายการตรงกับยอดในระบบแล้ว จึงไม่มีอะไรต้องปรับ (ถ้าจำนวนที่นับได้ต่างจากระบบ ปุ่มจะกดได้เอง)`}
+              ยังไม่ได้นับรายการไหนเลย สแกนหรือกรอกจำนวนที่นับได้ก่อน
             </p>
           )}
-          <Button onClick={() => setConfirmOpen(true)} disabled={diffRows.length === 0}>
-            <ClipboardCheck className="h-4 w-4" /> บันทึกปรับสต็อก ({diffRows.length})
+          <Button onClick={() => setConfirmOpen(true)} disabled={touchedRows.length === 0}>
+            <ClipboardCheck className="h-4 w-4" /> บันทึกผลการนับ ({touchedRows.length})
           </Button>
         </div>
       )}
@@ -579,7 +578,7 @@ function StockCountForm() {
               ✓ ปรับยอดตามที่นับ <span className="font-semibold">{summary.adjusted}</span> รายการ (ยอดในระบบตอนนี้เท่ากับที่นับแล้ว)
             </p>
             <p>
-              ✓ นับแล้วตรงกับระบบอยู่แล้ว <span className="font-semibold">{summary.matched}</span> รายการ
+              ✓ นับแล้วตรงกับระบบอยู่แล้ว (บันทึกเป็นการยืนยันยอด) <span className="font-semibold">{summary.matched}</span> รายการ
             </p>
             {summary.uncounted.length === 0 ? (
               <p className="rounded-xl bg-[var(--color-success-container)] px-3 py-2 font-medium text-[var(--color-success)]">ทุกรายการที่มีสต็อกถูกนับครบในรอบนี้ ไม่มียอดเก่าค้าง</p>
@@ -619,7 +618,10 @@ function StockCountForm() {
         }
       >
         <p className="mb-3 text-sm text-[var(--color-on-surface-variant)]">
-          ระบบจะตั้งสต็อกของแต่ละรายการ <span className="font-semibold text-[var(--color-on-surface)]">ให้เท่ากับจำนวนที่นับได้</span> (ไม่ใช่บวกเพิ่ม) และบันทึกประวัติปรับยอดให้ทุกรายการ รายการที่ไม่ได้นับหรือนับแล้วตรงกันจะไม่ถูกแตะ
+          ระบบจะตั้งสต็อกของแต่ละรายการ <span className="font-semibold text-[var(--color-on-surface)]">ให้เท่ากับจำนวนที่นับได้</span> (ไม่ใช่บวกเพิ่ม) และบันทึกประวัติทุกรายการที่นับ รายการที่ไม่ได้นับจะไม่ถูกแตะ
+        </p>
+        <p className="mb-3 text-sm">
+          ปรับยอด <span className="font-semibold">{diffRows.length}</span> รายการ · นับแล้วตรงกับระบบ <span className="font-semibold">{touchedRows.length - diffRows.length}</span> รายการ (บันทึกเป็นการยืนยันยอด จำนวนไม่เปลี่ยน)
         </p>
         {diffRows.some((r) => r.changed) && (
           <p role="alert" className="mb-3 rounded-xl bg-[var(--color-warning-container)] px-3 py-2 text-sm text-[var(--color-warning)]">

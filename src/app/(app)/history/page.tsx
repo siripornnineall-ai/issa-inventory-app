@@ -191,7 +191,7 @@ export default function HistoryPage() {
                       </div>
                       <div className="shrink-0 text-right">
                         <MovementTypeBadge type={m.movementType} />
-                        <p className={`mt-1 text-sm font-semibold ${m.qtyChange > 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>
+                        <p className={`mt-1 text-sm font-semibold ${m.qtyChange > 0 ? "text-[var(--color-success)]" : m.qtyChange < 0 ? "text-[var(--color-danger)]" : "text-[var(--color-on-surface-variant)]"}`}>
                           {m.qtyChange > 0 ? "+" : ""}
                           {formatNumber(m.qtyChange)}
                         </p>
@@ -249,7 +249,7 @@ export default function HistoryPage() {
                     <Td>
                       <MovementTypeBadge type={m.movementType} />
                     </Td>
-                    <Td className={m.qtyChange > 0 ? "font-semibold text-[var(--color-success)]" : "font-semibold text-[var(--color-danger)]"}>
+                    <Td className={m.qtyChange > 0 ? "font-semibold text-[var(--color-success)]" : m.qtyChange < 0 ? "font-semibold text-[var(--color-danger)]" : "font-semibold text-[var(--color-on-surface-variant)]"}>
                       {m.qtyChange > 0 ? "+" : ""}
                       {formatNumber(m.qtyChange)}
                     </Td>

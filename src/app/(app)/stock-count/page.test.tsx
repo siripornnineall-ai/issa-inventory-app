@@ -69,7 +69,7 @@ describe("นับสต็อก: เทียบยอดตอนเริ�
     // seed() ใหม่ไม่เปลี่ยนยอดเริ่มนับที่ถ่ายไว้ในหน้า (เก็บใน state ของหน้า)
     await waitFor(() => expect(screen.getByText(/ยอดในระบบเปลี่ยนไประหว่างที่นับ 1 รายการ/)).toBeTruthy());
 
-    fireEvent.click(screen.getByRole("button", { name: /บันทึกปรับสต็อก/ }));
+    fireEvent.click(screen.getByRole("button", { name: /บันทึกผลการนับ/ }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/ยอดในระบบเปลี่ยนไปจากตอนเริ่มนับ/)).toBeTruthy();
   });
@@ -79,7 +79,7 @@ describe("นับสต็อก: เทียบยอดตอนเริ�
     await openProduct();
     const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
     fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "4" } });
-    fireEvent.click(screen.getByRole("button", { name: /บันทึกปรับสต็อก/ }));
+    fireEvent.click(screen.getByRole("button", { name: /บันทึกผลการนับ/ }));
     fireEvent.click(await screen.findByRole("button", { name: "ยืนยันบันทึก" }));
     await waitFor(() => expect(useStore.getState().variantStock["vS::w1"].qtyOnHand).toBe(4));
     expect(useStore.getState().variantStock["vM::w1"].qtyOnHand).toBe(3); // ไม่ได้นับ = ไม่แตะ
@@ -94,18 +94,24 @@ describe("นับสต็อก: เทียบยอดตอนเริ�
     expect(screen.getByText(/Flow Wide ดำ \/ M — ระบบ 3 ชิ้น/)).toBeTruthy();
   });
 
-  it("นับแล้วทุกรายการตรงกับระบบ: ปุ่มบันทึกกดไม่ได้ แต่บอกเหตุผลชัดเจน", async () => {
+  it("นับแล้วทุกรายการตรงกับระบบ: ยังกดบันทึกได้ และบันทึกเป็นการยืนยันยอด (จำนวนไม่เปลี่ยน มีประวัติ)", async () => {
     seed(5, 3);
     await openProduct();
     expect(screen.getByText(/ยังไม่ได้นับรายการไหนเลย/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: /บันทึกผลการนับ \(0\)/ }) as HTMLButtonElement).disabled).toBe(true);
     const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
     fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "5" } }); // S ระบบ 5 นับได้ 5 = ตรงกัน
-    const btn = screen.getByRole("button", { name: /บันทึกปรับสต็อก \(0\)/ }) as HTMLButtonElement;
-    expect(btn.disabled).toBe(true);
-    expect(screen.getByText(/ทุกรายการตรงกับยอดในระบบแล้ว จึงไม่มีอะไรต้องปรับ/)).toBeTruthy();
-    // เปลี่ยนจำนวนให้ต่างจากระบบ ปุ่มกดได้
-    fireEvent.change(screen.getAllByPlaceholderText("ยังไม่นับ")[0] ?? countInputs[0], { target: { value: "4" } });
-    expect((screen.getByRole("button", { name: /บันทึกปรับสต็อก \(1\)/ }) as HTMLButtonElement).disabled).toBe(false);
+    const btn = screen.getByRole("button", { name: /บันทึกผลการนับ \(1\)/ }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    fireEvent.click(btn);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/นับแล้วตรงกับระบบ/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "ยืนยันบันทึก" }));
+    await waitFor(() => expect(Object.values(useStore.getState().movements)).toHaveLength(1));
+    expect(useStore.getState().variantStock["vS::w1"].qtyOnHand).toBe(5); // จำนวนไม่เปลี่ยน
+    const mv = Object.values(useStore.getState().movements)[0];
+    expect(mv).toMatchObject({ movementType: "adjustment", qtyBefore: 5, qtyAfter: 5, qtyChange: 0 });
+    expect(mv.reason).toContain("ตรงกับระบบ");
   });
 
   it("นับหลายรุ่นพร้อมกัน: เพิ่มสองรุ่นเข้ารอบ นับทั้งคู่ แล้วบันทึกทีเดียว ทุกรุ่นถูกปรับและมีประวัติแยกตามรุ่น", async () => {
@@ -129,7 +135,7 @@ describe("นับสต็อก: เทียบยอดตอนเริ�
     const billie = screen.getByRole("region", { name: "Billie Slim" });
     fireEvent.change(within(flow).getAllByPlaceholderText("ยังไม่นับ")[0], { target: { value: "4" } }); // Flow Wide ดำ S 5 -> 4
     fireEvent.change(within(billie).getAllByPlaceholderText("ยังไม่นับ")[0], { target: { value: "6" } }); // Billie ครีม L 2 -> 6
-    fireEvent.click(screen.getByRole("button", { name: /บันทึกปรับสต็อก \(2\)/ }));
+    fireEvent.click(screen.getByRole("button", { name: /บันทึกผลการนับ \(2\)/ }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Flow Wide")).toBeTruthy();
     expect(within(dialog).getByText("Billie Slim")).toBeTruthy();
@@ -165,7 +171,7 @@ describe("นับสต็อก: เทียบยอดตอนเริ�
     const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
     fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "5" } }); // S นับได้ 5 (ตรงกัน)
     fireEvent.click(screen.getByRole("button", { name: "ตั้งรายการที่ยังไม่นับเป็น 0" }));
-    fireEvent.click(screen.getByRole("button", { name: /บันทึกปรับสต็อก \(1\)/ }));
+    fireEvent.click(screen.getByRole("button", { name: /บันทึกผลการนับ \(2\)/ }));
     fireEvent.click(await screen.findByRole("button", { name: "ยืนยันบันทึก" }));
     await waitFor(() => expect(useStore.getState().variantStock["vM::w1"].qtyOnHand).toBe(0));
     expect(useStore.getState().variantStock["vS::w1"].qtyOnHand).toBe(5);
