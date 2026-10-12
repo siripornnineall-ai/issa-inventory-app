@@ -94,6 +94,20 @@ describe("นับสต็อก: เทียบยอดตอนเริ�
     expect(screen.getByText(/Flow Wide ดำ \/ M — ระบบ 3 ชิ้น/)).toBeTruthy();
   });
 
+  it("นับแล้วทุกรายการตรงกับระบบ: ปุ่มบันทึกกดไม่ได้ แต่บอกเหตุผลชัดเจน", async () => {
+    seed(5, 3);
+    await openProduct();
+    expect(screen.getByText(/ยังไม่ได้นับรายการไหนเลย/)).toBeTruthy();
+    const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
+    fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "5" } }); // S ระบบ 5 นับได้ 5 = ตรงกัน
+    const btn = screen.getByRole("button", { name: /บันทึกปรับสต็อก \(0\)/ }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    expect(screen.getByText(/ทุกรายการตรงกับยอดในระบบแล้ว จึงไม่มีอะไรต้องปรับ/)).toBeTruthy();
+    // เปลี่ยนจำนวนให้ต่างจากระบบ ปุ่มกดได้
+    fireEvent.change(screen.getAllByPlaceholderText("ยังไม่นับ")[0] ?? countInputs[0], { target: { value: "4" } });
+    expect((screen.getByRole("button", { name: /บันทึกปรับสต็อก \(1\)/ }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("นับหลายรุ่นพร้อมกัน: เพิ่มสองรุ่นเข้ารอบ นับทั้งคู่ แล้วบันทึกทีเดียว ทุกรุ่นถูกปรับและมีประวัติแยกตามรุ่น", async () => {
     seed(5, 3);
     // เพิ่มรุ่นที่สอง

@@ -551,7 +551,15 @@ function StockCountForm() {
       {scanning && <CameraScanner onDetect={handleScan} onClose={() => setScanning(false)} />}
 
       {productIds.length > 0 && (
-        <div className="flex justify-end">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {/* ปุ่มกดไม่ได้เมื่อไม่มีรายการที่ต้องปรับ: บอกเหตุผลให้ชัด ไม่ให้งงว่าสแกนแล้วทำไมกดไม่ได้ */}
+          {diffRows.length === 0 && (
+            <p role="status" className="text-sm text-[var(--color-on-surface-variant)]">
+              {touchedRows.length === 0
+                ? "ยังไม่ได้นับรายการไหนเลย สแกนหรือกรอกจำนวนที่นับได้ก่อน"
+                : `นับแล้ว ${touchedRows.length} รายการ ทุกรายการตรงกับยอดในระบบแล้ว จึงไม่มีอะไรต้องปรับ (ถ้าจำนวนที่นับได้ต่างจากระบบ ปุ่มจะกดได้เอง)`}
+            </p>
+          )}
           <Button onClick={() => setConfirmOpen(true)} disabled={diffRows.length === 0}>
             <ClipboardCheck className="h-4 w-4" /> บันทึกปรับสต็อก ({diffRows.length})
           </Button>
