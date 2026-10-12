@@ -7,6 +7,8 @@ import { emptyState } from "@/lib/store/state";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }) }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { getSession: async () => ({ data: { session: null } }) } }) }));
 vi.mock("@/components/layout/Header", () => ({ Header: ({ title }: { title: string }) => <h1>{title}</h1> }));
+const toastError = vi.fn();
+vi.mock("@/lib/toast", () => ({ toastError: (m: string) => toastError(m), toastSuccess: vi.fn() }));
 vi.mock("@/lib/utils/beep", () => ({ playBeep: vi.fn(), primeAudio: vi.fn() }));
 vi.mock("@/components/stock/CameraScanner", () => ({
   CameraScanner: ({ onDetect }: { onDetect: (v: string) => void }) => (
@@ -146,6 +148,27 @@ describe("นับสต็อก: เทียบยอดตอนเริ�
     expect(reasons).toEqual(["นับสต็อก — Billie Slim", "นับสต็อก — Flow Wide"]);
   });
 
+  it("ล็อกเฉพาะรุ่นที่เลือก (ค่าเริ่มต้น): สแกนป้ายรุ่นอื่นพลาด ไม่ถูกนับ ไม่เพิ่มรุ่นเข้ารอบ และมีข้อความเตือน", async () => {
+    seed(5, 3);
+    const s = useStore.getState();
+    useStore.getState().actions.hydrate({
+      ...s,
+      products: { ...s.products, p2: { id: "p2", sellingName: "Billie Slim", brandId: "b1", modelCode: "BS", images: [] } },
+      variants: { ...s.variants, vB: { id: "vB", productId: "p2", color: "ครีม", size: "L", sku: "IA-BS-CRM-L", active: true } },
+      variantStock: { ...s.variantStock, "vB::w1": { itemId: "vB", warehouseId: "w1", qtyOnHand: 2, qtyReserved: 0 } },
+    } as never);
+    render(<StockCountPage />);
+    expect((screen.getByLabelText(/ล็อกเฉพาะรุ่นที่เลือก/) as HTMLInputElement).checked).toBe(true);
+    fireEvent.change(screen.getByPlaceholderText("พิมพ์ชื่อรุ่นสินค้า..."), { target: { value: "Flow" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Flow Wide" }));
+    fireEvent.click(await screen.findByRole("button", { name: /สแกน QR/ }));
+    fireEvent.click(screen.getByRole("button", { name: "จำลองสแกน" })); // สแกนป้าย Billie Slim พลาด
+    expect(toastError).toHaveBeenCalledWith(expect.stringContaining("สแกนผิดรุ่น"));
+    expect(screen.queryByRole("region", { name: "Billie Slim" })).toBeNull();
+    expect(screen.getByText(/รอบนับนี้ 1 รุ่น/)).toBeTruthy();
+    expect(screen.getByText(/นับแล้ว 0 จาก 2 รายการ/)).toBeTruthy();
+  });
+
   it("สแกนป้ายของรุ่นที่ยังไม่อยู่ในรอบ: เพิ่มรุ่นนั้นเข้ารอบให้เองและนับ 1 ชิ้น (ไม่ขึ้นสแกนผิดรุ่นอีก)", async () => {
     seed(5, 3);
     const s = useStore.getState();
@@ -158,6 +181,7 @@ describe("นับสต็อก: เทียบยอดตอนเริ�
     render(<StockCountPage />);
     fireEvent.change(screen.getByPlaceholderText("พิมพ์ชื่อรุ่นสินค้า..."), { target: { value: "Flow" } });
     fireEvent.click(await screen.findByRole("button", { name: "Flow Wide" }));
+    fireEvent.click(screen.getByLabelText(/ล็อกเฉพาะรุ่นที่เลือก/)); // ปิดล็อก
     fireEvent.click(await screen.findByRole("button", { name: /สแกน QR/ }));
     fireEvent.click(screen.getByRole("button", { name: "จำลองสแกน" }));
     expect(await screen.findByText(/รอบนับนี้ 2 รุ่น/)).toBeTruthy();

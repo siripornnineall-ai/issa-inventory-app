@@ -55,6 +55,9 @@ function StockCountForm() {
   const [productOpen, setProductOpen] = useState(false);
   // รอบนับหนึ่งรอบนับได้หลายรุ่นพร้อมกัน: เพิ่มรุ่นเข้ารอบได้ทั้งจากการค้นหา และอัตโนมัติเมื่อสแกนป้ายของรุ่นที่ยังไม่อยู่ในรอบ
   const [productIds, setProductIds] = useState<string[]>([]);
+  // ล็อกเฉพาะรุ่นที่เลือก (ค่าเริ่มต้น): สแกนป้ายรุ่นอื่นที่ไม่อยู่ในรอบจะไม่ถูกนับและเตือน กันสแกนพลาด
+  // ปิดล็อกเมื่ออยากให้การสแกนป้ายรุ่นใหม่เพิ่มรุ่นนั้นเข้ารอบให้เอง
+  const [lockToSelected, setLockToSelected] = useState(true);
 
   const [counts, setCounts] = useState<Record<string, number>>({});
   // ยอดในระบบ "ตอนเริ่มนับ" ของแต่ละตัวเลือก (ถ่ายภาพไว้ตอนเพิ่มรุ่นเข้ารอบ) ใช้เทียบกับยอดปัจจุบันว่ามีรายการเข้า/ออกระหว่างที่นับอยู่ไหม
@@ -149,7 +152,14 @@ function StockCountForm() {
       toastError("ใบนี้นับไปแล้วในรอบนับนี้");
       return;
     }
-    // สแกนป้ายของรุ่นที่ยังไม่อยู่ในรอบ: เพิ่มรุ่นนั้นเข้ารอบให้เอง (นับพร้อมกันหลายรุ่นได้)
+    if (!productIds.includes(variant.productId) && lockToSelected) {
+      playBeep("error");
+      toastError(
+        `สแกนผิดรุ่น — นี่คือ "${state.products[variant.productId]?.sellingName ?? "?"}" ซึ่งไม่อยู่ในรอบนับนี้ (ไม่ได้นับ) ถ้าต้องการนับรุ่นนี้ด้วย ให้เพิ่มรุ่นจากช่องค้นหา หรือปิดการล็อกด้านบน`
+      );
+      return;
+    }
+    // ปิดล็อกไว้: สแกนป้ายของรุ่นที่ยังไม่อยู่ในรอบ แล้วเพิ่มรุ่นนั้นเข้ารอบให้เอง (นับพร้อมกันหลายรุ่นได้)
     if (!productIds.includes(variant.productId)) {
       includeProducts([variant.productId]);
       toastSuccess(`เพิ่มรุ่น "${state.products[variant.productId]?.sellingName ?? "?"}" เข้ารอบนับแล้ว`);
@@ -314,7 +324,7 @@ function StockCountForm() {
               ))}
             </Select>
           </FormField>
-          <FormField label="เพิ่มรุ่นที่จะนับ" required hint="นับพร้อมกันได้หลายรุ่น หรือสแกนป้ายของรุ่นไหนก็ได้ ระบบเพิ่มรุ่นนั้นเข้ารอบให้เอง">
+          <FormField label="เพิ่มรุ่นที่จะนับ" required hint="นับพร้อมกันได้หลายรุ่น เพิ่มรุ่นจากช่องค้นหา (หรือปิดล็อกด้านล่างเพื่อให้สแกนแล้วเพิ่มรุ่นให้เอง)">
             <div className="relative">
               <Input
                 value={productQuery}
@@ -364,6 +374,15 @@ function StockCountForm() {
               </Button>
             )}
           </div>
+          <label htmlFor="sc-lock" className="col-span-2 flex cursor-pointer items-start gap-2 text-sm">
+            <input id="sc-lock" type="checkbox" checked={lockToSelected} onChange={(e) => setLockToSelected(e.target.checked)} className="mt-0.5 h-4 w-4" />
+            <span>
+              ล็อกเฉพาะรุ่นที่เลือก
+              <span className="block text-xs text-[var(--color-on-surface-variant)]">
+                {lockToSelected ? "สแกนป้ายรุ่นอื่นที่ไม่ได้เลือกไว้ จะไม่ถูกนับและมีเสียง/ข้อความเตือน" : "ปิดล็อกอยู่: สแกนป้ายรุ่นไหนก็ได้ ระบบเพิ่มรุ่นนั้นเข้ารอบนับให้เอง"}
+              </span>
+            </span>
+          </label>
         </CardContent>
       </Card>
 
@@ -373,15 +392,16 @@ function StockCountForm() {
             <EmptyState
               icon={<ClipboardList className="h-10 w-10" />}
               title="เพิ่มรุ่นสินค้าที่จะนับก่อน"
-              description="พิมพ์ชื่อรุ่นแล้วเลือกจากรายการด้านบน (เพิ่มได้หลายรุ่น) หรือกดสแกนป้ายของรุ่นไหนก็ได้ ระบบจะเพิ่มรุ่นนั้นเข้ารอบนับให้เอง"
+              description="พิมพ์ชื่อรุ่นแล้วเลือกจากรายการด้านบน (เพิ่มได้หลายรุ่น) แล้วค่อยกดสแกน"
             />
             <div className="mt-4 flex justify-center">
               <Button
-                disabled={!warehouseId}
+                disabled={!warehouseId || lockToSelected}
                 onClick={() => {
                   primeAudio();
                   setScanning(true);
                 }}
+                title={lockToSelected ? "เลือกรุ่นก่อน (หรือปิดการล็อกเพื่อสแกนเริ่มรอบนับ)" : undefined}
               >
                 <Camera className="h-4 w-4" /> สแกนป้าย
               </Button>
