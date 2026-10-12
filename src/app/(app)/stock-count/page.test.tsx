@@ -86,6 +86,12 @@ describe("นับสต็อก: เทียบยอดตอนเริ�
     const adj = Object.values(useStore.getState().movements).filter((m) => m.movementType === "adjustment");
     expect(adj).toHaveLength(1);
     expect(adj[0]).toMatchObject({ qtyBefore: 5, qtyAfter: 4, qtyChange: -1 });
+    // สรุปผลหลังบันทึก: บอกว่ามีรายการที่ไม่ได้นับแต่ยังมีสต็อก (M ยังเป็นยอดเดิม 3)
+    const summary = await screen.findByText("สรุปผลการนับสต็อก");
+    expect(summary).toBeTruthy();
+    expect(screen.getByText(/ปรับยอดตามที่นับ/)).toBeTruthy();
+    expect(screen.getByText(/ที่ไม่ได้นับในรอบนี้แต่ยังมีสต็อก/)).toBeTruthy();
+    expect(screen.getByText(/Flow Wide ดำ \/ M — ระบบ 3 ชิ้น/)).toBeTruthy();
   });
 
   it("นับหลายรุ่นพร้อมกัน: เพิ่มสองรุ่นเข้ารอบ นับทั้งคู่ แล้วบันทึกทีเดียว ทุกรุ่นถูกปรับและมีประวัติแยกตามรุ่น", async () => {

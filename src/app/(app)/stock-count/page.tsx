@@ -63,6 +63,14 @@ function StockCountForm() {
   const [scanning, setScanning] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  // สรุปผลหลังบันทึก: ใช้ตรวจว่ารอบนี้ครบไหม โดยเฉพาะรายการที่ไม่ได้นับแต่ยังมีสต็อก (ยอดเก่าที่ไม่ถูกแตะ)
+  const [summary, setSummary] = useState<{
+    adjusted: number;
+    matched: number;
+    uncounted: { label: string; qty: number }[];
+    totalAfter: number;
+    products: number;
+  } | null>(null);
 
   const productResults = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
@@ -244,6 +252,15 @@ function StockCountForm() {
     if (!user || !warehouseId || diffRows.length === 0) return;
     setSaving(true);
     try {
+      const summaryNow = {
+        adjusted: diffRows.length,
+        matched: touchedRows.length - diffRows.length,
+        uncounted: uncountedRows
+          .filter((r) => r.system > 0)
+          .map((r) => ({ label: `${state.products[r.variant.productId]?.sellingName ?? ""} ${r.variant.color} / ${r.variant.size}`, qty: r.system })),
+        totalAfter: allRows.reduce((s, r) => s + (r.touched ? r.counted : r.system), 0),
+        products: groups.length,
+      };
       for (const row of diffRows) {
         const product = state.products[row.variant.productId];
         adjustStock({
@@ -259,6 +276,7 @@ function StockCountForm() {
       draft.clear();
       toastSuccess(`ปรับสต็อกเรียบร้อยแล้ว ${diffRows.length} รายการ`);
       setConfirmOpen(false);
+      setSummary(summaryNow);
       setCounts({});
       setScannedTokenIds(new Set());
       // เริ่มรอบใหม่ต่อได้เลย: ยอดตอนเริ่มนับของรอบใหม่ = ยอดหลังปรับ
@@ -539,6 +557,42 @@ function StockCountForm() {
           </Button>
         </div>
       )}
+
+      <Dialog
+        open={summary !== null}
+        onClose={() => setSummary(null)}
+        title="สรุปผลการนับสต็อก"
+        description={summary ? `${summary.products} รุ่น — ยอดรวมหลังนับ ${summary.totalAfter} ชิ้น` : ""}
+        footer={<Button onClick={() => setSummary(null)}>ปิด</Button>}
+      >
+        {summary && (
+          <div className="flex flex-col gap-3 text-sm">
+            <p>
+              ✓ ปรับยอดตามที่นับ <span className="font-semibold">{summary.adjusted}</span> รายการ (ยอดในระบบตอนนี้เท่ากับที่นับแล้ว)
+            </p>
+            <p>
+              ✓ นับแล้วตรงกับระบบอยู่แล้ว <span className="font-semibold">{summary.matched}</span> รายการ
+            </p>
+            {summary.uncounted.length === 0 ? (
+              <p className="rounded-xl bg-[var(--color-success-container)] px-3 py-2 font-medium text-[var(--color-success)]">ทุกรายการที่มีสต็อกถูกนับครบในรอบนี้ ไม่มียอดเก่าค้าง</p>
+            ) : (
+              <div className="rounded-xl bg-[var(--color-warning-container)] px-3 py-2">
+                <p className="font-semibold text-[var(--color-warning)]">
+                  ⚠ มี {summary.uncounted.length} รายการที่ไม่ได้นับในรอบนี้แต่ยังมีสต็อกในระบบ (ยังเป็นยอดเดิม ไม่ได้ตรวจกับของจริง)
+                </p>
+                <ul className="mt-2 max-h-48 list-inside list-disc overflow-y-auto text-xs">
+                  {summary.uncounted.map((u) => (
+                    <li key={u.label}>
+                      {u.label} — ระบบ {u.qty} ชิ้น
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs">ถ้านับครบแล้วและของเหล่านี้ไม่มีจริง ให้กลับไปกด &quot;ตั้งรายการที่ยังไม่นับเป็น 0&quot; ก่อนบันทึก ถ้ายังนับไม่ครบ ให้สแกนต่อ</p>
+              </div>
+            )}
+          </div>
+        )}
+      </Dialog>
 
       <Dialog
         open={confirmOpen}
