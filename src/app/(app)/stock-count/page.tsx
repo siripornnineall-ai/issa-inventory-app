@@ -22,6 +22,8 @@ import { playBeep, primeAudio } from "@/lib/utils/beep";
 import { useCurrentUser } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { useDraft } from "@/lib/utils/useDraft";
+import { refreshAppData } from "@/lib/store/refresh";
+import { snapshotSystemQty } from "@/lib/utils/stockCountBaseline";
 import { DraftBanner } from "@/components/stock/DraftBanner";
 import { createClient } from "@/lib/supabase/client";
 import { fetchUnitTokenByScan } from "@/lib/supabase/fetch";
@@ -41,6 +43,8 @@ function StockCountForm() {
   const selectedProduct = selectedProductId ? state.products[selectedProductId] : null;
 
   const [counts, setCounts] = useState<Record<string, number>>({});
+  // ยอดในระบบ "ตอนเริ่มนับ" ของแต่ละตัวเลือก (ถ่ายภาพไว้ตอนเลือกรุ่น) ใช้เทียบกับยอดปัจจุบันว่ามีรายการเข้า/ออกระหว่างที่นับอยู่ไหม
+  const [baseline, setBaseline] = useState<Record<string, number>>({});
   const [scannedTokenIds, setScannedTokenIds] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -62,19 +66,36 @@ function StockCountForm() {
     [state, selectedProduct]
   );
 
+  // ถ่ายภาพยอดในระบบของรุ่นนี้ตอนเริ่มนับ: ดึงข้อมูลล่าสุดจากฐานข้อมูลก่อน เพื่อให้ยอดเริ่มต้นเป็นของจริง ไม่ใช่ข้อมูลเก่าค้างในเครื่อง
+  async function startBaseline(productId: string, whId: string) {
+    setBaseline(snapshotSystemQty(useStore.getState(), productId, whId));
+    await refreshAppData();
+    setBaseline(snapshotSystemQty(useStore.getState(), productId, whId));
+  }
+
   function selectProduct(p: Product) {
     setSelectedProductId(p.id);
     setProductQuery(p.sellingName);
     setProductOpen(false);
     setCounts({});
     setScannedTokenIds(new Set());
+    if (warehouseId) void startBaseline(p.id, warehouseId);
   }
 
   function resetProduct() {
     setSelectedProductId(null);
     setProductQuery("");
     setCounts({});
+    setBaseline({});
     setScannedTokenIds(new Set());
+  }
+
+  // เปลี่ยนคลังกลางคัน: ยอดที่นับไว้เป็นของคลังเดิม ต้องเริ่มนับใหม่ ไม่งั้นจะเอายอดคลังหนึ่งไปปรับอีกคลัง
+  function changeWarehouse(id: string) {
+    setWarehouseId(id);
+    setCounts({});
+    setScannedTokenIds(new Set());
+    if (selectedProductId && id) void startBaseline(selectedProductId, id);
   }
 
   function setCount(variantId: string, raw: string) {
@@ -135,16 +156,29 @@ function StockCountForm() {
     const system = warehouseId ? getStockLevel(state.variantStock, v.id, warehouseId).qtyOnHand : 0;
     const touched = v.id in counts;
     const counted = counts[v.id] ?? 0;
-    return { variant: v, system, counted, touched, diff: counted - system };
+    const start = baseline[v.id] ?? system;
+    return { variant: v, system, start, changed: start !== system, counted, touched, diff: counted - system };
   });
   const touchedCount = rows.filter((r) => r.touched).length;
   const diffRows = rows.filter((r) => r.touched && r.diff !== 0);
   const touchedRows = rows.filter((r) => r.touched);
+  // ยอดในระบบเปลี่ยนไปจากตอนเริ่มนับ (มีรับเข้า/เบิกออก/ปรับยอดจากเครื่องอื่นระหว่างที่นับ) — ยอดที่นับได้อาจไม่ตรงกับของจริง ณ ตอนเริ่ม
+  const changedRows = rows.filter((r) => r.changed);
+  const zeroableRows = rows.filter((r) => !r.touched);
+
+  function acceptCurrentAsStart() {
+    setBaseline((prev) => ({ ...prev, ...Object.fromEntries(changedRows.map((r) => [r.variant.id, r.system])) }));
+  }
+
+  // นับรอบเต็ม: รายการที่หาไม่เจอเลยถือว่ามี 0 ชิ้น (ตั้งให้เป็นนับแล้ว = 0)
+  function markUncountedAsZero() {
+    setCounts((prev) => ({ ...prev, ...Object.fromEntries(zeroableRows.map((r) => [r.variant.id, 0])) }));
+  }
 
   // เก็บร่างการนับไว้ในเครื่อง ปิดแอป/สลับแอปแล้วกลับมา ยอดที่นับค้างไว้ไม่หาย (ถามก่อนว่าจะทำต่อไหม)
   const draftValue = useMemo(
-    () => ({ warehouseId, selectedProductId, counts, scannedTokenIds: Array.from(scannedTokenIds) }),
-    [warehouseId, selectedProductId, counts, scannedTokenIds]
+    () => ({ warehouseId, selectedProductId, counts, baseline, scannedTokenIds: Array.from(scannedTokenIds) }),
+    [warehouseId, selectedProductId, counts, baseline, scannedTokenIds]
   );
   const draft = useDraft({
     key: user ? `issa-draft:stock-count:${user.id}` : null,
@@ -161,6 +195,8 @@ function StockCountForm() {
       setProductQuery(product.sellingName);
       setCounts(Object.fromEntries(Object.entries(v.counts ?? {}).filter(([variantId]) => state.variants[variantId])));
       setScannedTokenIds(new Set(v.scannedTokenIds ?? []));
+      // ยอดเริ่มนับเดิมในร่างต้องคงไว้ ถึงจะเห็นว่าระหว่างที่ปิดแอปไป ยอดในระบบเปลี่ยนไหม
+      if (v.baseline) setBaseline(v.baseline);
     },
   });
   const totalSystem = touchedRows.reduce((s, r) => s + r.system, 0);
@@ -210,7 +246,7 @@ function StockCountForm() {
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-3 sm:gap-4">
           <FormField label="คลังที่นับ" required>
-            <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
+            <Select value={warehouseId} onChange={(e) => changeWarehouse(e.target.value)}>
               <option value="">เลือกคลัง</option>
               {activeWarehouses.map((w) => (
                 <option key={w.id} value={w.id}>
@@ -305,9 +341,28 @@ function StockCountForm() {
             </Button>
           </CardHeader>
           <CardContent className="pt-0">
+            {changedRows.length > 0 && (
+              <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-warning)] bg-[var(--color-warning-container)] p-3 text-sm">
+                <p>
+                  <span className="font-semibold">ยอดในระบบเปลี่ยนไประหว่างที่นับ {changedRows.length} รายการ</span> (มีรับเข้า เบิกออก หรือปรับยอดเข้ามาหลังจากเริ่มนับ) ตรวจดูคอลัมน์ &quot;ตอนเริ่มนับ&quot; กับ &quot;ตอนนี้&quot; ก่อนบันทึก
+                  ถ้ายืนยันว่าจำนวนที่นับถูกต้อง ณ ตอนนี้ กดรับทราบได้
+                </p>
+                <Button size="sm" variant="secondary" onClick={acceptCurrentAsStart}>
+                  รับทราบ ใช้ยอดปัจจุบัน
+                </Button>
+              </div>
+            )}
+            {zeroableRows.length > 0 && touchedCount > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+                <span className="text-[var(--color-on-surface-variant)]">ยังไม่ได้นับ {zeroableRows.length} รายการ (ถ้าไม่นับ ยอดเดิมไม่เปลี่ยน)</span>
+                <Button size="sm" variant="ghost" onClick={markUncountedAsZero}>
+                  ตั้งรายการที่ยังไม่นับเป็น 0
+                </Button>
+              </div>
+            )}
             {/* การ์ดสำหรับจอมือถือ */}
             <div className="flex flex-col gap-2 sm:hidden">
-              {rows.map(({ variant: v, system, counted, touched, diff }) => (
+              {rows.map(({ variant: v, system, start, changed, counted, touched, diff }) => (
                 <div key={v.id} className="rounded-lg border border-[var(--color-border)] p-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
@@ -321,7 +376,10 @@ function StockCountForm() {
                     )}
                     {touched && diff === 0 && <span className="shrink-0 text-xs text-[var(--color-on-surface-variant)]">ตรงกัน</span>}
                   </div>
-                  <p className="truncate text-xs text-[var(--color-on-surface-variant)]">{v.sku} · สต็อกในระบบ {system}</p>
+                  <p className="truncate text-xs text-[var(--color-on-surface-variant)]">
+                    {v.sku} · ตอนเริ่มนับ {start}
+                    {changed ? <span className="font-semibold text-[var(--color-warning)]"> → ตอนนี้ {system} (เปลี่ยน)</span> : ` · ตอนนี้ ${system}`}
+                  </p>
                   <div className="mt-1.5">
                     <label className="mb-0.5 block text-[10px] text-[var(--color-on-surface-variant)]">นับได้</label>
                     <Input
@@ -345,13 +403,14 @@ function StockCountForm() {
                     <Th>สี</Th>
                     <Th>ไซซ์</Th>
                     <Th>SKU</Th>
-                    <Th>สต็อกในระบบ</Th>
+                    <Th>ตอนเริ่มนับ</Th>
+                    <Th>ตอนนี้</Th>
                     <Th>นับได้</Th>
                     <Th>ผลต่าง</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {rows.map(({ variant: v, system, counted, touched, diff }) => (
+                  {rows.map(({ variant: v, system, start, changed, counted, touched, diff }) => (
                     <Tr key={v.id}>
                       <Td>
                         <span className="flex items-center gap-1.5">
@@ -361,7 +420,11 @@ function StockCountForm() {
                       </Td>
                       <Td>{v.size}</Td>
                       <Td className="font-mono text-xs">{v.sku}</Td>
-                      <Td>{system}</Td>
+                      <Td>{start}</Td>
+                      <Td className={changed ? "bg-[var(--color-warning-container)] font-semibold" : undefined}>
+                        {system}
+                        {changed && <span className="ml-1 text-xs font-normal text-[var(--color-warning)]">เปลี่ยน</span>}
+                      </Td>
                       <Td>
                         <Input
                           type="number"
@@ -415,11 +478,20 @@ function StockCountForm() {
           </>
         }
       >
+        <p className="mb-3 text-sm text-[var(--color-on-surface-variant)]">
+          ระบบจะตั้งสต็อกของแต่ละรายการ <span className="font-semibold text-[var(--color-on-surface)]">ให้เท่ากับจำนวนที่นับได้</span> (ไม่ใช่บวกเพิ่ม) และบันทึกประวัติปรับยอดให้ทุกรายการ รายการที่ไม่ได้นับหรือนับแล้วตรงกันจะไม่ถูกแตะ
+        </p>
+        {diffRows.some((r) => r.changed) && (
+          <p role="alert" className="mb-3 rounded-xl bg-[var(--color-warning-container)] px-3 py-2 text-sm text-[var(--color-warning)]">
+            มี {diffRows.filter((r) => r.changed).length} รายการที่ยอดในระบบเปลี่ยนไปจากตอนเริ่มนับ ตรวจให้แน่ใจก่อนว่าจำนวนที่นับได้คือของจริงตอนนี้
+          </p>
+        )}
         <Table>
           <Thead>
             <Tr>
               <Th>สี / ไซซ์</Th>
-              <Th>เดิม</Th>
+              <Th>ตอนเริ่มนับ</Th>
+              <Th>ตอนนี้</Th>
               <Th>นับได้</Th>
               <Th>ผลต่าง</Th>
             </Tr>
@@ -430,7 +502,8 @@ function StockCountForm() {
                 <Td>
                   {r.variant.color} / {r.variant.size}
                 </Td>
-                <Td>{r.system}</Td>
+                <Td>{r.start}</Td>
+                <Td className={r.changed ? "font-semibold text-[var(--color-warning)]" : undefined}>{r.system}</Td>
                 <Td className="font-semibold">{r.counted}</Td>
                 <Td className={r.diff > 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}>{r.diff > 0 ? `+${r.diff}` : r.diff}</Td>
               </Tr>
