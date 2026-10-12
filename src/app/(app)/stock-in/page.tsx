@@ -14,7 +14,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { VariantPicker } from "@/components/stock/VariantPicker";
 import { NameCombobox } from "@/components/ui/NameCombobox";
 import { useStore, useActions } from "@/lib/store";
-import { checkUnitTokenScan } from "@/lib/store/engine";
+import { checkScannedToken } from "@/lib/store/engine";
 import { useCurrentUser } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { todayInputValue, dateInputToISO } from "@/lib/utils/date";
@@ -89,7 +89,7 @@ function StockInForm() {
       logScan(`${label} — สแกนซ้ำ`, false);
       return;
     }
-    const check = checkUnitTokenScan(state.unitTokens, token.id, "in");
+    const check = checkScannedToken(state.unitTokens, token, "in");
     if (!check.ok) {
       playBeep("error");
       toastError(check.message);

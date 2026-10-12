@@ -964,6 +964,17 @@ export function mintUnitTokens(draft: Draft<AppState>, variantId: string, qty: n
   return tokens;
 }
 
+// เช็คป้ายที่เพิ่งสแกนได้ โดยใช้ตัวป้ายที่ส่งมาเป็นหลัก ไม่ต้องรอให้ป้ายนั้นเข้าไปอยู่ใน state ของเครื่อง
+// (ป้ายที่เพิ่งพิมพ์จากเครื่องอื่นต้องดึงจากฐานข้อมูลมาเติมก่อน ซึ่ง state ของหน้าที่เรียกใช้ยังเป็นค่าเก่าอยู่ตอนเช็ค
+// ถ้าเช็คกับ state เก่าจะขึ้น "ไม่พบรหัสนี้" ในการสแกนครั้งแรก แล้วสแกนรอบสองถึงผ่าน)
+export function checkScannedToken(
+  tokens: Record<string, UnitToken>,
+  token: UnitToken,
+  action: UnitTokenAction
+): { ok: true } | { ok: false; message: string } {
+  return checkUnitTokenScan({ ...tokens, [token.id]: token }, token.id, action);
+}
+
 // เช็คอย่างเดียว ไม่แก้ข้อมูล — ใช้ทั้งจากหน้าเว็บ (เช็คทันทีตอนสแกน ก่อน submit จริง)
 // และจาก recordUnitScan (เช็คสุดท้ายตอน commit จริง)
 export function checkUnitTokenScan(

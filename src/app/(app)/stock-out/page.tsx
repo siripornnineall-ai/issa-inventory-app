@@ -13,7 +13,7 @@ import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { VariantPicker } from "@/components/stock/VariantPicker";
 import { useStore, useActions } from "@/lib/store";
-import { checkUnitTokenScan } from "@/lib/store/engine";
+import { checkScannedToken } from "@/lib/store/engine";
 import { useCurrentUser } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { todayInputValue, dateInputToISO } from "@/lib/utils/date";
@@ -87,7 +87,7 @@ function StockOutForm() {
       logScan(`${label} — สแกนซ้ำ`, false);
       return;
     }
-    const check = checkUnitTokenScan(state.unitTokens, token.id, "out");
+    const check = checkScannedToken(state.unitTokens, token, "out");
     if (!check.ok) {
       playBeep("error");
       toastError(check.message);
