@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { BackLink } from "@/components/ui/BackLink";
-import { ArrowLeft, Camera, ClipboardCheck, RotateCcw, ClipboardList } from "lucide-react";
+import { ArrowLeft, Camera, ClipboardCheck, ClipboardList, Plus, X } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { RequireAccess } from "@/components/layout/RequireAccess";
@@ -29,6 +29,20 @@ import { createClient } from "@/lib/supabase/client";
 import { fetchUnitTokenByScan } from "@/lib/supabase/fetch";
 import type { Product, ProductVariant } from "@/lib/types";
 
+interface CountRow {
+  variant: ProductVariant;
+  system: number; // ยอดในระบบตอนนี้
+  start: number; // ยอดในระบบตอนเริ่มนับ
+  changed: boolean;
+  counted: number;
+  touched: boolean;
+  diff: number;
+}
+
+function diffLabel(diff: number) {
+  return diff > 0 ? `+${diff}` : String(diff);
+}
+
 function StockCountForm() {
   const state = useStore();
   const { adjustStock, mergeUnitTokens } = useActions();
@@ -39,11 +53,11 @@ function StockCountForm() {
 
   const [productQuery, setProductQuery] = useState("");
   const [productOpen, setProductOpen] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const selectedProduct = selectedProductId ? state.products[selectedProductId] : null;
+  // รอบนับหนึ่งรอบนับได้หลายรุ่นพร้อมกัน: เพิ่มรุ่นเข้ารอบได้ทั้งจากการค้นหา และอัตโนมัติเมื่อสแกนป้ายของรุ่นที่ยังไม่อยู่ในรอบ
+  const [productIds, setProductIds] = useState<string[]>([]);
 
   const [counts, setCounts] = useState<Record<string, number>>({});
-  // ยอดในระบบ "ตอนเริ่มนับ" ของแต่ละตัวเลือก (ถ่ายภาพไว้ตอนเลือกรุ่น) ใช้เทียบกับยอดปัจจุบันว่ามีรายการเข้า/ออกระหว่างที่นับอยู่ไหม
+  // ยอดในระบบ "ตอนเริ่มนับ" ของแต่ละตัวเลือก (ถ่ายภาพไว้ตอนเพิ่มรุ่นเข้ารอบ) ใช้เทียบกับยอดปัจจุบันว่ามีรายการเข้า/ออกระหว่างที่นับอยู่ไหม
   const [baseline, setBaseline] = useState<Record<string, number>>({});
   const [scannedTokenIds, setScannedTokenIds] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
@@ -54,36 +68,49 @@ function StockCountForm() {
     const q = productQuery.trim().toLowerCase();
     if (!q) return [];
     return Object.values(state.products)
-      .filter((p) => p.sellingName.toLowerCase().includes(q) || (p.modelCode ?? "").toLowerCase().includes(q))
+      .filter((p) => !productIds.includes(p.id) && (p.sellingName.toLowerCase().includes(q) || (p.modelCode ?? "").toLowerCase().includes(q)))
       .slice(0, 20);
-  }, [productQuery, state.products]);
+  }, [productQuery, state.products, productIds]);
 
-  const variants = useMemo(
-    () =>
-      selectedProduct
-        ? [...productVariants(state, selectedProduct.id)].sort((a, b) => a.color.localeCompare(b.color) || compareSizes(a.size, b.size))
-        : [],
-    [state, selectedProduct]
-  );
-
-  // ถ่ายภาพยอดในระบบของรุ่นนี้ตอนเริ่มนับ: ดึงข้อมูลล่าสุดจากฐานข้อมูลก่อน เพื่อให้ยอดเริ่มต้นเป็นของจริง ไม่ใช่ข้อมูลเก่าค้างในเครื่อง
-  async function startBaseline(productId: string, whId: string) {
-    setBaseline(snapshotSystemQty(useStore.getState(), productId, whId));
-    await refreshAppData();
-    setBaseline(snapshotSystemQty(useStore.getState(), productId, whId));
+  // ถ่ายภาพยอดในระบบของรุ่นเหล่านี้ตอนเริ่มนับ: ถ่ายจากข้อมูลในเครื่องทันที แล้วดึงข้อมูลล่าสุดจากฐานข้อมูลมาถ่ายซ้ำ
+  // เพื่อให้ยอดเริ่มต้นเป็นของจริง ไม่ใช่ข้อมูลเก่าค้างในเครื่อง (ถ่ายเฉพาะรุ่นที่เพิ่งเพิ่ม ไม่ทับยอดเริ่มนับของรุ่นที่นับอยู่แล้ว)
+  function snapshotProducts(ids: string[], whId: string, overwrite: boolean) {
+    const snap = () => Object.assign({}, ...ids.map((id) => snapshotSystemQty(useStore.getState(), id, whId)));
+    setBaseline((prev) => (overwrite ? { ...prev, ...snap() } : { ...snap(), ...prev }));
+    void refreshAppData().then(() => setBaseline((prev) => ({ ...prev, ...snap() })));
   }
 
-  function selectProduct(p: Product) {
-    setSelectedProductId(p.id);
-    setProductQuery(p.sellingName);
+  function includeProducts(ids: string[]) {
+    const fresh = ids.filter((id) => !productIds.includes(id));
+    if (fresh.length === 0) return;
+    setProductIds((prev) => [...prev, ...fresh.filter((id) => !prev.includes(id))]);
+    if (warehouseId) snapshotProducts(fresh, warehouseId, false);
+  }
+
+  function addProduct(p: Product) {
+    includeProducts([p.id]);
+    setProductQuery("");
     setProductOpen(false);
-    setCounts({});
-    setScannedTokenIds(new Set());
-    if (warehouseId) void startBaseline(p.id, warehouseId);
   }
 
-  function resetProduct() {
-    setSelectedProductId(null);
+  function addAllWithStock() {
+    if (!warehouseId) return;
+    const withStock = new Set<string>();
+    for (const v of Object.values(state.variants)) {
+      if ((state.variantStock[`${v.id}::${warehouseId}`]?.qtyOnHand ?? 0) !== 0) withStock.add(v.productId);
+    }
+    includeProducts([...withStock].sort((a, b) => (state.products[a]?.sellingName ?? "").localeCompare(state.products[b]?.sellingName ?? "", "th")));
+  }
+
+  function removeProduct(id: string) {
+    const ids = new Set(productVariants(state, id).map((v) => v.id));
+    setProductIds((prev) => prev.filter((p) => p !== id));
+    setCounts((prev) => Object.fromEntries(Object.entries(prev).filter(([vid]) => !ids.has(vid))));
+    setBaseline((prev) => Object.fromEntries(Object.entries(prev).filter(([vid]) => !ids.has(vid))));
+  }
+
+  function resetAll() {
+    setProductIds([]);
     setProductQuery("");
     setCounts({});
     setBaseline({});
@@ -94,8 +121,9 @@ function StockCountForm() {
   function changeWarehouse(id: string) {
     setWarehouseId(id);
     setCounts({});
+    setBaseline({});
     setScannedTokenIds(new Set());
-    if (selectedProductId && id) void startBaseline(selectedProductId, id);
+    if (productIds.length > 0 && id) snapshotProducts(productIds, id, true);
   }
 
   function setCount(variantId: string, raw: string) {
@@ -108,15 +136,15 @@ function StockCountForm() {
   }
 
   function applyScan(variant: ProductVariant, tokenId: string | undefined) {
-    if (!selectedProduct || variant.productId !== selectedProduct.id) {
-      playBeep("error");
-      toastError(`สแกนผิดรุ่น — นี่คือ "${state.products[variant.productId]?.sellingName ?? "?"}" ไม่ใช่ "${selectedProduct?.sellingName ?? ""}"`);
-      return;
-    }
     if (tokenId && scannedTokenIds.has(tokenId)) {
       playBeep("duplicate");
       toastError("ใบนี้นับไปแล้วในรอบนับนี้");
       return;
+    }
+    // สแกนป้ายของรุ่นที่ยังไม่อยู่ในรอบ: เพิ่มรุ่นนั้นเข้ารอบให้เอง (นับพร้อมกันหลายรุ่นได้)
+    if (!productIds.includes(variant.productId)) {
+      includeProducts([variant.productId]);
+      toastSuccess(`เพิ่มรุ่น "${state.products[variant.productId]?.sellingName ?? "?"}" เข้ารอบนับแล้ว`);
     }
     if (tokenId) setScannedTokenIds((prev) => new Set(prev).add(tokenId));
     playBeep("success");
@@ -152,68 +180,78 @@ function StockCountForm() {
     toastError(`ไม่พบสินค้าที่ตรงกับ "${value}"`);
   }
 
-  const rows = variants.map((v) => {
-    const system = warehouseId ? getStockLevel(state.variantStock, v.id, warehouseId).qtyOnHand : 0;
-    const touched = v.id in counts;
-    const counted = counts[v.id] ?? 0;
-    const start = baseline[v.id] ?? system;
-    return { variant: v, system, start, changed: start !== system, counted, touched, diff: counted - system };
-  });
-  const touchedCount = rows.filter((r) => r.touched).length;
-  const diffRows = rows.filter((r) => r.touched && r.diff !== 0);
-  const touchedRows = rows.filter((r) => r.touched);
+  // แถวนับของแต่ละรุ่นที่อยู่ในรอบ
+  const groups = productIds
+    .map((pid) => state.products[pid])
+    .filter((p): p is Product => Boolean(p))
+    .map((product) => {
+      const variants = [...productVariants(state, product.id)].sort((a, b) => a.color.localeCompare(b.color) || compareSizes(a.size, b.size));
+      const rows: CountRow[] = variants.map((v) => {
+        const system = warehouseId ? getStockLevel(state.variantStock, v.id, warehouseId).qtyOnHand : 0;
+        const touched = v.id in counts;
+        const counted = counts[v.id] ?? 0;
+        const start = baseline[v.id] ?? system;
+        return { variant: v, system, start, changed: start !== system, counted, touched, diff: counted - system };
+      });
+      return { product, rows };
+    });
+  const allRows = groups.flatMap((g) => g.rows);
+  const touchedRows = allRows.filter((r) => r.touched);
+  const diffRows = touchedRows.filter((r) => r.diff !== 0);
   // ยอดในระบบเปลี่ยนไปจากตอนเริ่มนับ (มีรับเข้า/เบิกออก/ปรับยอดจากเครื่องอื่นระหว่างที่นับ) — ยอดที่นับได้อาจไม่ตรงกับของจริง ณ ตอนเริ่ม
-  const changedRows = rows.filter((r) => r.changed);
-  const zeroableRows = rows.filter((r) => !r.touched);
+  const changedRows = allRows.filter((r) => r.changed);
+  const uncountedRows = allRows.filter((r) => !r.touched);
+  const totalSystem = touchedRows.reduce((s, r) => s + r.system, 0);
+  const totalCounted = touchedRows.reduce((s, r) => s + r.counted, 0);
+  const totalDiff = totalCounted - totalSystem;
 
   function acceptCurrentAsStart() {
     setBaseline((prev) => ({ ...prev, ...Object.fromEntries(changedRows.map((r) => [r.variant.id, r.system])) }));
   }
 
   // นับรอบเต็ม: รายการที่หาไม่เจอเลยถือว่ามี 0 ชิ้น (ตั้งให้เป็นนับแล้ว = 0)
-  function markUncountedAsZero() {
-    setCounts((prev) => ({ ...prev, ...Object.fromEntries(zeroableRows.map((r) => [r.variant.id, 0])) }));
+  function markAsZero(rows: CountRow[]) {
+    setCounts((prev) => ({ ...prev, ...Object.fromEntries(rows.filter((r) => !r.touched).map((r) => [r.variant.id, 0])) }));
   }
 
   // เก็บร่างการนับไว้ในเครื่อง ปิดแอป/สลับแอปแล้วกลับมา ยอดที่นับค้างไว้ไม่หาย (ถามก่อนว่าจะทำต่อไหม)
   const draftValue = useMemo(
-    () => ({ warehouseId, selectedProductId, counts, baseline, scannedTokenIds: Array.from(scannedTokenIds) }),
-    [warehouseId, selectedProductId, counts, baseline, scannedTokenIds]
+    () => ({ warehouseId, productIds, counts, baseline, scannedTokenIds: Array.from(scannedTokenIds) }),
+    [warehouseId, productIds, counts, baseline, scannedTokenIds]
   );
   const draft = useDraft({
     key: user ? `issa-draft:stock-count:${user.id}` : null,
     value: draftValue,
-    hasContent: Boolean(selectedProductId) && Object.keys(counts).length > 0,
+    hasContent: productIds.length > 0 && Object.keys(counts).length > 0,
     onRestore: (v) => {
-      const product = v.selectedProductId ? state.products[v.selectedProductId] : undefined;
-      if (!product) {
+      // ร่างรุ่นเก่า (นับทีละรุ่น) เก็บเป็น selectedProductId รุ่นเดียว
+      const legacy = v as unknown as { selectedProductId?: string | null };
+      const ids = (v.productIds ?? (legacy.selectedProductId ? [legacy.selectedProductId] : [])).filter((id) => state.products[id]);
+      if (ids.length === 0) {
         toastError("สินค้าในร่างที่เก็บไว้ไม่มีในระบบแล้ว");
         return;
       }
       if (v.warehouseId && activeWarehouses.some((w) => w.id === v.warehouseId)) setWarehouseId(v.warehouseId);
-      setSelectedProductId(product.id);
-      setProductQuery(product.sellingName);
+      setProductIds(ids);
       setCounts(Object.fromEntries(Object.entries(v.counts ?? {}).filter(([variantId]) => state.variants[variantId])));
       setScannedTokenIds(new Set(v.scannedTokenIds ?? []));
       // ยอดเริ่มนับเดิมในร่างต้องคงไว้ ถึงจะเห็นว่าระหว่างที่ปิดแอปไป ยอดในระบบเปลี่ยนไหม
       if (v.baseline) setBaseline(v.baseline);
     },
   });
-  const totalSystem = touchedRows.reduce((s, r) => s + r.system, 0);
-  const totalCounted = touchedRows.reduce((s, r) => s + r.counted, 0);
-  const totalDiff = totalCounted - totalSystem;
 
   function handleSave() {
-    if (!user || !warehouseId || !selectedProduct) return;
+    if (!user || !warehouseId || diffRows.length === 0) return;
     setSaving(true);
     try {
       for (const row of diffRows) {
+        const product = state.products[row.variant.productId];
         adjustStock({
           itemType: "product",
           itemId: row.variant.id,
           warehouseId,
           newQty: row.counted,
-          reason: `นับสต็อก — ${selectedProduct.sellingName}`,
+          reason: `นับสต็อก — ${product?.sellingName ?? row.variant.sku}`,
           actorId: user.id,
           actorName: user.name,
         });
@@ -223,6 +261,8 @@ function StockCountForm() {
       setConfirmOpen(false);
       setCounts({});
       setScannedTokenIds(new Set());
+      // เริ่มรอบใหม่ต่อได้เลย: ยอดตอนเริ่มนับของรอบใหม่ = ยอดหลังปรับ
+      if (productIds.length > 0) snapshotProducts(productIds, warehouseId, true);
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
     } finally {
@@ -235,7 +275,7 @@ function StockCountForm() {
       {draft.draft && (
         <DraftBanner
           savedAt={draft.draft.savedAt}
-          summary={`${state.products[draft.draft.value.selectedProductId ?? ""]?.sellingName ?? "ไม่ระบุสินค้า"} · นับแล้ว ${Object.keys(draft.draft.value.counts ?? {}).length} รายการ`}
+          summary={`${Object.keys(draft.draft.value.counts ?? {}).length} รายการ`}
           onRestore={draft.restore}
           onDiscard={draft.discard}
         />
@@ -255,78 +295,96 @@ function StockCountForm() {
               ))}
             </Select>
           </FormField>
-          <FormField label="สินค้าที่จะนับ" required>
-            {selectedProduct ? (
-              <div className="flex items-center gap-2">
-                <div className="flex-1 truncate rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container)] px-3.5 py-2.5 text-sm font-medium">
-                  {selectedProduct.sellingName}
+          <FormField label="เพิ่มรุ่นที่จะนับ" required hint="นับพร้อมกันได้หลายรุ่น หรือสแกนป้ายของรุ่นไหนก็ได้ ระบบเพิ่มรุ่นนั้นเข้ารอบให้เอง">
+            <div className="relative">
+              <Input
+                value={productQuery}
+                onChange={(e) => {
+                  setProductQuery(e.target.value);
+                  setProductOpen(true);
+                }}
+                onFocus={() => setProductOpen(true)}
+                placeholder="พิมพ์ชื่อรุ่นสินค้า..."
+              />
+              {productOpen && productResults.length > 0 && (
+                <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-[var(--color-border)] bg-white py-1 shadow-[var(--shadow-micro)]">
+                  {productResults.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => addProduct(p)}
+                      className="block w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-surface-container)]"
+                    >
+                      {p.sellingName}
+                    </button>
+                  ))}
                 </div>
-                <Button variant="secondary" size="sm" onClick={resetProduct}>
-                  <RotateCcw className="h-3.5 w-3.5" /> เปลี่ยน
-                </Button>
-              </div>
-            ) : (
-              <div className="relative">
-                <Input
-                  value={productQuery}
-                  onChange={(e) => {
-                    setProductQuery(e.target.value);
-                    setProductOpen(true);
-                  }}
-                  onFocus={() => setProductOpen(true)}
-                  placeholder="พิมพ์ชื่อรุ่นสินค้า..."
-                />
-                {productOpen && productResults.length > 0 && (
-                  <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-[var(--color-border)] bg-white py-1 shadow-[var(--shadow-micro)]">
-                    {productResults.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => selectProduct(p)}
-                        className="block w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-surface-container)]"
-                      >
-                        {p.sellingName}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {productOpen && productQuery.trim() && productResults.length === 0 && (
-                  <div className="absolute z-30 mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-on-surface-variant)] shadow-[var(--shadow-micro)]">
-                    ไม่พบสินค้าที่ตรงกับคำค้นหา
-                  </div>
-                )}
-              </div>
-            )}
+              )}
+              {productOpen && productQuery.trim() && productResults.length === 0 && (
+                <div className="absolute z-30 mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-on-surface-variant)] shadow-[var(--shadow-micro)]">
+                  ไม่พบสินค้าที่ตรงกับคำค้นหา (หรือเพิ่มรุ่นนี้เข้ารอบแล้ว)
+                </div>
+              )}
+            </div>
           </FormField>
+          <div className="col-span-2 flex flex-wrap items-center gap-2">
+            {productIds.map((pid) => (
+              <span key={pid} className="flex items-center gap-1 rounded-lg bg-[var(--color-surface-container)] px-2 py-1 text-xs font-medium">
+                {state.products[pid]?.sellingName ?? "?"}
+                <button type="button" onClick={() => removeProduct(pid)} aria-label={`เอารุ่น ${state.products[pid]?.sellingName ?? ""} ออกจากรอบนับ`}>
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            <Button type="button" size="sm" variant="ghost" onClick={addAllWithStock} disabled={!warehouseId}>
+              <Plus className="h-3.5 w-3.5" /> เพิ่มทุกรุ่นที่มีสต็อกในคลังนี้
+            </Button>
+            {productIds.length > 0 && (
+              <Button type="button" size="sm" variant="ghost" onClick={resetAll}>
+                ล้างรอบนับ
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
-      {!selectedProduct && (
+      {productIds.length === 0 && (
         <Card>
           <CardContent>
             <EmptyState
               icon={<ClipboardList className="h-10 w-10" />}
-              title="เลือกรุ่นสินค้าที่จะนับก่อน"
-              description="พิมพ์ชื่อรุ่นแล้วเลือกจากรายการด้านบน ระบบจะโชว์ตัวเลือกสี/ไซซ์ของรุ่นนั้นให้นับ"
+              title="เพิ่มรุ่นสินค้าที่จะนับก่อน"
+              description="พิมพ์ชื่อรุ่นแล้วเลือกจากรายการด้านบน (เพิ่มได้หลายรุ่น) หรือกดสแกนป้ายของรุ่นไหนก็ได้ ระบบจะเพิ่มรุ่นนั้นเข้ารอบนับให้เอง"
             />
+            <div className="mt-4 flex justify-center">
+              <Button
+                disabled={!warehouseId}
+                onClick={() => {
+                  primeAudio();
+                  setScanning(true);
+                }}
+              >
+                <Camera className="h-4 w-4" /> สแกนป้าย
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {selectedProduct && warehouseId && (
+      {groups.length > 0 && warehouseId && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-3">
             <div>
-              <CardTitle>{selectedProduct.sellingName}</CardTitle>
+              <CardTitle>รอบนับนี้ {groups.length} รุ่น</CardTitle>
               <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                นับแล้ว {touchedCount} จาก {variants.length} รายการ
+                นับแล้ว {touchedRows.length} จาก {allRows.length} รายการ
               </p>
-              {touchedCount > 0 && (
+              {touchedRows.length > 0 && (
                 <p className="mt-1 text-sm">
                   รวมที่นับแล้ว — สต็อกในระบบ <span className="font-semibold text-[var(--color-on-surface)]">{totalSystem}</span> ชิ้น · นับได้จริง{" "}
                   <span className="font-semibold text-[var(--color-on-surface)]">{totalCounted}</span> ชิ้น · ผลต่าง{" "}
                   <span className={`font-semibold ${totalDiff === 0 ? "text-[var(--color-on-surface-variant)]" : totalDiff > 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>
-                    {totalDiff > 0 ? `+${totalDiff}` : totalDiff}
+                    {diffLabel(totalDiff)}
                   </span>
                 </p>
               )}
@@ -352,101 +410,121 @@ function StockCountForm() {
                 </Button>
               </div>
             )}
-            {zeroableRows.length > 0 && touchedCount > 0 && (
+            {uncountedRows.length > 0 && touchedRows.length > 0 && (
               <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
-                <span className="text-[var(--color-on-surface-variant)]">ยังไม่ได้นับ {zeroableRows.length} รายการ (ถ้าไม่นับ ยอดเดิมไม่เปลี่ยน)</span>
-                <Button size="sm" variant="ghost" onClick={markUncountedAsZero}>
+                <span className="text-[var(--color-on-surface-variant)]">ยังไม่ได้นับ {uncountedRows.length} รายการ (ถ้าไม่นับ ยอดเดิมไม่เปลี่ยน)</span>
+                <Button size="sm" variant="ghost" onClick={() => markAsZero(allRows)}>
                   ตั้งรายการที่ยังไม่นับเป็น 0
                 </Button>
               </div>
             )}
-            {/* การ์ดสำหรับจอมือถือ */}
-            <div className="flex flex-col gap-2 sm:hidden">
-              {rows.map(({ variant: v, system, start, changed, counted, touched, diff }) => (
-                <div key={v.id} className="rounded-lg border border-[var(--color-border)] p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-                      <ColorSwatch name={v.color} size={20} />
-                      <span className="truncate">{v.color} / {v.size}</span>
-                    </span>
-                    {touched && diff !== 0 && (
-                      <span className={`shrink-0 text-xs font-semibold ${diff > 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>
-                        {diff > 0 ? `+${diff}` : diff}
-                      </span>
-                    )}
-                    {touched && diff === 0 && <span className="shrink-0 text-xs text-[var(--color-on-surface-variant)]">ตรงกัน</span>}
-                  </div>
-                  <p className="truncate text-xs text-[var(--color-on-surface-variant)]">
-                    {v.sku} · ตอนเริ่มนับ {start}
-                    {changed ? <span className="font-semibold text-[var(--color-warning)]"> → ตอนนี้ {system} (เปลี่ยน)</span> : ` · ตอนนี้ ${system}`}
-                  </p>
-                  <div className="mt-1.5">
-                    <label className="mb-0.5 block text-[10px] text-[var(--color-on-surface-variant)]">นับได้</label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={touched ? counted : ""}
-                      placeholder="ยังไม่นับ"
-                      onChange={(e) => setCount(v.id, e.target.value)}
-                      className="h-8 w-24 px-2 py-1 text-sm"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
 
-            {/* ตารางสำหรับจอกว้าง */}
-            <div className="hidden sm:block">
-              <Table>
-                <Thead>
-                  <Tr>
-                    <Th>สี</Th>
-                    <Th>ไซซ์</Th>
-                    <Th>SKU</Th>
-                    <Th>ตอนเริ่มนับ</Th>
-                    <Th>ตอนนี้</Th>
-                    <Th>นับได้</Th>
-                    <Th>ผลต่าง</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {rows.map(({ variant: v, system, start, changed, counted, touched, diff }) => (
-                    <Tr key={v.id}>
-                      <Td>
-                        <span className="flex items-center gap-1.5">
-                          <ColorSwatch name={v.color} size={20} />
-                          {v.color}
-                        </span>
-                      </Td>
-                      <Td>{v.size}</Td>
-                      <Td className="font-mono text-xs">{v.sku}</Td>
-                      <Td>{start}</Td>
-                      <Td className={changed ? "bg-[var(--color-warning-container)] font-semibold" : undefined}>
-                        {system}
-                        {changed && <span className="ml-1 text-xs font-normal text-[var(--color-warning)]">เปลี่ยน</span>}
-                      </Td>
-                      <Td>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={touched ? counted : ""}
-                          placeholder="ยังไม่นับ"
-                          onChange={(e) => setCount(v.id, e.target.value)}
-                          className="w-24"
-                        />
-                      </Td>
-                      <Td>
-                        {touched && diff !== 0 && (
-                          <span className={diff > 0 ? "font-semibold text-[var(--color-success)]" : "font-semibold text-[var(--color-danger)]"}>
-                            {diff > 0 ? `+${diff}` : diff}
-                          </span>
-                        )}
-                        {touched && diff === 0 && <span className="text-[var(--color-on-surface-variant)]">ตรงกัน</span>}
-                      </Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
+            <div className="flex flex-col gap-6">
+              {groups.map(({ product, rows }) => {
+                const gTouched = rows.filter((r) => r.touched).length;
+                const gUncounted = rows.filter((r) => !r.touched);
+                return (
+                  <section key={product.id} aria-label={product.sellingName}>
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] pb-1.5">
+                      <h3 className="text-base font-semibold">
+                        {product.sellingName} <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">นับแล้ว {gTouched}/{rows.length}</span>
+                      </h3>
+                      {gUncounted.length > 0 && gTouched > 0 && (
+                        <Button size="sm" variant="ghost" onClick={() => markAsZero(rows)}>
+                          ตั้งรุ่นนี้ที่ยังไม่นับเป็น 0
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* การ์ดสำหรับจอมือถือ */}
+                    <div className="flex flex-col gap-2 sm:hidden">
+                      {rows.map(({ variant: v, system, start, changed, counted, touched, diff }) => (
+                        <div key={v.id} className="rounded-lg border border-[var(--color-border)] p-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                              <ColorSwatch name={v.color} size={20} />
+                              <span className="truncate">
+                                {v.color} / {v.size}
+                              </span>
+                            </span>
+                            {touched && diff !== 0 && (
+                              <span className={`shrink-0 text-xs font-semibold ${diff > 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>{diffLabel(diff)}</span>
+                            )}
+                            {touched && diff === 0 && <span className="shrink-0 text-xs text-[var(--color-on-surface-variant)]">ตรงกัน</span>}
+                          </div>
+                          <p className="truncate text-xs text-[var(--color-on-surface-variant)]">
+                            {v.sku} · ตอนเริ่มนับ {start}
+                            {changed ? <span className="font-semibold text-[var(--color-warning)]"> → ตอนนี้ {system} (เปลี่ยน)</span> : ` · ตอนนี้ ${system}`}
+                          </p>
+                          <div className="mt-1.5">
+                            <label className="mb-0.5 block text-[10px] text-[var(--color-on-surface-variant)]">นับได้</label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={touched ? counted : ""}
+                              placeholder="ยังไม่นับ"
+                              onChange={(e) => setCount(v.id, e.target.value)}
+                              className="h-8 w-24 px-2 py-1 text-sm"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* ตารางสำหรับจอกว้าง */}
+                    <div className="hidden sm:block">
+                      <Table>
+                        <Thead>
+                          <Tr>
+                            <Th>สี</Th>
+                            <Th>ไซซ์</Th>
+                            <Th>SKU</Th>
+                            <Th>ตอนเริ่มนับ</Th>
+                            <Th>ตอนนี้</Th>
+                            <Th>นับได้</Th>
+                            <Th>ผลต่าง</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {rows.map(({ variant: v, system, start, changed, counted, touched, diff }) => (
+                            <Tr key={v.id}>
+                              <Td>
+                                <span className="flex items-center gap-1.5">
+                                  <ColorSwatch name={v.color} size={20} />
+                                  {v.color}
+                                </span>
+                              </Td>
+                              <Td>{v.size}</Td>
+                              <Td className="font-mono text-xs">{v.sku}</Td>
+                              <Td>{start}</Td>
+                              <Td className={changed ? "bg-[var(--color-warning-container)] font-semibold" : undefined}>
+                                {system}
+                                {changed && <span className="ml-1 text-xs font-normal text-[var(--color-warning)]">เปลี่ยน</span>}
+                              </Td>
+                              <Td>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  value={touched ? counted : ""}
+                                  placeholder="ยังไม่นับ"
+                                  onChange={(e) => setCount(v.id, e.target.value)}
+                                  className="w-24"
+                                />
+                              </Td>
+                              <Td>
+                                {touched && diff !== 0 && (
+                                  <span className={diff > 0 ? "font-semibold text-[var(--color-success)]" : "font-semibold text-[var(--color-danger)]"}>{diffLabel(diff)}</span>
+                                )}
+                                {touched && diff === 0 && <span className="text-[var(--color-on-surface-variant)]">ตรงกัน</span>}
+                              </Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
+                    </div>
+                  </section>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -454,7 +532,7 @@ function StockCountForm() {
 
       {scanning && <CameraScanner onDetect={handleScan} onClose={() => setScanning(false)} />}
 
-      {selectedProduct && (
+      {productIds.length > 0 && (
         <div className="flex justify-end">
           <Button onClick={() => setConfirmOpen(true)} disabled={diffRows.length === 0}>
             <ClipboardCheck className="h-4 w-4" /> บันทึกปรับสต็อก ({diffRows.length})
@@ -466,7 +544,7 @@ function StockCountForm() {
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         title="ยืนยันการปรับสต็อก"
-        description={`${selectedProduct?.sellingName ?? ""} — คลัง ${state.warehouses[warehouseId]?.name ?? ""}`}
+        description={`${groups.length} รุ่น — คลัง ${state.warehouses[warehouseId]?.name ?? ""}`}
         footer={
           <>
             <Button variant="secondary" onClick={() => setConfirmOpen(false)}>
@@ -497,17 +575,32 @@ function StockCountForm() {
             </Tr>
           </Thead>
           <Tbody>
-            {diffRows.map((r) => (
-              <Tr key={r.variant.id}>
-                <Td>
-                  {r.variant.color} / {r.variant.size}
-                </Td>
-                <Td>{r.start}</Td>
-                <Td className={r.changed ? "font-semibold text-[var(--color-warning)]" : undefined}>{r.system}</Td>
-                <Td className="font-semibold">{r.counted}</Td>
-                <Td className={r.diff > 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}>{r.diff > 0 ? `+${r.diff}` : r.diff}</Td>
-              </Tr>
-            ))}
+            {groups.map(({ product, rows }) => {
+              const changedInGroup = rows.filter((r) => r.touched && r.diff !== 0);
+              if (changedInGroup.length === 0) return null;
+              return (
+                <Fragment key={product.id}>
+                  {groups.length > 1 && (
+                    <Tr className="bg-[var(--color-surface-container)] hover:bg-[var(--color-surface-container)]">
+                      <Td colSpan={5} className="py-2 text-xs font-semibold">
+                        {product.sellingName}
+                      </Td>
+                    </Tr>
+                  )}
+                  {changedInGroup.map((r) => (
+                    <Tr key={r.variant.id}>
+                      <Td>
+                        {r.variant.color} / {r.variant.size}
+                      </Td>
+                      <Td>{r.start}</Td>
+                      <Td className={r.changed ? "font-semibold text-[var(--color-warning)]" : undefined}>{r.system}</Td>
+                      <Td className="font-semibold">{r.counted}</Td>
+                      <Td className={r.diff > 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}>{diffLabel(r.diff)}</Td>
+                    </Tr>
+                  ))}
+                </Fragment>
+              );
+            })}
           </Tbody>
         </Table>
       </Dialog>
@@ -520,7 +613,7 @@ export default function StockCountPage() {
     <>
       <Header
         title="นับสต็อก"
-        description="เลือกรุ่นสินค้าที่จะนับ แล้วสแกน QR ทีละชิ้นเพื่อนับจำนวนจริง เทียบกับระบบและปรับยอดให้ตรง"
+        description="เพิ่มรุ่นสินค้าที่จะนับ (หลายรุ่นพร้อมกันได้) แล้วสแกน QR ทีละชิ้นเพื่อนับจำนวนจริง เทียบกับระบบและปรับยอดให้ตรง"
         actions={
           <BackLink href="/products/all" className="flex items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
             <ArrowLeft className="h-4 w-4" /> กลับ
