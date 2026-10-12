@@ -10,10 +10,12 @@ export function useCurrentUser(): AppUser | null {
 
 export function useCan(perm: Permission): boolean {
   const user = useCurrentUser();
-  return hasPermission(user?.role, perm);
+  const matrix = useStore((s) => s.rolePermissions);
+  return hasPermission(user?.role, perm, matrix);
 }
 
 export function useCanViewCost(): boolean {
   const user = useCurrentUser();
-  return canViewCost(user?.role, user?.canViewCost);
+  const matrix = useStore((s) => s.rolePermissions);
+  return canViewCost(user?.role, user?.canViewCost, matrix);
 }

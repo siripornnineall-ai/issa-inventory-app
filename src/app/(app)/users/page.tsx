@@ -1,5 +1,6 @@
 "use client";
 
+import { PermissionsMatrix } from "@/components/users/PermissionsMatrix";
 import { useState } from "react";
 import { Plus, Pencil, Trash2, KeyRound, Users as UsersIcon } from "lucide-react";
 import { Header } from "@/components/layout/Header";
@@ -14,8 +15,7 @@ import { ConfirmDialog } from "@/components/ui/Dialog";
 import { UserDialog } from "@/components/users/UserDialog";
 import { ChangePasswordDialog } from "@/components/account/ChangePassword";
 import { useStore, useActions } from "@/lib/store";
-import { useCurrentUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { useCan, useCurrentUser } from "@/lib/auth/session";
 import { adminDeleteUser } from "@/lib/supabase/adminUsers";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { ROLE_LABEL_TH, type AppUser } from "@/lib/types";
@@ -27,7 +27,7 @@ export default function UsersPage() {
   const currentUser = useCurrentUser();
   const users = Object.values(state.users).sort((a, b) => a.name.localeCompare(b.name, "th"));
   // เพิ่มผู้ใช้/ลบผู้ใช้ ทำได้เฉพาะผู้ดูแลระบบ (ผู้จัดการมีสิทธิ์ user.manage เข้าหน้านี้ได้ แต่สร้าง/ลบบัญชีไม่ได้) และลบบัญชีตัวเองไม่ได้
-  const isAdmin = hasPermission(currentUser?.role, "user.admin");
+  const isAdmin = useCan("user.admin");
   const canDelete = isAdmin;
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -221,6 +221,7 @@ export default function UsersPage() {
             </>
           )}
         </Card>
+        {isAdmin && <PermissionsMatrix />}
         </RequireAccess>
       </PageContainer>
 

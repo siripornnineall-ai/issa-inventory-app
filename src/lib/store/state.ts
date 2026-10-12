@@ -25,6 +25,7 @@ import type {
   UnitToken,
   Warehouse,
 } from "@/lib/types";
+import { cloneRolePermissions, type RolePermissionMap } from "@/lib/auth/permissions";
 
 export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
   announcementText: "ส่งฟรีเมื่อช้อปครบ ฿1,500 • เปลี่ยนไซซ์ง่าย",
@@ -74,6 +75,7 @@ export interface AppState {
   storefrontSettings: StorefrontSettings;
   poSignatories: Record<string, PoSignatory>;
   unitTokens: Record<string, UnitToken>;
+  rolePermissions: RolePermissionMap; // สิทธิ์ของแต่ละตำแหน่ง (ผู้ดูแลระบบกำหนดเองได้)
   seededAt: string | null;
 }
 
@@ -111,6 +113,7 @@ export function emptyState(): AppState {
     storefrontSettings: { ...DEFAULT_STOREFRONT_SETTINGS },
     poSignatories: {},
     unitTokens: {},
+    rolePermissions: cloneRolePermissions(),
     seededAt: null,
   };
 }

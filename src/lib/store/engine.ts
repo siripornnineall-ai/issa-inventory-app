@@ -27,8 +27,10 @@ import type {
   Transfer,
   UnitToken,
   UnitTokenAction,
+  UserRole,
   Warehouse,
 } from "@/lib/types";
+import { ADMIN_ONLY_PERMISSIONS, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, type Permission } from "@/lib/auth/permissions";
 import { AppState, stockKey } from "./state";
 import { NO_TAX_INVOICE_BUYER_LABEL } from "@/lib/types";
 import { newId, genDocNo, genSku, genSkuV2, suggestColorCode } from "@/lib/utils/ids";
@@ -916,6 +918,22 @@ export function adjustStock(
     actorName: input.actorName,
     reason: input.reason,
   } as StockMovement);
+}
+
+// ===================== สิทธิ์ตามตำแหน่ง =====================
+export function setRolePermission(draft: Draft<AppState>, role: UserRole, perm: Permission, allowed: boolean) {
+  if (role === "admin") throw new BusinessRuleError("ผู้ดูแลระบบมีสิทธิ์ทุกอย่างเสมอ แก้ไขไม่ได้");
+  if (!ALL_PERMISSIONS.includes(perm)) throw new BusinessRuleError("ไม่รู้จักสิทธิ์นี้");
+  if (ADMIN_ONLY_PERMISSIONS.includes(perm)) throw new BusinessRuleError("สิทธิ์นี้ให้ได้เฉพาะผู้ดูแลระบบ");
+  const current = draft.rolePermissions[role] ?? [];
+  const has = current.includes(perm);
+  if (allowed && !has) draft.rolePermissions[role] = [...current, perm];
+  else if (!allowed && has) draft.rolePermissions[role] = current.filter((p) => p !== perm);
+}
+
+export function resetRolePermissions(draft: Draft<AppState>, role: UserRole) {
+  if (role === "admin") throw new BusinessRuleError("ผู้ดูแลระบบมีสิทธิ์ทุกอย่างเสมอ แก้ไขไม่ได้");
+  draft.rolePermissions[role] = [...DEFAULT_ROLE_PERMISSIONS[role]];
 }
 
 // ===================== ป้าย QR ต่อชิ้นจริง (unit tokens) =====================

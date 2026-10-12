@@ -43,6 +43,7 @@ import type {
 } from "@/lib/types";
 import { DEFAULT_STOREFRONT_SETTINGS } from "@/lib/store/state";
 import { normalizeUnitCode, UNIT_CODE_PATTERN } from "@/lib/store/engine";
+import { ALL_PERMISSIONS, ROLES, cloneRolePermissions, type Permission } from "@/lib/auth/permissions";
 
 // แปลงชื่อคอลัมน์ snake_case จาก Supabase ให้เป็น AppState ที่ UI ใช้อยู่ (camelCase)
 
@@ -202,6 +203,16 @@ export async function fetchAppState(supabase: SupabaseClient): Promise<AppState>
     fetchAllRows(supabase, "unit_tokens", ["created_at", "id"]),
   ]);
   const productImagesRows = await productImagesPromise;
+  // สิทธิ์ตามตำแหน่ง: ถ้าโหลดไม่ได้/ยังไม่มีข้อมูล ใช้ค่าเริ่มต้นของระบบ (ผู้ดูแลระบบมีสิทธิ์ทุกอย่างเสมอไม่ขึ้นกับตารางนี้)
+  const rolePermsRes = await fetchAllRows(supabase, "role_permissions", ["role", "permission"]);
+  const rolePermissions = cloneRolePermissions();
+  if (!rolePermsRes.error && rolePermsRes.data.length > 0) {
+    for (const role of ROLES) if (role !== "admin") rolePermissions[role] = [];
+    for (const row of rolePermsRes.data) {
+      const role = row.role as UserRole;
+      if (role !== "admin" && rolePermissions[role] && ALL_PERMISSIONS.includes(row.permission)) rolePermissions[role].push(row.permission as Permission);
+    }
+  }
 
   for (const res of [
     profilesRes,
@@ -700,6 +711,7 @@ export async function fetchAppState(supabase: SupabaseClient): Promise<AppState>
     storefrontSettings,
     poSignatories,
     unitTokens,
+    rolePermissions,
     seededAt: new Date().toISOString(),
   };
 }

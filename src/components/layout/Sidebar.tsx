@@ -8,7 +8,9 @@ import * as Icons from "lucide-react";
 import { NAV_SECTIONS, type NavItem } from "./nav";
 import { useMobileNav } from "./MobileNavContext";
 import { useCurrentUser } from "@/lib/auth/session";
+import { useStore } from "@/lib/store";
 import { hasPermission } from "@/lib/auth/permissions";
+import { requiredPermForPath } from "@/lib/auth/routes";
 import { ROLE_LABEL_TH } from "@/lib/types";
 import { cn } from "@/lib/utils/cn";
 
@@ -37,6 +39,7 @@ function SidebarLink({ href, label, icon, onNavigate }: NavItem & { onNavigate: 
 
 export function Sidebar() {
   const user = useCurrentUser();
+  const matrix = useStore((s) => s.rolePermissions);
   const { open, setOpen } = useMobileNav();
   const pathname = usePathname();
 
@@ -77,7 +80,10 @@ export function Sidebar() {
         </div>
         <nav className="flex flex-1 flex-col gap-5 overflow-y-auto pb-4">
           {NAV_SECTIONS.map((section) => {
-            const visible = section.items.filter((item) => !item.perm || hasPermission(user?.role, item.perm));
+            const visible = section.items.filter((item) => {
+              const viewPerm = requiredPermForPath(item.href);
+              return (!item.perm || hasPermission(user?.role, item.perm, matrix)) && (!viewPerm || hasPermission(user?.role, viewPerm, matrix));
+            });
             if (visible.length === 0) return null;
             return (
               <div key={section.title} className="flex flex-col gap-1">

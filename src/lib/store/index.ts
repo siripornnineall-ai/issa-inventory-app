@@ -3,7 +3,7 @@ import { produce } from "immer";
 import type { AppState } from "./state";
 import { emptyState } from "./state";
 import * as engine from "./engine";
-import { assertPermission, type Permission } from "@/lib/auth/permissions";
+import { assertPermission, setActiveRolePermissions, type Permission } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/client";
 import { syncStateDiff } from "@/lib/supabase/sync";
 import { toastError } from "@/lib/toast";
@@ -18,6 +18,7 @@ import type {
   Supplier,
   SupplierImage,
   UnitToken,
+  UserRole,
   Warehouse,
 } from "@/lib/types";
 
@@ -26,6 +27,8 @@ interface Actions {
   // เติมโทเคนที่เพิ่งดึงจากฐานข้อมูลตรง ๆ (fallback ตอนสแกนเจอโทเคนที่เครื่องนี้ยังไม่มี) เข้า cache ในเครื่อง
   // ไม่ใช่ business action จึงไม่ผ่าน runChecked/sync — เป็นแค่การอ่านข้อมูลที่มีอยู่แล้วในฐานข้อมูลเข้ามาเก็บไว้
   mergeUnitTokens: (tokens: UnitToken[]) => void;
+  setRolePermission: (role: UserRole, perm: Permission, allowed: boolean) => void;
+  resetRolePermissions: (role: UserRole) => void;
   login: (userId: string) => void;
   logout: () => void;
 
@@ -168,6 +171,8 @@ export const useStore = create<Store>()((set, get) => ({
           draft.currentUserId = null;
         })
       ),
+    setRolePermission: (role, perm, allowed) => runChecked(set, get, "user.admin", (draft) => engine.setRolePermission(draft as never, role, perm, allowed)),
+    resetRolePermissions: (role) => runChecked(set, get, "user.admin", (draft) => engine.resetRolePermissions(draft as never, role)),
     upsertWarehouse: (input) => runChecked(set, get, "master.write", (draft) => engine.upsertWarehouse(draft as never, input)),
     removeWarehouse: (id) => runChecked(set, get, "master.write", (draft) => engine.removeWarehouse(draft as never, id)),
     upsertSupplier: (input) => runChecked(set, get, "master.write", (draft) => engine.upsertSupplier(draft as never, input)),
@@ -241,3 +246,9 @@ export const useStore = create<Store>()((set, get) => ({
 export function useActions(): Actions {
   return useStore((s) => s.actions);
 }
+
+// ให้ตารางสิทธิ์ที่ใช้ตรวจสิทธิ์ (assertPermission/hasPermission) ตามสิทธิ์ล่าสุดใน store เสมอ ทั้งตอนโหลดข้อมูลและตอนผู้ดูแลระบบแก้สิทธิ์
+setActiveRolePermissions(useStore.getState().rolePermissions);
+useStore.subscribe((s, prev) => {
+  if (s.rolePermissions !== prev.rolePermissions) setActiveRolePermissions(s.rolePermissions);
+});

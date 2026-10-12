@@ -6,8 +6,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, FormField } from "@/components/ui/Field";
 import { useActions } from "@/lib/store";
-import { useCurrentUser } from "@/lib/auth/session";
-import { hasPermission } from "@/lib/auth/permissions";
+import { useCan, useCurrentUser } from "@/lib/auth/session";
 import { adminCreateUser, adminResetPassword, adminUpdateEmail, generateTempPassword, MIN_PASSWORD_LENGTH } from "@/lib/supabase/adminUsers";
 import type { AppUser, UserRole } from "@/lib/types";
 import { ROLE_LABEL_TH } from "@/lib/types";
@@ -57,7 +56,7 @@ function TempPasswordInput({ id, value, onChange }: { id: string; value: string;
 function UserDialogForm({ open, onClose, existing, onChangeOwnPassword }: UserDialogProps) {
   const { upsertUser, mergeUser } = useActions();
   const currentUser = useCurrentUser();
-  const isAdmin = hasPermission(currentUser?.role, "user.admin");
+  const isAdmin = useCan("user.admin");
   const [name, setName] = useState(existing?.name ?? "");
   const [email, setEmail] = useState(existing?.email ?? "");
   const [role, setRole] = useState<UserRole>(existing?.role ?? "viewer");

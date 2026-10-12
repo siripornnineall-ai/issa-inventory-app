@@ -1,5 +1,6 @@
 import type { PostgrestSingleResponse, SupabaseClient } from "@supabase/supabase-js";
 import type { AppState } from "@/lib/store/state";
+import { ROLES } from "@/lib/auth/permissions";
 import type { Invoice, Order, Product, ProductImage, StockInDoc, StockOutDoc, Transfer, UnitToken } from "@/lib/types";
 
 // เปรียบเทียบ state ก่อน/หลังการทำรายการ แล้วบันทึกส่วนต่างลง Supabase (write-through)
@@ -564,6 +565,15 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
   }
   for (const n of notifs.changed) {
     jobs.push(check(supabase.from("notifications").update({ read: n.read }).eq("id", n.id)));
+  }
+
+  // สิทธิ์ตามตำแหน่ง: เพิ่ม/ลบเฉพาะสิทธิ์ที่เปลี่ยน (ผู้ดูแลระบบมีสิทธิ์ทุกอย่างเสมอ ไม่เก็บในตาราง)
+  for (const role of ROLES) {
+    if (role === "admin") continue;
+    const before = new Set(prev.rolePermissions?.[role] ?? []);
+    const after = new Set(next.rolePermissions?.[role] ?? []);
+    for (const p of after) if (!before.has(p)) jobs.push(check(supabase.from("role_permissions").upsert({ role, permission: p })));
+    for (const p of before) if (!after.has(p)) jobs.push(check(supabase.from("role_permissions").delete().eq("role", role).eq("permission", p)));
   }
 
   const results = await Promise.allSettled(jobs);
