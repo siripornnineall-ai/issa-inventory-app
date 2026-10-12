@@ -138,6 +138,7 @@ export function upsertUser(draft: Draft<AppState>, input: Partial<AppUser> & { i
     avatarUrl: input.avatarUrl ?? existing?.avatarUrl,
     canViewCost: input.canViewCost ?? existing?.canViewCost,
     mustChangePassword: input.mustChangePassword ?? existing?.mustChangePassword,
+    customPermissions: input.customPermissions ?? existing?.customPermissions,
     createdAt: existing?.createdAt ?? nowISO(),
   };
   return id;
@@ -929,6 +930,19 @@ export function setRolePermission(draft: Draft<AppState>, role: UserRole, perm: 
   const has = current.includes(perm);
   if (allowed && !has) draft.rolePermissions[role] = [...current, perm];
   else if (!allowed && has) draft.rolePermissions[role] = current.filter((p) => p !== perm);
+}
+
+// กำหนดสิทธิ์ให้คนใดคนหนึ่งโดยเฉพาะ (perms = รายการที่ให้ทั้งชุด) หรือ null = กลับไปใช้ตามตำแหน่ง
+export function setUserPermissions(draft: Draft<AppState>, userId: string, perms: string[] | null) {
+  const user = draft.users[userId];
+  if (!user) throw new BusinessRuleError("ไม่พบผู้ใช้งานนี้");
+  if (user.role === "admin") throw new BusinessRuleError("ผู้ดูแลระบบมีสิทธิ์ทุกอย่างเสมอ กำหนดสิทธิ์เองไม่ได้");
+  if (perms === null) {
+    user.customPermissions = undefined;
+    return;
+  }
+  const clean = Array.from(new Set(perms)).filter((p) => (ALL_PERMISSIONS as string[]).includes(p) && !(ADMIN_ONLY_PERMISSIONS as string[]).includes(p));
+  user.customPermissions = clean;
 }
 
 export function resetRolePermissions(draft: Draft<AppState>, role: UserRole) {

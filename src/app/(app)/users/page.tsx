@@ -1,6 +1,5 @@
 "use client";
 
-import { PermissionsMatrix } from "@/components/users/PermissionsMatrix";
 import { useState } from "react";
 import { Plus, Pencil, Trash2, KeyRound, Users as UsersIcon } from "lucide-react";
 import { Header } from "@/components/layout/Header";
@@ -108,6 +107,7 @@ export default function UsersPage() {
                           <Badge tone={u.active ? "success" : "neutral"}>{u.active ? "ใช้งานอยู่" : "ปิด"}</Badge>
                         </button>
                         {u.mustChangePassword && <Badge tone="warning">รอตั้งรหัสผ่านใหม่</Badge>}
+                        {u.customPermissions && <Badge tone="info">กำหนดสิทธิ์เอง</Badge>}
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
@@ -176,6 +176,7 @@ export default function UsersPage() {
                               <Badge tone={u.active ? "success" : "neutral"}>{u.active ? "ใช้งานอยู่" : "ปิดการใช้งาน"}</Badge>
                             </button>
                             {u.mustChangePassword && <Badge tone="warning">รอตั้งรหัสผ่านใหม่</Badge>}
+                        {u.customPermissions && <Badge tone="info">กำหนดสิทธิ์เอง</Badge>}
                           </div>
                         </Td>
                         <Td>
@@ -221,7 +222,6 @@ export default function UsersPage() {
             </>
           )}
         </Card>
-        {isAdmin && <PermissionsMatrix />}
         </RequireAccess>
       </PageContainer>
 

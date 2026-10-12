@@ -3,7 +3,7 @@ import { produce } from "immer";
 import type { AppState } from "./state";
 import { emptyState } from "./state";
 import * as engine from "./engine";
-import { assertPermission, setActiveRolePermissions, type Permission } from "@/lib/auth/permissions";
+import { assertUserPermission, setActiveRolePermissions, type Permission } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/client";
 import { syncStateDiff } from "@/lib/supabase/sync";
 import { toastError } from "@/lib/toast";
@@ -29,6 +29,7 @@ interface Actions {
   mergeUnitTokens: (tokens: UnitToken[]) => void;
   setRolePermission: (role: UserRole, perm: Permission, allowed: boolean) => void;
   resetRolePermissions: (role: UserRole) => void;
+  setUserPermissions: (userId: string, perms: string[] | null) => void;
   login: (userId: string) => void;
   logout: () => void;
 
@@ -145,7 +146,7 @@ function run<T>(set: SetFn, get: GetFn, fn: (draft: AppState) => T): T {
 
 function runChecked<T>(set: SetFn, get: GetFn, perm: Permission, fn: (draft: AppState) => T): T {
   const currentUser = get().users[get().currentUserId ?? ""];
-  assertPermission(currentUser?.role, perm);
+  assertUserPermission(currentUser, perm);
   return run(set, get, fn);
 }
 
@@ -172,6 +173,7 @@ export const useStore = create<Store>()((set, get) => ({
         })
       ),
     setRolePermission: (role, perm, allowed) => runChecked(set, get, "user.admin", (draft) => engine.setRolePermission(draft as never, role, perm, allowed)),
+    setUserPermissions: (userId, perms) => runChecked(set, get, "user.admin", (draft) => engine.setUserPermissions(draft as never, userId, perms)),
     resetRolePermissions: (role) => runChecked(set, get, "user.admin", (draft) => engine.resetRolePermissions(draft as never, role)),
     upsertWarehouse: (input) => runChecked(set, get, "master.write", (draft) => engine.upsertWarehouse(draft as never, input)),
     removeWarehouse: (id) => runChecked(set, get, "master.write", (draft) => engine.removeWarehouse(draft as never, id)),
@@ -185,11 +187,11 @@ export const useStore = create<Store>()((set, get) => ({
         })
       ),
     assertUserRemovable: (id) => {
-      assertPermission(get().users[get().currentUserId ?? ""]?.role, "user.admin");
+      assertUserPermission(get().users[get().currentUserId ?? ""], "user.admin");
       produce(get() as AppState, (draft) => engine.removeUser(draft as never, id)); // ผลลัพธ์ทิ้งไป ใช้แค่ให้กฎใน engine โยน error
     },
     removeUser: (id) => {
-      assertPermission(get().users[get().currentUserId ?? ""]?.role, "user.admin");
+      assertUserPermission(get().users[get().currentUserId ?? ""], "user.admin");
       set((state) => produce(state, (draft) => engine.removeUser(draft as never, id)));
     },
     upsertBrand: (input) => runChecked(set, get, "master.write", (draft) => engine.upsertBrand(draft as never, input)),

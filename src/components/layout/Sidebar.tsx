@@ -9,7 +9,7 @@ import { NAV_SECTIONS, type NavItem } from "./nav";
 import { useMobileNav } from "./MobileNavContext";
 import { useCurrentUser } from "@/lib/auth/session";
 import { useStore } from "@/lib/store";
-import { hasPermission } from "@/lib/auth/permissions";
+import { userHasPermission } from "@/lib/auth/permissions";
 import { requiredPermForPath } from "@/lib/auth/routes";
 import { ROLE_LABEL_TH } from "@/lib/types";
 import { cn } from "@/lib/utils/cn";
@@ -82,7 +82,7 @@ export function Sidebar() {
           {NAV_SECTIONS.map((section) => {
             const visible = section.items.filter((item) => {
               const viewPerm = requiredPermForPath(item.href);
-              return (!item.perm || hasPermission(user?.role, item.perm, matrix)) && (!viewPerm || hasPermission(user?.role, viewPerm, matrix));
+              return (!item.perm || userHasPermission(user, item.perm, matrix)) && (!viewPerm || userHasPermission(user, viewPerm, matrix));
             });
             if (visible.length === 0) return null;
             return (

@@ -151,7 +151,9 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
   for (const u of [...usr.added, ...usr.changed]) {
     jobs.push(
       check(
-        supabase.from("profiles").upsert({ id: u.id, name: u.name, email: u.email, role: u.role, active: u.active, avatar_url: u.avatarUrl ?? null, created_at: u.createdAt })
+        supabase
+          .from("profiles")
+          .upsert({ id: u.id, name: u.name, email: u.email, role: u.role, active: u.active, avatar_url: u.avatarUrl ?? null, permissions: u.customPermissions ?? null, created_at: u.createdAt })
       )
     );
   }

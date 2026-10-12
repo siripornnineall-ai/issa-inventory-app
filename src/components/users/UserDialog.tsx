@@ -5,7 +5,9 @@ import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, FormField } from "@/components/ui/Field";
-import { useActions } from "@/lib/store";
+import { useActions, useStore } from "@/lib/store";
+import { UserPermissionsEditor } from "./UserPermissionsEditor";
+import { ALL_PERMISSIONS, ADMIN_ONLY_PERMISSIONS, effectivePermissions, type Permission } from "@/lib/auth/permissions";
 import { useCan, useCurrentUser } from "@/lib/auth/session";
 import { adminCreateUser, adminResetPassword, adminUpdateEmail, generateTempPassword, MIN_PASSWORD_LENGTH } from "@/lib/supabase/adminUsers";
 import type { AppUser, UserRole } from "@/lib/types";
@@ -54,7 +56,8 @@ function TempPasswordInput({ id, value, onChange }: { id: string; value: string;
 }
 
 function UserDialogForm({ open, onClose, existing, onChangeOwnPassword }: UserDialogProps) {
-  const { upsertUser, mergeUser } = useActions();
+  const { upsertUser, mergeUser, setUserPermissions } = useActions();
+  const rolePermissions = useStore((s) => s.rolePermissions);
   const currentUser = useCurrentUser();
   const isAdmin = useCan("user.admin");
   const [name, setName] = useState(existing?.name ?? "");
@@ -65,6 +68,29 @@ function UserDialogForm({ open, onClose, existing, onChangeOwnPassword }: UserDi
   const [resetPassword, setResetPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
+  // สิทธิ์รายบุคคล: ถ้าผู้ใช้เคยถูกกำหนดเองไว้ เริ่มที่โหมดกำหนดเอง ไม่งั้นตามตำแหน่ง
+  const [customPerms, setCustomPerms] = useState(Boolean(existing?.customPermissions));
+  const [perms, setPerms] = useState<Set<Permission>>(
+    () => new Set((existing?.customPermissions ?? []).filter((p): p is Permission => (ALL_PERMISSIONS as string[]).includes(p)))
+  );
+  const roleDefaults = role === "admin" ? [] : (rolePermissions[role] ?? []);
+
+  function changePermMode(custom: boolean) {
+    setCustomPerms(custom);
+    // เปิดโหมดกำหนดเองครั้งแรก เริ่มจากสิทธิ์ที่คนนี้มีอยู่ตอนนี้ (ตามตำแหน่ง) แล้วค่อยติ๊กเพิ่ม/ออก
+    if (custom && perms.size === 0) {
+      setPerms(new Set(effectivePermissions({ role }, rolePermissions).filter((p) => !ADMIN_ONLY_PERMISSIONS.includes(p))));
+    }
+  }
+
+  function togglePerm(perm: Permission, allowed: boolean) {
+    setPerms((prev) => {
+      const next = new Set(prev);
+      if (allowed) next.add(perm);
+      else next.delete(perm);
+      return next;
+    });
+  }
 
   const isSelf = existing !== undefined && existing.id === currentUser?.id;
   const canResetOther = isAdmin && existing !== undefined && existing.id !== currentUser?.id;
@@ -92,6 +118,11 @@ function UserDialogForm({ open, onClose, existing, onChangeOwnPassword }: UserDi
           mergeUser({ ...existing, email: savedEmail });
         }
         upsertUser({ id: existing.id, name: name.trim(), role, active });
+        if (isAdmin && role !== "admin") {
+          const before = existing.customPermissions ? [...existing.customPermissions].sort().join(",") : null;
+          const after = customPerms ? [...perms].sort().join(",") : null;
+          if (before !== after) setUserPermissions(existing.id, customPerms ? [...perms] : null);
+        }
         toastSuccess(emailChanged ? "เปลี่ยนอีเมลแล้ว ล็อกอินครั้งถัดไปให้ใช้อีเมลใหม่" : "แก้ไขข้อมูลผู้ใช้งานเรียบร้อยแล้ว");
       } else {
         // ผู้ใช้ใหม่ต้องมีบัญชีเข้าสู่ระบบจริงด้วย จึงสร้างผ่านเซิร์ฟเวอร์ (Edge Function) แล้วค่อยเพิ่มเข้า state ในเครื่อง
@@ -173,6 +204,18 @@ function UserDialogForm({ open, onClose, existing, onChangeOwnPassword }: UserDi
           >
             <TempPasswordInput id="user-temp-password" value={password} onChange={setPassword} />
           </FormField>
+        )}
+
+        {existing && isAdmin && (
+          <details className="rounded-xl border border-[var(--color-border)] p-4">
+            <summary className="cursor-pointer text-sm font-medium text-[var(--color-on-surface)]">
+              สิทธิ์การใช้งานของคนนี้
+              <span className="ml-2 text-xs font-normal text-[var(--color-on-surface-variant)]">{role === "admin" ? "ทุกอย่าง" : customPerms ? "กำหนดเอง" : "ตามตำแหน่ง"}</span>
+            </summary>
+            <div className="mt-3">
+              <UserPermissionsEditor role={role} custom={customPerms} perms={perms} roleDefaults={roleDefaults} onModeChange={changePermMode} onToggle={togglePerm} />
+            </div>
+          </details>
         )}
 
         {isSelf && onChangeOwnPassword && (

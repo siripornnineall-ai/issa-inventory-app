@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { produce } from "immer";
-import { ADMIN_ONLY_PERMISSIONS, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, ROLES, cloneRolePermissions, hasPermission } from "./permissions";
+import { ADMIN_ONLY_PERMISSIONS, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, ROLES, cloneRolePermissions, effectivePermissions, hasPermission, userCanViewCost, userHasPermission } from "./permissions";
 import { requiredPermForPath } from "./routes";
 import { emptyState } from "@/lib/store/state";
-import { resetRolePermissions, setRolePermission, BusinessRuleError } from "@/lib/store/engine";
+import { resetRolePermissions, setRolePermission, setUserPermissions, BusinessRuleError } from "@/lib/store/engine";
 
 describe("ตารางสิทธิ์ค่าเริ่มต้น (ต้องเท่ากับของเดิมก่อนทำให้กำหนดเองได้)", () => {
   it("พนักงานขาย: สร้าง/ยกเลิกคำสั่งซื้อและเบิกออกได้ แต่รับเข้า/แก้สินค้าไม่ได้", () => {
@@ -66,5 +66,46 @@ describe("requiredPermForPath", () => {
     expect(requiredPermForPath("/history")).toBe("view.history");
     expect(requiredPermForPath("/stock-in")).toBeUndefined();
     expect(requiredPermForPath("/productsX")).toBeUndefined();
+  });
+});
+
+describe("สิทธิ์รายบุคคล", () => {
+  it("ไม่กำหนดเอง = ตามตำแหน่ง / กำหนดเอง = ใช้รายการของคนนั้นแทนทั้งชุด", () => {
+    expect(userHasPermission({ role: "warehouse" }, "stock.in")).toBe(true);
+    const custom = { role: "warehouse" as const, customPermissions: ["stock.in", "view.dashboard"] };
+    expect(userHasPermission(custom, "stock.in")).toBe(true);
+    expect(userHasPermission(custom, "stock.out")).toBe(false); // ตำแหน่งให้ แต่ถูกกำหนดเองให้ไม่มี
+    expect(userHasPermission({ role: "viewer", customPermissions: ["stock.out"] }, "stock.out")).toBe(true); // เพิ่มให้เกินตำแหน่งได้
+  });
+
+  it("สิทธิ์เฉพาะผู้ดูแลระบบยังตามตำแหน่งเสมอ (ตั้งรายบุคคลไม่ได้) และผู้ดูแลระบบได้ทุกอย่าง", () => {
+    expect(userHasPermission({ role: "warehouse", customPermissions: ["user.admin"] }, "user.admin")).toBe(false);
+    expect(userHasPermission({ role: "manager", customPermissions: [] }, "user.manage")).toBe(true);
+    expect(userHasPermission({ role: "admin", customPermissions: [] }, "stock.out")).toBe(true);
+    expect(userHasPermission(null, "stock.out")).toBe(false);
+  });
+
+  it("effectivePermissions ใช้เติมค่าเริ่มต้นตอนกด กำหนดเอง", () => {
+    expect([...effectivePermissions({ role: "sales" })].sort()).toEqual([...DEFAULT_ROLE_PERMISSIONS.sales].sort());
+  });
+
+  it("ดูราคาทุน: ตัวเลือกรายคนมาก่อน แล้วตามด้วยสิทธิ์ cost.view ของคนนั้น", () => {
+    expect(userCanViewCost({ role: "sales" })).toBe(false);
+    expect(userCanViewCost({ role: "sales", customPermissions: ["cost.view"] })).toBe(true);
+    expect(userCanViewCost({ role: "manager", canViewCost: false })).toBe(false);
+  });
+
+  it("engine: ตั้ง/ล้างสิทธิ์รายบุคคล กรองสิทธิ์ที่ไม่รู้จักและสิทธิ์เฉพาะผู้ดูแลระบบออก ผู้ดูแลระบบตั้งไม่ได้", () => {
+    const base = emptyState();
+    base.users = {
+      w: { id: "w", name: "นัท", email: "n@x.com", role: "warehouse", active: true, createdAt: "2026-10-05T00:00:00.000Z" },
+      a: { id: "a", name: "admin", email: "a@x.com", role: "admin", active: true, createdAt: "2026-10-05T00:00:00.000Z" },
+    };
+    const s1 = produce(base, (d) => setUserPermissions(d as never, "w", ["stock.in", "stock.in", "user.admin", "nope", "view.orders"]));
+    expect(s1.users.w.customPermissions).toEqual(["stock.in", "view.orders"]);
+    const s2 = produce(s1, (d) => setUserPermissions(d as never, "w", null));
+    expect(s2.users.w.customPermissions).toBeUndefined();
+    expect(() => produce(base, (d) => setUserPermissions(d as never, "a", ["stock.in"]))).toThrow(BusinessRuleError);
+    expect(() => produce(base, (d) => setUserPermissions(d as never, "missing", ["stock.in"]))).toThrow(BusinessRuleError);
   });
 });

@@ -17,6 +17,8 @@ export interface AppUser {
   active: boolean;
   avatarUrl?: string;
   canViewCost?: boolean;
+  // สิทธิ์ที่ผู้ดูแลระบบกำหนดให้คนนี้โดยเฉพาะ (ใช้แทนสิทธิ์ตามตำแหน่งทั้งชุด) ว่าง = ใช้ตามตำแหน่ง
+  customPermissions?: string[];
   // true = ผู้ดูแลระบบเพิ่งสร้างบัญชี/ตั้งรหัสผ่านให้ ต้องตั้งรหัสผ่านใหม่เองก่อนถึงจะใช้งานระบบได้
   mustChangePassword?: boolean;
   createdAt: string;

@@ -260,6 +260,7 @@ export async function fetchAppState(supabase: SupabaseClient): Promise<AppState>
       active: row.active,
       avatarUrl: row.avatar_url ?? undefined,
       mustChangePassword: row.must_change_password === true ? true : undefined,
+      customPermissions: Array.isArray(row.permissions) ? (row.permissions as string[]) : undefined,
       createdAt: row.created_at,
     };
   }

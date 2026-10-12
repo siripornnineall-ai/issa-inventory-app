@@ -182,7 +182,37 @@ export function assertPermission(role: UserRole | undefined, perm: Permission): 
   }
 }
 
+export interface PermissionSubject {
+  role: UserRole;
+  customPermissions?: string[];
+}
+
+// สิทธิ์ของบุคคล: ผู้ดูแลระบบได้ทุกอย่าง / ถ้าผู้ดูแลระบบกำหนดสิทธิ์ให้คนนี้เอง ใช้รายการของเขา / ไม่งั้นตามตำแหน่ง
+// สิทธิ์ที่ให้ได้เฉพาะผู้ดูแลระบบ (จัดการบัญชี ฯลฯ) ยังตามตำแหน่งเสมอ ตั้งรายบุคคลไม่ได้ (ตรงกับกฎของฐานข้อมูล)
+export function userHasPermission(user: PermissionSubject | null | undefined, perm: Permission, matrix: RolePermissionMap = activeMatrix): boolean {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  if (user.customPermissions && !ADMIN_ONLY_PERMISSIONS.includes(perm)) return user.customPermissions.includes(perm);
+  return hasPermission(user.role, perm, matrix);
+}
+
+export function assertUserPermission(user: PermissionSubject | null | undefined, perm: Permission): void {
+  if (!userHasPermission(user, perm)) {
+    throw new PermissionError("คุณไม่มีสิทธิ์ทำรายการนี้ กรุณาติดต่อผู้ดูแลระบบ");
+  }
+}
+
+// รายการสิทธิ์ที่คนนี้มีจริง ๆ (ใช้เติมค่าเริ่มต้นตอนกด "กำหนดเอง" และแสดงในหน้าแก้ไขผู้ใช้)
+export function effectivePermissions(user: PermissionSubject, matrix: RolePermissionMap = activeMatrix): Permission[] {
+  return ALL_PERMISSIONS.filter((p) => userHasPermission(user, p, matrix));
+}
+
 export function canViewCost(role: UserRole | undefined, override?: boolean, matrix?: RolePermissionMap): boolean {
   if (override !== undefined) return override;
   return hasPermission(role, "cost.view", matrix);
+}
+
+export function userCanViewCost(user: (PermissionSubject & { canViewCost?: boolean }) | null | undefined, matrix?: RolePermissionMap): boolean {
+  if (user?.canViewCost !== undefined) return user.canViewCost;
+  return userHasPermission(user, "cost.view", matrix);
 }
