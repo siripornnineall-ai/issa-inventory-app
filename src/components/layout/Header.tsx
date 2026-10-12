@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { emptyState } from "@/lib/store/state";
 import { NotificationBell } from "./NotificationBell";
+import { RefreshButton } from "./RefreshButton";
 import { useMobileNav } from "./MobileNavContext";
 
 export function Header({
@@ -55,6 +56,7 @@ export function Header({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <RefreshButton />
           <NotificationBell />
           <button className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-border)] bg-white text-[var(--color-on-surface-variant)]" aria-label="ช่วยเหลือ">
             <HelpCircle className="h-[18px] w-[18px]" />

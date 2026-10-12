@@ -20,6 +20,10 @@ import { todayInputValue, dateInputToISO } from "@/lib/utils/date";
 import { formatNumber, formatTHB } from "@/lib/utils/money";
 import { playBeep } from "@/lib/utils/beep";
 import { useUnsavedChangesGuard } from "@/lib/utils/useUnsavedChangesGuard";
+import { useDraft } from "@/lib/utils/useDraft";
+import { pruneRestoredTokens } from "@/lib/utils/draftRestore";
+import { DraftBanner } from "@/components/stock/DraftBanner";
+import { PendingSaveBar } from "@/components/stock/PendingSaveBar";
 import { MOVEMENT_TYPE_LABEL_TH, SALES_CHANNEL_LABEL_TH, STOCK_OUT_REASONS, type SalesChannel, type UnitToken, type ProductVariant } from "@/lib/types";
 
 interface Line {
@@ -58,6 +62,29 @@ function StockOutForm() {
 
   const dirty = lines.length > 0 || note.trim().length > 0;
   useUnsavedChangesGuard(dirty);
+
+  // เก็บร่างไว้ในเครื่อง: ปิดแอป/สลับแอปแล้วกลับมา รายการที่สแกนค้างไว้ไม่หาย (ถามก่อนว่าจะทำต่อไหม)
+  const draftValue = useMemo(
+    () => ({ warehouseId, brandId, reasonType, channel, orderNo, note, lines, scannedTokensByVariant }),
+    [warehouseId, brandId, reasonType, channel, orderNo, note, lines, scannedTokensByVariant]
+  );
+  const draft = useDraft({
+    key: user ? `issa-draft:stock-out:${user.id}` : null,
+    value: draftValue,
+    hasContent: dirty,
+    onRestore: (v) => {
+      const pruned = pruneRestoredTokens(state.unitTokens, v.scannedTokensByVariant ?? {}, (v.lines ?? []).filter((l) => state.variants[l.variantId]), "out");
+      if (v.warehouseId && activeWarehouses.some((w) => w.id === v.warehouseId)) setWarehouseId(v.warehouseId);
+      setBrandId(v.brandId ?? "");
+      if (v.reasonType) setReasonType(v.reasonType);
+      if (v.channel) setChannel(v.channel);
+      setOrderNo(v.orderNo ?? "");
+      setNote(v.note ?? "");
+      setLines(pruned.lines);
+      setScannedTokensByVariant(pruned.scanned);
+      if (pruned.dropped > 0) toastError(`ตัดป้าย ${pruned.dropped} ใบที่ถูกบันทึกไปแล้วโดยเครื่องอื่นออกจากรายการ`);
+    },
+  });
 
   function addLine(variantId: string) {
     if (lines.some((l) => l.variantId === variantId)) {
@@ -155,6 +182,7 @@ function StockOutForm() {
           }
         }
       }
+      draft.clear();
       toastSuccess("บันทึกการเบิกสินค้าออกเรียบร้อยแล้ว");
       router.replace("/products/all");
     } catch (e) {
@@ -165,7 +193,15 @@ function StockOutForm() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 pb-20">
+      {draft.draft && (
+        <DraftBanner
+          savedAt={draft.draft.savedAt}
+          summary={`${formatNumber((draft.draft.value.lines ?? []).reduce((s, l) => s + (l.qty || 0), 0))} ชิ้น`}
+          onRestore={draft.restore}
+          onDiscard={draft.discard}
+        />
+      )}
       <Card>
         <CardHeader>
           <CardTitle>ข้อมูลการเบิกออก</CardTitle>
@@ -370,13 +406,20 @@ function StockOutForm() {
       </Card>
 
       <div className="flex justify-end gap-3">
-        <Button variant="secondary" onClick={() => router.replace("/products/all")}>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            draft.clear();
+            router.replace("/products/all");
+          }}
+        >
           ยกเลิก
         </Button>
         <Button onClick={handleSubmit} loading={saving}>
           บันทึกการเบิกออก
         </Button>
       </div>
+      <PendingSaveBar totalQty={totalQty} lineCount={lines.length} saveLabel="บันทึกการเบิกออก" onSave={handleSubmit} saving={saving} />
     </div>
   );
 }

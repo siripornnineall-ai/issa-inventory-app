@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useStore } from "./index";
 import { createClient } from "@/lib/supabase/client";
 import { fetchAppState } from "@/lib/supabase/fetch";
+import { markRefreshed, msSinceLastRefresh, refreshAppData } from "./refresh";
+
+const AUTO_REFRESH_AFTER_MS = 2 * 60 * 1000;
 
 export function AppHydration({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -27,6 +30,7 @@ export function AppHydration({ children }: { children: React.ReactNode }) {
         state.currentUserId = state.users[session.user.id] ? session.user.id : null;
         if (!cancelled) {
           useStore.getState().actions.hydrate(state);
+          markRefreshed();
         }
       } catch (e) {
         console.error("โหลดข้อมูลจาก Supabase ไม่สำเร็จ", e);
@@ -39,6 +43,18 @@ export function AppHydration({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // กลับเข้าแอปจากพื้นหลัง (เปิดจอ/สลับกลับมา) หลังผ่านไปนานพอ ดึงข้อมูลล่าสุดให้เองเงียบ ๆ
+  // แอปที่ติดตั้งบนมือถือแทบไม่ถูกโหลดใหม่ จึงเห็นข้อมูลเก่าค้างเป็นชั่วโมง/เป็นวัน
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      if (msSinceLastRefresh() < AUTO_REFRESH_AFTER_MS) return;
+      void refreshAppData();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
   if (!ready) {

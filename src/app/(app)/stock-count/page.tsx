@@ -21,6 +21,8 @@ import { compareSizes } from "@/lib/utils/sizes";
 import { playBeep, primeAudio } from "@/lib/utils/beep";
 import { useCurrentUser } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
+import { useDraft } from "@/lib/utils/useDraft";
+import { DraftBanner } from "@/components/stock/DraftBanner";
 import { createClient } from "@/lib/supabase/client";
 import { fetchUnitTokenByScan } from "@/lib/supabase/fetch";
 import type { Product, ProductVariant } from "@/lib/types";
@@ -138,6 +140,29 @@ function StockCountForm() {
   const touchedCount = rows.filter((r) => r.touched).length;
   const diffRows = rows.filter((r) => r.touched && r.diff !== 0);
   const touchedRows = rows.filter((r) => r.touched);
+
+  // เก็บร่างการนับไว้ในเครื่อง ปิดแอป/สลับแอปแล้วกลับมา ยอดที่นับค้างไว้ไม่หาย (ถามก่อนว่าจะทำต่อไหม)
+  const draftValue = useMemo(
+    () => ({ warehouseId, selectedProductId, counts, scannedTokenIds: Array.from(scannedTokenIds) }),
+    [warehouseId, selectedProductId, counts, scannedTokenIds]
+  );
+  const draft = useDraft({
+    key: user ? `issa-draft:stock-count:${user.id}` : null,
+    value: draftValue,
+    hasContent: Boolean(selectedProductId) && Object.keys(counts).length > 0,
+    onRestore: (v) => {
+      const product = v.selectedProductId ? state.products[v.selectedProductId] : undefined;
+      if (!product) {
+        toastError("สินค้าในร่างที่เก็บไว้ไม่มีในระบบแล้ว");
+        return;
+      }
+      if (v.warehouseId && activeWarehouses.some((w) => w.id === v.warehouseId)) setWarehouseId(v.warehouseId);
+      setSelectedProductId(product.id);
+      setProductQuery(product.sellingName);
+      setCounts(Object.fromEntries(Object.entries(v.counts ?? {}).filter(([variantId]) => state.variants[variantId])));
+      setScannedTokenIds(new Set(v.scannedTokenIds ?? []));
+    },
+  });
   const totalSystem = touchedRows.reduce((s, r) => s + r.system, 0);
   const totalCounted = touchedRows.reduce((s, r) => s + r.counted, 0);
   const totalDiff = totalCounted - totalSystem;
@@ -157,6 +182,7 @@ function StockCountForm() {
           actorName: user.name,
         });
       }
+      draft.clear();
       toastSuccess(`ปรับสต็อกเรียบร้อยแล้ว ${diffRows.length} รายการ`);
       setConfirmOpen(false);
       setCounts({});
@@ -170,6 +196,14 @@ function StockCountForm() {
 
   return (
     <div className="flex flex-col gap-6">
+      {draft.draft && (
+        <DraftBanner
+          savedAt={draft.draft.savedAt}
+          summary={`${state.products[draft.draft.value.selectedProductId ?? ""]?.sellingName ?? "ไม่ระบุสินค้า"} · นับแล้ว ${Object.keys(draft.draft.value.counts ?? {}).length} รายการ`}
+          onRestore={draft.restore}
+          onDiscard={draft.discard}
+        />
+      )}
       <Card>
         <CardHeader>
           <CardTitle>เริ่มนับสต็อก</CardTitle>

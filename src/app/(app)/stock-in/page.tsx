@@ -21,6 +21,10 @@ import { todayInputValue, dateInputToISO } from "@/lib/utils/date";
 import { formatNumber, formatTHB } from "@/lib/utils/money";
 import { playBeep } from "@/lib/utils/beep";
 import { useUnsavedChangesGuard } from "@/lib/utils/useUnsavedChangesGuard";
+import { useDraft } from "@/lib/utils/useDraft";
+import { pruneRestoredTokens } from "@/lib/utils/draftRestore";
+import { DraftBanner } from "@/components/stock/DraftBanner";
+import { PendingSaveBar } from "@/components/stock/PendingSaveBar";
 import type { UnitToken, ProductVariant } from "@/lib/types";
 
 interface Line {
@@ -60,6 +64,31 @@ function StockInForm() {
 
   const dirty = lines.length > 0 || note.trim().length > 0 || poNumber.trim().length > 0;
   useUnsavedChangesGuard(dirty);
+
+  // เก็บร่างไว้ในเครื่อง: ปิดแอป/สลับแอปแล้วกลับมา รายการที่สแกนค้างไว้ไม่หาย (ถามก่อนว่าจะทำต่อไหม)
+  const draftValue = useMemo(
+    () => ({ warehouseId, supplierId, poNumber, issuePo, issuedByName, approvedByName, billNumber, note, lines, scannedTokensByVariant }),
+    [warehouseId, supplierId, poNumber, issuePo, issuedByName, approvedByName, billNumber, note, lines, scannedTokensByVariant]
+  );
+  const draft = useDraft({
+    key: user ? `issa-draft:stock-in:${user.id}` : null,
+    value: draftValue,
+    hasContent: dirty,
+    onRestore: (v) => {
+      const pruned = pruneRestoredTokens(state.unitTokens, v.scannedTokensByVariant ?? {}, (v.lines ?? []).filter((l) => state.variants[l.variantId]), "in");
+      if (v.warehouseId && activeWarehouses.some((w) => w.id === v.warehouseId)) setWarehouseId(v.warehouseId);
+      setSupplierId(v.supplierId ?? "");
+      setPoNumber(v.poNumber ?? "");
+      setIssuePo(Boolean(v.issuePo));
+      setIssuedByName(v.issuedByName ?? "");
+      setApprovedByName(v.approvedByName ?? "");
+      setBillNumber(v.billNumber ?? "");
+      setNote(v.note ?? "");
+      setLines(pruned.lines);
+      setScannedTokensByVariant(pruned.scanned);
+      if (pruned.dropped > 0) toastError(`ตัดป้าย ${pruned.dropped} ใบที่ถูกบันทึกไปแล้วโดยเครื่องอื่นออกจากรายการ`);
+    },
+  });
 
   function addLine(variantId: string) {
     if (lines.some((l) => l.variantId === variantId)) {
@@ -159,6 +188,7 @@ function StockInForm() {
           }
         }
       }
+      draft.clear();
       toastSuccess("บันทึกการรับสินค้าเข้าเรียบร้อยแล้ว");
       router.replace(issuePo ? `/stock-in/${doc.id}/po` : "/products/all");
     } catch (e) {
@@ -169,7 +199,15 @@ function StockInForm() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 pb-20">
+      {draft.draft && (
+        <DraftBanner
+          savedAt={draft.draft.savedAt}
+          summary={`${formatNumber((draft.draft.value.lines ?? []).reduce((s, l) => s + (l.qty || 0), 0))} ชิ้น`}
+          onRestore={draft.restore}
+          onDiscard={draft.discard}
+        />
+      )}
       <Card>
         <CardHeader>
           <CardTitle>ข้อมูลการรับเข้า</CardTitle>
@@ -382,13 +420,20 @@ function StockInForm() {
       </Card>
 
       <div className="flex justify-end gap-3">
-        <Button variant="secondary" onClick={() => router.replace("/products/all")}>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            draft.clear();
+            router.replace("/products/all");
+          }}
+        >
           ยกเลิก
         </Button>
         <Button onClick={handleSubmit} loading={saving}>
           บันทึกการรับเข้า
         </Button>
       </div>
+      <PendingSaveBar totalQty={totalQty} lineCount={lines.length} saveLabel="บันทึกการรับเข้า" onSave={handleSubmit} saving={saving} />
     </div>
   );
 }
