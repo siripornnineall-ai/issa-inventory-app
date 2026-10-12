@@ -11,17 +11,27 @@ import { Input, Select, Textarea, FormField } from "@/components/ui/Field";
 import { Table, Thead, Tbody, Tr, Th, Td, Pagination } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MovementTypeBadge } from "@/components/ui/Badge";
+import { Tabs } from "@/components/ui/Tabs";
 import { DateRangePicker, useDateRange } from "@/components/ui/DateRangePicker";
 import { Dialog } from "@/components/ui/Dialog";
 import { useStore, useActions } from "@/lib/store";
 import { movementsInRange } from "@/lib/store/selectors";
 import { formatNumber } from "@/lib/utils/money";
 import { formatThaiDateTime } from "@/lib/utils/date";
+import { HISTORY_TAB_LABEL, isVerificationOnly, movementDirection, movementTypesForTab, summarizeMovements, type HistoryTab } from "@/lib/utils/movementTabs";
 import { useCan } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
-import { MOVEMENT_TYPE_LABEL_TH, type MovementItemType, type MovementType } from "@/lib/types";
+import { MOVEMENT_TYPE_LABEL_TH, type MovementItemType, type MovementType, type StockMovement } from "@/lib/types";
 
 const PAGE_SIZE = 20;
+
+function qtyClass(qty: number) {
+  return qty > 0 ? "text-[var(--color-success)]" : qty < 0 ? "text-[var(--color-danger)]" : "text-[var(--color-on-surface-variant)]";
+}
+
+function qtyText(qty: number) {
+  return `${qty > 0 ? "+" : ""}${formatNumber(qty)}`;
+}
 
 export default function HistoryPage() {
   const state = useStore();
@@ -29,28 +39,62 @@ export default function HistoryPage() {
   const canEditNote = useCan("settings.write");
 
   const { value: range, setValue: setRange } = useDateRange("30d");
+  const [tab, setTab] = useState<HistoryTab>("all");
   const [search, setSearch] = useState("");
   const [itemType, setItemType] = useState<MovementItemType | "all">("all");
   const [movementType, setMovementType] = useState<MovementType | "all">("all");
   const [warehouseId, setWarehouseId] = useState("all");
+  // นับสต็อกที่ตรงกับระบบถูกบันทึกเป็นปรับยอด 0 ชิ้น (ยืนยันยอด) ซ่อนไว้ก่อน ไม่ให้กลบรายการเข้า/ออกที่สำคัญกว่า
+  const [showVerified, setShowVerified] = useState(false);
   const [page, setPage] = useState(1);
   const [noteMovementId, setNoteMovementId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
 
   const movements = useMemo(() => movementsInRange(state, range.from, range.to), [state, range]);
 
-  const filtered = useMemo(() => {
+  // ตัวกรองทั่วไป (ยังไม่แยกแท็บ) ใช้นับจำนวนบนแท็บแต่ละอัน
+  const pre = useMemo(() => {
     const q = search.trim().toLowerCase();
     return movements
       .filter((m) => itemType === "all" || m.itemType === itemType)
-      .filter((m) => movementType === "all" || m.movementType === movementType)
       .filter((m) => warehouseId === "all" || m.warehouseFromId === warehouseId || m.warehouseToId === warehouseId)
       .filter((m) => !q || m.itemName.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q) || m.refNo.toLowerCase().includes(q))
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [movements, search, itemType, movementType, warehouseId]);
+      .filter((m) => showVerified || !isVerificationOnly(m));
+  }, [movements, search, itemType, warehouseId, showVerified]);
+
+  const tabCounts = useMemo(() => {
+    const counts: Record<HistoryTab, number> = { all: pre.length, in: 0, out: 0, adjust: 0 };
+    for (const m of pre) counts[movementDirection(m)] += 1;
+    return counts;
+  }, [pre]);
+
+  // รายการในแท็บนี้ (รวมรายการยืนยันยอดเสมอ ใช้สรุปยอด) แล้วค่อยกรองประเภทการเคลื่อนไหว
+  const tabbedAll = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return movements
+      .filter((m) => itemType === "all" || m.itemType === itemType)
+      .filter((m) => warehouseId === "all" || m.warehouseFromId === warehouseId || m.warehouseToId === warehouseId)
+      .filter((m) => !q || m.itemName.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q) || m.refNo.toLowerCase().includes(q))
+      .filter((m) => tab === "all" || movementDirection(m) === tab)
+      .filter((m) => movementType === "all" || m.movementType === movementType);
+  }, [movements, search, itemType, warehouseId, tab, movementType]);
+
+  const filtered = useMemo(
+    () => tabbedAll.filter((m) => showVerified || !isVerificationOnly(m)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [tabbedAll, showVerified]
+  );
+  const totals = useMemo(() => summarizeMovements(tabbedAll), [tabbedAll]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const typeOptions = movementTypesForTab(tab) ?? (Object.keys(MOVEMENT_TYPE_LABEL_TH) as MovementType[]);
+
+  function changeTab(next: HistoryTab) {
+    setTab(next);
+    setMovementType("all");
+    setPage(1);
+  }
 
   function exportExcel() {
     // ส่งออกเฉพาะประวัติคำสั่งซื้อที่ขายออก (movementType === "sale") เท่านั้น
@@ -96,6 +140,31 @@ export default function HistoryPage() {
     }
   }
 
+  // หัวคอลัมน์ "ประเภท" และ "จำนวน" ปรับตามแท็บ
+  const typeHeader = tab === "out" ? "เหตุผลที่ออก" : tab === "adjust" ? "ที่มา" : "ประเภท";
+  const qtyHeader = tab === "in" ? "จำนวนเข้า" : tab === "out" ? "จำนวนออก" : tab === "adjust" ? "ผลต่าง" : "จำนวน";
+
+  function typeCell(m: StockMovement) {
+    return tab === "adjust" && m.reason ? <span className="text-xs">{m.reason}</span> : <MovementTypeBadge type={m.movementType} />;
+  }
+
+  function summaryText(): string {
+    const parts: string[] = [];
+    if (tab === "all") {
+      parts.push(`เข้า ${formatNumber(totals.inQty)} ชิ้น (${totals.inCount} รายการ)`);
+      parts.push(`ออก ${formatNumber(totals.outQty)} ชิ้น (${totals.outCount} รายการ)`);
+      parts.push(`ปรับยอด +${formatNumber(totals.adjustUp)} / -${formatNumber(totals.adjustDown)} (${totals.adjustCount} รายการ)`);
+    } else if (tab === "in") {
+      parts.push(`รวมเข้า ${formatNumber(totals.inQty)} ชิ้น จาก ${totals.inCount} รายการ`);
+    } else if (tab === "out") {
+      parts.push(`รวมออก ${formatNumber(totals.outQty)} ชิ้น จาก ${totals.outCount} รายการ`);
+    } else {
+      parts.push(`ปรับขึ้น +${formatNumber(totals.adjustUp)} · ปรับลง -${formatNumber(totals.adjustDown)} (${totals.adjustCount} รายการที่ยอดเปลี่ยน)`);
+      parts.push(`นับแล้วตรงกับระบบ ${totals.verifiedCount} รายการ`);
+    }
+    return parts.join(" · ");
+  }
+
   return (
     <>
       <Header
@@ -104,6 +173,12 @@ export default function HistoryPage() {
         actions={<DateRangePicker value={range} onChange={setRange} />}
       />
       <PageContainer>
+        <Tabs
+          tabs={(Object.keys(HISTORY_TAB_LABEL) as HistoryTab[]).map((id) => ({ id, label: `${HISTORY_TAB_LABEL[id]} (${formatNumber(tabCounts[id])})` }))}
+          active={tab}
+          onChange={(id) => changeTab(id as HistoryTab)}
+        />
+
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-on-surface-variant)]" />
@@ -144,11 +219,12 @@ export default function HistoryPage() {
                 setMovementType(e.target.value as MovementType | "all");
                 setPage(1);
               }}
+              aria-label="ประเภทการเคลื่อนไหว"
             >
-              <option value="all">การเคลื่อนไหวทั้งหมด</option>
-              {Object.entries(MOVEMENT_TYPE_LABEL_TH).map(([value, label]) => (
+              <option value="all">{tab === "all" ? "การเคลื่อนไหวทั้งหมด" : `ทุกประเภทของ${HISTORY_TAB_LABEL[tab]}`}</option>
+              {typeOptions.map((value) => (
                 <option key={value} value={value}>
-                  {label}
+                  {MOVEMENT_TYPE_LABEL_TH[value]}
                 </option>
               ))}
             </Select>
@@ -166,8 +242,27 @@ export default function HistoryPage() {
                 </option>
               ))}
             </Select>
+            {(tab === "all" || tab === "adjust") && (
+              <label htmlFor="hist-verified" className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  id="hist-verified"
+                  type="checkbox"
+                  checked={showVerified}
+                  onChange={(e) => {
+                    setShowVerified(e.target.checked);
+                    setPage(1);
+                  }}
+                  className="h-4 w-4"
+                />
+                แสดงรายการยืนยันยอด (นับแล้วตรงกับระบบ เปลี่ยน 0 ชิ้น)
+              </label>
+            )}
           </div>
         </Card>
+
+        <p role="status" className="px-1 text-sm text-[var(--color-on-surface-variant)]">
+          <span className="font-semibold text-[var(--color-on-surface)]">ช่วงที่เลือก:</span> {summaryText()}
+        </p>
 
         <Card>
           {paged.length === 0 ? (
@@ -191,16 +286,16 @@ export default function HistoryPage() {
                       </div>
                       <div className="shrink-0 text-right">
                         <MovementTypeBadge type={m.movementType} />
-                        <p className={`mt-1 text-sm font-semibold ${m.qtyChange > 0 ? "text-[var(--color-success)]" : m.qtyChange < 0 ? "text-[var(--color-danger)]" : "text-[var(--color-on-surface-variant)]"}`}>
-                          {m.qtyChange > 0 ? "+" : ""}
-                          {formatNumber(m.qtyChange)}
+                        <p className={`mt-1 text-sm font-semibold ${qtyClass(m.qtyChange)}`}>{qtyText(m.qtyChange)}</p>
+                        <p className="text-xs text-[var(--color-on-surface-variant)]">
+                          {tab === "adjust" ? `${formatNumber(m.qtyBefore)} → ${formatNumber(m.qtyAfter)}` : `คงเหลือ ${formatNumber(m.qtyAfter)}`}
                         </p>
-                        <p className="text-xs text-[var(--color-on-surface-variant)]">คงเหลือ {formatNumber(m.qtyAfter)}</p>
                       </div>
                     </div>
                     <div className="mt-1.5 flex items-start justify-between gap-2 text-xs text-[var(--color-on-surface-variant)]">
                       <div>
                         <p>โดย {m.actorName}</p>
+                        {tab === "adjust" && m.reason && <p>{m.reason}</p>}
                         {m.note && <p>{m.note}</p>}
                         {m.editedNote && <p className="italic text-[var(--color-warning)]">แก้ไข: {m.editedNote}</p>}
                       </div>
@@ -220,60 +315,55 @@ export default function HistoryPage() {
 
               {/* ตารางสำหรับจอกว้าง */}
               <div className="hidden sm:block">
-              <Table>
-              <Thead>
-                <Tr>
-                  <Th>วันที่</Th>
-                  <Th>เลขที่เอกสาร</Th>
-                  <Th>รายการ</Th>
-                  <Th>ประเภท</Th>
-                  <Th>จำนวน</Th>
-                  <Th>คงเหลือหลัง</Th>
-                  <Th>ผู้ทำรายการ</Th>
-                  <Th>หมายเหตุ</Th>
-                  {canEditNote && <Th></Th>}
-                </Tr>
-              </Thead>
-              <Tbody>
-                {paged.map((m) => (
-                  <Tr key={m.id}>
-                    <Td className="whitespace-nowrap text-xs text-[var(--color-on-surface-variant)]">{formatThaiDateTime(m.createdAt)}</Td>
-                    <Td className="font-mono text-xs">{m.refNo}</Td>
-                    <Td>
-                      <p className="font-medium">{m.itemName}</p>
-                      <p className="text-xs text-[var(--color-on-surface-variant)]">
-                        {m.color && m.size ? `${m.color} / ${m.size} · ` : ""}
-                        {m.sku}
-                      </p>
-                    </Td>
-                    <Td>
-                      <MovementTypeBadge type={m.movementType} />
-                    </Td>
-                    <Td className={m.qtyChange > 0 ? "font-semibold text-[var(--color-success)]" : m.qtyChange < 0 ? "font-semibold text-[var(--color-danger)]" : "font-semibold text-[var(--color-on-surface-variant)]"}>
-                      {m.qtyChange > 0 ? "+" : ""}
-                      {formatNumber(m.qtyChange)}
-                    </Td>
-                    <Td>{formatNumber(m.qtyAfter)}</Td>
-                    <Td className="text-xs">{m.actorName}</Td>
-                    <Td className="max-w-[200px] text-xs text-[var(--color-on-surface-variant)]">
-                      {m.note && <p>{m.note}</p>}
-                      {m.editedNote && <p className="mt-1 italic text-[var(--color-warning)]">แก้ไข: {m.editedNote}</p>}
-                    </Td>
-                    {canEditNote && (
-                      <Td>
-                        <button
-                          onClick={() => openNoteDialog(m.id, m.editedNote ?? "")}
-                          className="text-[var(--color-on-surface-variant)] hover:text-[var(--color-primary-container)]"
-                          aria-label="เพิ่มหมายเหตุแก้ไข"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                      </Td>
-                    )}
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
+                <Table>
+                  <Thead>
+                    <Tr>
+                      <Th>วันที่</Th>
+                      <Th>เลขที่เอกสาร</Th>
+                      <Th>รายการ</Th>
+                      <Th>{typeHeader}</Th>
+                      <Th>{qtyHeader}</Th>
+                      <Th>{tab === "adjust" ? "ก่อน → หลัง" : "คงเหลือหลัง"}</Th>
+                      <Th>ผู้ทำรายการ</Th>
+                      <Th>หมายเหตุ</Th>
+                      {canEditNote && <Th></Th>}
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {paged.map((m) => (
+                      <Tr key={m.id}>
+                        <Td className="whitespace-nowrap text-xs text-[var(--color-on-surface-variant)]">{formatThaiDateTime(m.createdAt)}</Td>
+                        <Td className="font-mono text-xs">{m.refNo}</Td>
+                        <Td>
+                          <p className="font-medium">{m.itemName}</p>
+                          <p className="text-xs text-[var(--color-on-surface-variant)]">
+                            {m.color && m.size ? `${m.color} / ${m.size} · ` : ""}
+                            {m.sku}
+                          </p>
+                        </Td>
+                        <Td>{typeCell(m)}</Td>
+                        <Td className={`font-semibold ${qtyClass(m.qtyChange)}`}>{qtyText(m.qtyChange)}</Td>
+                        <Td>{tab === "adjust" ? `${formatNumber(m.qtyBefore)} → ${formatNumber(m.qtyAfter)}` : formatNumber(m.qtyAfter)}</Td>
+                        <Td className="text-xs">{m.actorName}</Td>
+                        <Td className="max-w-[200px] text-xs text-[var(--color-on-surface-variant)]">
+                          {m.note && <p>{m.note}</p>}
+                          {m.editedNote && <p className="mt-1 italic text-[var(--color-warning)]">แก้ไข: {m.editedNote}</p>}
+                        </Td>
+                        {canEditNote && (
+                          <Td>
+                            <button
+                              onClick={() => openNoteDialog(m.id, m.editedNote ?? "")}
+                              className="text-[var(--color-on-surface-variant)] hover:text-[var(--color-primary-container)]"
+                              aria-label="เพิ่มหมายเหตุแก้ไข"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          </Td>
+                        )}
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
               </div>
             </>
           )}
