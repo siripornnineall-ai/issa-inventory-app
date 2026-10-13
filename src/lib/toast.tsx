@@ -66,7 +66,8 @@ function ToastRow({ item }: { item: ToastItem }) {
 export function ToastViewport() {
   const items = useToastStore((s) => s.items);
   return (
-    <div className="pointer-events-none fixed bottom-6 right-6 z-[100] flex flex-col gap-2">
+    // ซ่อนตอนพิมพ์ ไม่งั้นแจ้งเตือนที่ยังค้างอยู่จะถูกพิมพ์ทับป้าย/เอกสารไปด้วย
+    <div className="pointer-events-none fixed bottom-6 right-6 z-[100] flex flex-col gap-2 print:hidden">
       {items.map((item) => (
         <div key={item.id} className="pointer-events-auto">
           <ToastRow item={item} />
