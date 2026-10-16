@@ -6,16 +6,15 @@ import { emptyState } from "@/lib/store/state";
 import { resetRolePermissions, setRolePermission, setUserPermissions, BusinessRuleError } from "@/lib/store/engine";
 
 describe("ตารางสิทธิ์ค่าเริ่มต้น (ต้องเท่ากับของเดิมก่อนทำให้กำหนดเองได้)", () => {
-  it("พนักงานขาย: สร้าง/ยกเลิกคำสั่งซื้อและเบิกออกได้ แต่รับเข้า/แก้สินค้าไม่ได้", () => {
+  it("พนักงานขาย: สร้าง/ยกเลิกคำสั่งซื้อ สแกนเบิกออก/รับเข้าได้ แต่แก้สินค้าไม่ได้", () => {
     expect(hasPermission("sales", "order.create")).toBe(true);
     expect(hasPermission("sales", "stock.out")).toBe(true);
-    expect(hasPermission("sales", "stock.in")).toBe(false);
+    expect(hasPermission("sales", "stock.in")).toBe(true);
     expect(hasPermission("sales", "product.write")).toBe(false);
   });
-  it("พนักงานคลัง: รับเข้า/เบิกออก/โอน/นับสต็อกได้ แต่ไม่เห็นต้นทุนและสร้างคำสั่งซื้อไม่ได้", () => {
-    for (const p of ["stock.in", "stock.out", "stock.transfer", "stock.adjust", "product.write"] as const) expect(hasPermission("warehouse", p)).toBe(true);
+  it("พนักงานคลัง: รับเข้า/เบิกออก (รวมเบิกขายที่สร้างออเดอร์)/โอน/นับสต็อกได้ แต่ไม่เห็นต้นทุน", () => {
+    for (const p of ["stock.in", "stock.out", "order.create", "stock.transfer", "stock.adjust", "product.write"] as const) expect(hasPermission("warehouse", p)).toBe(true);
     expect(hasPermission("warehouse", "cost.view")).toBe(false);
-    expect(hasPermission("warehouse", "order.create")).toBe(false);
   });
   it("ผู้ดูรายงาน: ดู/ส่งออกรายงานเท่านั้น และผู้ดูแลระบบได้ทุกสิทธิ์", () => {
     expect(hasPermission("viewer", "report.view")).toBe(true);
@@ -39,14 +38,22 @@ describe("กำหนดสิทธิ์เอง", () => {
 
   it("engine: ให้/ถอนสิทธิ์ได้ ผู้ดูแลระบบและสิทธิ์เฉพาะผู้ดูแลระบบแก้ไม่ได้", () => {
     const s0 = emptyState();
-    const s1 = produce(s0, (d) => setRolePermission(d as never, "sales", "stock.in", true));
-    expect(s1.rolePermissions.sales).toContain("stock.in");
-    const s2 = produce(s1, (d) => setRolePermission(d as never, "sales", "stock.in", false));
-    expect(s2.rolePermissions.sales).not.toContain("stock.in");
+    const s1 = produce(s0, (d) => setRolePermission(d as never, "viewer", "stock.in", true));
+    expect(s1.rolePermissions.viewer).toContain("stock.in");
+    const s2 = produce(s1, (d) => setRolePermission(d as never, "viewer", "stock.in", false));
+    expect(s2.rolePermissions.viewer).not.toContain("stock.in");
     expect(() => produce(s0, (d) => setRolePermission(d as never, "admin", "stock.in", false))).toThrow(BusinessRuleError);
     for (const p of ADMIN_ONLY_PERMISSIONS) expect(() => produce(s0, (d) => setRolePermission(d as never, "manager", p, true))).toThrow(BusinessRuleError);
     // ไม่กระทบค่าเริ่มต้นของระบบ
-    expect(DEFAULT_ROLE_PERMISSIONS.sales).not.toContain("stock.in");
+    expect(DEFAULT_ROLE_PERMISSIONS.viewer).not.toContain("stock.in");
+  });
+
+  it("ค่าเริ่มต้น: ทุกตำแหน่งที่ทำงานกับสต็อกสแกนเข้า/ออกได้ และเบิกขาย (สร้างออเดอร์) ได้ ไม่ติดสิทธิ์ตอนบันทึก", () => {
+    for (const role of ["admin", "manager", "warehouse", "sales"] as const) {
+      for (const p of ["stock.in", "stock.out", "order.create"] as const) {
+        expect(DEFAULT_ROLE_PERMISSIONS[role], `${role} ${p}`).toContain(p);
+      }
+    }
   });
 
   it("engine: คืนค่าเริ่มต้นของตำแหน่ง", () => {

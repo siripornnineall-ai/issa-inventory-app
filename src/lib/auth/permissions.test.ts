@@ -15,10 +15,10 @@ describe("hasPermission", () => {
     expect(hasPermission("warehouse", "user.admin")).toBe(false);
   });
 
-  it("restricts sales staff to order and stock-out actions only", () => {
+  it("sales staff can scan stock in and out and manage orders, but cannot edit products", () => {
     expect(hasPermission("sales", "order.create")).toBe(true);
     expect(hasPermission("sales", "stock.out")).toBe(true);
-    expect(hasPermission("sales", "stock.in")).toBe(false);
+    expect(hasPermission("sales", "stock.in")).toBe(true);
     expect(hasPermission("sales", "product.write")).toBe(false);
   });
 

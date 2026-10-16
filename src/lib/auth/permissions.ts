@@ -86,8 +86,9 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionMap = {
     "requisition.approve",
     ...VIEW_ALL,
   ],
-  warehouse: ["stock.in", "stock.out", "stock.transfer", "stock.adjust", "product.write", "equipment.write", "requisition.create", ...VIEW_ALL],
-  sales: ["order.create", "order.cancel", "stock.out", "requisition.create", ...VIEW_ALL],
+  // ทุกตำแหน่งที่ทำงานกับสต็อกต้องสแกนเข้า/ออกได้ ("ออก" แบบขายจะสร้างออเดอร์ด้วย จึงต้องมี order.create ไม่งั้นบันทึกไม่ผ่าน)
+  warehouse: ["stock.in", "stock.out", "order.create", "stock.transfer", "stock.adjust", "product.write", "equipment.write", "requisition.create", ...VIEW_ALL],
+  sales: ["order.create", "order.cancel", "stock.in", "stock.out", "requisition.create", ...VIEW_ALL],
   viewer: ["report.view", "report.export", ...VIEW_ALL],
 };
 
