@@ -2,7 +2,7 @@
 
 import { FormField, Input } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
-import type { LabelCalibration, LabelCodeType, LabelPaper } from "@/lib/utils/labelCalibration";
+import { A4_SHEET_PRESETS, matchingA4Preset, type LabelCalibration, type LabelCodeType, type LabelPaper } from "@/lib/utils/labelCalibration";
 import { isBarcode, rollSizeMm } from "@/lib/utils/labelPrintCss";
 
 interface Choice<K extends string> {
@@ -53,6 +53,7 @@ export function LabelCalibrationPanel({
   const isRoll = calibration.paper === "roll";
   const barcode = isBarcode(calibration);
   const roll = rollSizeMm(calibration);
+  const activePreset = matchingA4Preset(calibration);
 
   function field(key: keyof LabelCalibration, label: string, id: string) {
     return (
@@ -96,6 +97,24 @@ export function LabelCalibrationPanel({
           <p className="mt-2 text-xs text-[var(--color-on-surface-variant)]">
             ในหน้าต่างพิมพ์ของเบราว์เซอร์: เลือกเครื่องพิมพ์ฉลาก ตั้งขนาดกระดาษเป็น {roll.w}×{roll.h} มม. ขอบกระดาษ (Margins) เป็น &quot;ไม่มี&quot; และมาตราส่วน (Scale) 100%
           </p>
+        )}
+        {!isRoll && (
+          <div className="mt-3">
+            <p className="mb-2 text-xs font-medium text-[var(--color-on-surface-variant)]">แบบแผ่นสติกเกอร์ A4</p>
+            <ChoiceGroup
+              label="แบบแผ่นสติกเกอร์ A4"
+              choices={A4_SHEET_PRESETS.map((p) => ({ key: p.key, title: p.title, hint: p.hint }))}
+              value={activePreset?.key ?? ""}
+              onPick={(key) => {
+                const p = A4_SHEET_PRESETS.find((x) => x.key === key);
+                if (p) onChange(p.values);
+              }}
+            />
+            {!activePreset && <p className="mt-2 text-xs text-[var(--color-on-surface-variant)]">ตอนนี้ใช้ค่าที่ปรับเอง (ไม่ตรงกับแบบสำเร็จรูป)</p>}
+            <p className="mt-2 text-xs text-[var(--color-on-surface-variant)]">
+              ในหน้าต่างพิมพ์ของเบราว์เซอร์: ตั้งขนาดกระดาษ A4 ขอบกระดาษ (Margins) เป็น &quot;ไม่มี&quot; และมาตราส่วน (Scale) 100% ไม่งั้นป้ายจะเยื้องจากช่องสติกเกอร์
+            </p>
+          </div>
         )}
       </div>
 

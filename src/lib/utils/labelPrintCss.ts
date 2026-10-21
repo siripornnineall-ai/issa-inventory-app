@@ -18,9 +18,12 @@ export function buildLabelPrintCss(c: LabelCalibration): string {
 function buildA4Css(c: LabelCalibration): string {
   const { columns, cellWidthMm, cellHeightMm, colGapMm, rowGapMm, marginTopMm, marginLeftMm } = c;
   const qrSizeMm = Math.max(8, Math.min(cellWidthMm, cellHeightMm) - 5);
+  // แบบวัดขอบจากกระดาษจริง: ตัดขอบในตัวของหน้าเว็บ (p-6) ออก ไม่งั้นแผ่นที่ดวงเต็มแผ่นจะล้นไปหน้าถัดไป
+  const exactMargins = c.a4ExactMargins ? `html, body { margin: 0 !important; padding: 0 !important; } .qr-print-root { padding: 0 !important; margin: 0 !important; max-width: none !important; }` : "";
   return `
         @media print {
           @page { size: A4; margin: 0; }
+          ${exactMargins}
           .qr-label-page {
             padding-top: ${marginTopMm}mm !important;
             padding-left: ${marginLeftMm}mm !important;

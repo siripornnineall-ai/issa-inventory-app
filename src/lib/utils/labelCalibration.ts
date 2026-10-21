@@ -31,6 +31,9 @@ export interface LabelCalibration {
   rollOffsetYMm: number;
   // ขนาดตัวอักษรบนป้ายม้วน เป็นเปอร์เซ็นต์ของค่ามาตรฐาน (100 = ปกติ) ปรับเองได้ถ้ายังเล็ก/ใหญ่ไป
   rollTextScalePct: number;
+  // โหมด A4: true = "ขอบบน/ซ้าย" วัดจากขอบกระดาษจริง (ตัดขอบในตัวของหน้าเว็บออก) จำเป็นกับแผ่นที่ดวงเต็มแผ่น เช่น 24 ดวง
+  // ไม่ตั้ง/false = วิธีเดิม (ขอบหน้าเว็บ ~6 มม. บวกเพิ่มจากค่าที่ตั้ง) เพื่อไม่ให้ค่าที่ผู้ใช้ปรับไว้แล้วเลื่อน
+  a4ExactMargins?: boolean;
 }
 
 export const DEFAULT_LABEL_CALIBRATION: LabelCalibration = {
@@ -49,6 +52,35 @@ export const DEFAULT_LABEL_CALIBRATION: LabelCalibration = {
   rollOffsetYMm: 0,
   rollTextScalePct: 100,
 };
+
+// แบบแผ่นสติกเกอร์ A4 สำเร็จรูป กดเลือกแล้วได้ค่าครบ (จำนวนคอลัมน์ ขนาดดวง ระยะห่าง ขอบ) ปรับละเอียดต่อได้ที่ช่อง "ตั้งค่าตำแหน่งพิมพ์"
+export type A4SheetValues = Pick<LabelCalibration, "columns" | "cellWidthMm" | "cellHeightMm" | "colGapMm" | "rowGapMm" | "marginTopMm" | "marginLeftMm"> & { a4ExactMargins: boolean };
+
+export interface A4SheetPreset {
+  key: string;
+  title: string;
+  hint: string;
+  values: A4SheetValues;
+}
+
+export const A4_SHEET_PRESETS: A4SheetPreset[] = [
+  {
+    key: "a4-24",
+    title: "A4 แบบ 24 ดวง (3 คอลัมน์ × 8 แถว)",
+    hint: "ดวงละราว 64×34 มม. เต็มแผ่น (ค่าประมาณจากภาพแผ่นสติกเกอร์ ลองพิมพ์ลงกระดาษเปล่าทาบกับแผ่นจริงก่อน แล้วปรับเพิ่มได้)",
+    values: { columns: 3, cellWidthMm: 64, cellHeightMm: 34, colGapMm: 5, rowGapMm: 3, marginTopMm: 2.5, marginLeftMm: 5, a4ExactMargins: true },
+  },
+  {
+    key: "a4-50x25",
+    title: "A4 ดวง 50×25 มม. (3 คอลัมน์)",
+    hint: "ค่าเริ่มต้นเดิมของระบบ",
+    values: { columns: 3, cellWidthMm: 50, cellHeightMm: 25, colGapMm: 4, rowGapMm: 3, marginTopMm: 8, marginLeftMm: 8, a4ExactMargins: false },
+  },
+];
+
+export function matchingA4Preset(c: Omit<A4SheetValues, "a4ExactMargins"> & { a4ExactMargins?: boolean }): A4SheetPreset | undefined {
+  return A4_SHEET_PRESETS.find((p) => (Object.keys(p.values) as (keyof A4SheetValues)[]).every((k) => (k === "a4ExactMargins" ? !!c[k] === p.values[k] : p.values[k] === c[k])));
+}
 
 const STORAGE_KEY = "issa-qr-label-calibration";
 
