@@ -17,6 +17,7 @@ export type DrillKind = "currentQty" | "sales" | "stockIn" | "stockOut" | "cance
 interface Row {
   id: string;
   date: string;
+  brandId: string | null;
   brand: string;
   model: string;
   sku: string;
@@ -46,7 +47,7 @@ function buildRows(state: AppState, kind: DrillKind, fromISO: string, toISO: str
   function brandModel(productId: string) {
     const product = state.products[productId];
     const brand = product?.brandId ? state.brands[product.brandId] : undefined;
-    return { name: product?.sellingName ?? "-", brand: brand?.name ?? "-", model: product?.modelCode ?? "-" };
+    return { name: product?.sellingName ?? "-", brandId: brand?.id ?? null, brand: brand?.name ?? "-", model: product?.modelCode ?? "-" };
   }
 
   if (kind === "currentQty") {
@@ -61,10 +62,11 @@ function buildRows(state: AppState, kind: DrillKind, fromISO: string, toISO: str
       if (qty === 0) continue;
       const variant = state.variants[variantId];
       if (!variant) continue;
-      const { name, brand, model } = brandModel(variant.productId);
+      const { name, brandId, brand, model } = brandModel(variant.productId);
       rows.push({
         id: variantId,
         date: "-",
+        brandId,
         brand,
         model,
         sku: variant.sku,
@@ -100,6 +102,7 @@ function buildRows(state: AppState, kind: DrillKind, fromISO: string, toISO: str
         rows.push({
           id: line.id,
           date: kind === "cancelled" ? o.cancelledAt ?? o.date : o.date,
+          brandId: o.brandId ?? null,
           brand: brandName,
           model,
           sku: variant?.sku ?? "-",
@@ -127,10 +130,11 @@ function buildRows(state: AppState, kind: DrillKind, fromISO: string, toISO: str
     if (kind === "stockIn" && m.movementType !== "stock_in") continue;
     if (kind === "stockOut" && !isStockOutMovement(m)) continue;
     const variant = m.variantId ? state.variants[m.variantId] : undefined;
-    const { brand, model } = variant ? brandModel(variant.productId) : { brand: "-", model: "-" };
+    const { brandId, brand, model } = variant ? brandModel(variant.productId) : { brandId: null, brand: "-", model: "-" };
     rows.push({
       id: m.id,
       date: m.createdAt,
+      brandId,
       brand,
       model,
       sku: m.sku ?? "-",
@@ -152,18 +156,26 @@ export function DrillDownDialog({
   onClose,
   kind,
   range,
+  brandId,
 }: {
   open: boolean;
   onClose: () => void;
   kind: DrillKind;
   range: { from: string; to: string };
+  // ไม่ส่ง = ทุกแบรนด์ / ส่ง id = เฉพาะแบรนด์นั้น / ส่ง null = สินค้าที่ไม่ระบุแบรนด์
+  brandId?: string | null;
 }) {
   const state = useStore();
   const [search, setSearch] = useState("");
   const [channel, setChannel] = useState("all");
   const [status, setStatus] = useState("all");
 
-  const rows = useMemo(() => (open ? buildRows(state, kind, range.from, range.to) : []), [open, state, kind, range]);
+  const rows = useMemo(() => {
+    if (!open) return [];
+    const all = buildRows(state, kind, range.from, range.to);
+    return brandId === undefined ? all : all.filter((r) => r.brandId === brandId);
+  }, [open, state, kind, range, brandId]);
+  const brandName = brandId === undefined ? undefined : brandId === null ? "ไม่ระบุแบรนด์" : state.brands[brandId]?.name;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -188,7 +200,7 @@ export function DrillDownDialog({
   const showChannelStatus = kind === "sales" || kind === "cancelled";
 
   return (
-    <Dialog open={open} onClose={onClose} title={TITLES[kind]} size="xl">
+    <Dialog open={open} onClose={onClose} title={brandName ? `${TITLES[kind]} — ${brandName}` : TITLES[kind]} size="xl">
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหาแบรนด์/รุ่น/SKU/สี/ไซซ์/ผู้ทำรายการ..." />

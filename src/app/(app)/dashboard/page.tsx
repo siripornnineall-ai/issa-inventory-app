@@ -23,26 +23,52 @@ import { Badge } from "@/components/ui/Badge";
 import { DrillDownDialog, type DrillKind } from "@/components/dashboard/DrillDownDialog";
 import { useStore } from "@/lib/store";
 import {
-  bestSellers,
   dailySeries,
   dashboardStats,
+  dashboardStatsByBrand,
   equipmentOverview,
   lowStockVariants,
   recentMovements,
 } from "@/lib/store/selectors";
-import { formatNumber, formatTHB } from "@/lib/utils/money";
+import { formatNumber } from "@/lib/utils/money";
 import { formatThaiDateTime } from "@/lib/utils/date";
 import { MOVEMENT_TYPE_LABEL_TH } from "@/lib/types";
 
 export default function DashboardPage() {
   const state = useStore();
   const { value: range, setValue: setRange } = useDateRange("30d");
-  const [drillKind, setDrillKind] = useState<DrillKind | null>(null);
+  const [drill, setDrill] = useState<{ kind: DrillKind; brandId?: string | null } | null>(null);
 
   const stats = useMemo(() => dashboardStats(state, range.from, range.to), [state, range]);
+  const byBrand = useMemo(() => dashboardStatsByBrand(state, range.from, range.to), [state, range]);
+  const kpiGroups = useMemo(
+    () => [
+      {
+        kind: "currentQty" as const,
+        title: "จำนวนปัจจุบัน",
+        icon: <ClipboardList className="h-4 w-4" />,
+        total: { qty: stats.currentQty, unit: "ชิ้น" },
+        brands: byBrand.map((b) => ({ brandId: b.brandId, name: b.name, qty: b.currentQty, unit: "ชิ้น" })),
+      },
+      {
+        kind: "stockIn" as const,
+        title: "สต็อกเข้า",
+        icon: <ArrowDownToLine className="h-4 w-4" />,
+        total: { qty: stats.stockIn.qty, unit: `ชิ้น · ${stats.stockIn.docs} รายการ` },
+        brands: byBrand.map((b) => ({ brandId: b.brandId, name: b.name, qty: b.stockIn.qty, unit: `ชิ้น · ${b.stockIn.docs} รายการ` })),
+      },
+      {
+        kind: "stockOut" as const,
+        title: "สต็อกออก",
+        icon: <ArrowUpFromLine className="h-4 w-4" />,
+        total: { qty: stats.stockOut.qty, unit: `ชิ้น · ${stats.stockOut.docs} รายการ` },
+        brands: byBrand.map((b) => ({ brandId: b.brandId, name: b.name, qty: b.stockOut.qty, unit: `ชิ้น · ${b.stockOut.docs} รายการ` })),
+      },
+    ],
+    [stats, byBrand]
+  );
   const series = useMemo(() => dailySeries(state, range.from, range.to), [state, range]);
   const lowStock = useMemo(() => lowStockVariants(state).slice(0, 4), [state]);
-  const top = useMemo(() => bestSellers(state, range.from, range.to, 3), [state, range]);
   const recent = useMemo(() => recentMovements(state, 5), [state]);
   const equipOverview = useMemo(() => equipmentOverview(state, range.from, range.to), [state, range]);
   const lowStockEquipmentList = useMemo(
@@ -62,28 +88,28 @@ export default function DashboardPage() {
         actions={<DateRangePicker value={range} onChange={setRange} />}
       />
       <PageContainer>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
-          <KpiCard
-            icon={<ClipboardList className="h-4 w-4 sm:h-5 sm:w-5" />}
-            label="จำนวนปัจจุบัน"
-            value={formatNumber(stats.currentQty)}
-            unit="ชิ้น"
-            onClick={() => setDrillKind("currentQty")}
-          />
-          <KpiCard
-            icon={<ArrowDownToLine className="h-4 w-4 sm:h-5 sm:w-5" />}
-            label="สต็อกเข้า"
-            value={formatNumber(stats.stockIn.qty)}
-            unit={`ชิ้น · ${stats.stockIn.docs} รายการ`}
-            onClick={() => setDrillKind("stockIn")}
-          />
-          <KpiCard
-            icon={<ArrowUpFromLine className="h-4 w-4 sm:h-5 sm:w-5" />}
-            label="สต็อกออก"
-            value={formatNumber(stats.stockOut.qty)}
-            unit={`ชิ้น · ${stats.stockOut.docs} รายการ`}
-            onClick={() => setDrillKind("stockOut")}
-          />
+        {/* ตัวเลขรวมทุกแบรนด์อยู่การ์ดแรกของแต่ละกลุ่ม ตามด้วยของแต่ละแบรนด์ กดการ์ดเพื่อดูรายละเอียด */}
+        <div className="flex flex-col gap-5">
+          {kpiGroups.map((g) => (
+            <section key={g.kind} aria-label={g.title}>
+              <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--color-on-surface)]">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[var(--color-surface-container)] text-[var(--color-primary-container)]">{g.icon}</span>
+                {g.title}
+              </h2>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+                <KpiCard label="รวมทุกแบรนด์" value={formatNumber(g.total.qty)} unit={g.total.unit} onClick={() => setDrill({ kind: g.kind })} />
+                {g.brands.map((b) => (
+                  <KpiCard
+                    key={b.brandId ?? "none"}
+                    label={b.name}
+                    value={formatNumber(b.qty)}
+                    unit={b.unit}
+                    onClick={() => setDrill({ kind: g.kind, brandId: b.brandId })}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -139,31 +165,7 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>สินค้าขายดี</CardTitle>
-              <Link href="/reports" className="text-sm font-medium text-[var(--color-primary-container)] hover:underline">
-                ดูทั้งหมด
-              </Link>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3 pt-0">
-              {top.length === 0 && <p className="text-sm text-[var(--color-on-surface-variant)]">ยังไม่มีข้อมูลยอดขายในช่วงเวลานี้</p>}
-              {top.map((t, idx) => (
-                <div key={t.product.id} className="flex items-center gap-3">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-surface-container)] text-sm font-semibold text-[var(--color-primary-container)]">
-                    {idx + 1}
-                  </span>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-[var(--color-on-surface)]">{t.product.sellingName}</p>
-                    <p className="text-xs text-[var(--color-on-surface-variant)]">ขายได้ {formatNumber(t.qty)} ชิ้น</p>
-                  </div>
-                  <p className="text-sm font-semibold text-[var(--color-on-surface)]">{formatTHB(t.revenue)}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
+        <div className="grid grid-cols-1 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>การเคลื่อนไหวล่าสุด</CardTitle>
@@ -260,7 +262,7 @@ export default function DashboardPage() {
         </div>
       </PageContainer>
 
-      {drillKind && <DrillDownDialog open onClose={() => setDrillKind(null)} kind={drillKind} range={range} />}
+      {drill && <DrillDownDialog open onClose={() => setDrill(null)} kind={drill.kind} brandId={drill.brandId} range={range} />}
     </>
   );
 }

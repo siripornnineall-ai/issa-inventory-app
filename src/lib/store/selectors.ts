@@ -168,6 +168,62 @@ export function dashboardStats(state: AppState, fromISO: string, toISO: string):
   };
 }
 
+// ไม่ระบุแบรนด์ (สินค้าที่ไม่ได้ผูกแบรนด์) ใช้ brandId เป็น null
+export interface BrandStats {
+  brandId: string | null;
+  name: string;
+  currentQty: number;
+  stockIn: { qty: number; docs: number };
+  stockOut: { qty: number; docs: number };
+}
+
+// ตัวเลขการ์ดแดชบอร์ดแยกตามแบรนด์ (จำนวนปัจจุบัน / สต็อกเข้า / สต็อกออก) นับด้วยกติกาเดียวกับ dashboardStats
+// ผลรวมของทุกแบรนด์จึงเท่ากับตัวเลขรวมเสมอ แบรนด์ที่ปิดใช้งานแล้วและไม่มีตัวเลขจะไม่แสดง
+export function dashboardStatsByBrand(state: AppState, fromISO: string, toISO: string): BrandStats[] {
+  const brandOfVariant = (variantId: string | undefined): string | null => {
+    const variant = variantId ? state.variants[variantId] : undefined;
+    const product = variant ? state.products[variant.productId] : undefined;
+    return product?.brandId && state.brands[product.brandId] ? product.brandId : null;
+  };
+
+  const map = new Map<string | null, BrandStats>();
+  const entry = (brandId: string | null): BrandStats => {
+    let e = map.get(brandId);
+    if (!e) {
+      e = { brandId, name: brandId ? state.brands[brandId].name : "ไม่ระบุแบรนด์", currentQty: 0, stockIn: { qty: 0, docs: 0 }, stockOut: { qty: 0, docs: 0 } };
+      map.set(brandId, e);
+    }
+    return e;
+  };
+  for (const b of Object.values(state.brands)) entry(b.id);
+
+  for (const v of Object.values(state.variants)) {
+    entry(brandOfVariant(v.id)).currentQty += variantStockAcrossWarehouses(state, v.id).onHand;
+  }
+
+  const inDocs = new Map<string | null, Set<string | undefined>>();
+  const outDocs = new Map<string | null, Set<string | undefined>>();
+  for (const m of movementsInRange(state, fromISO, toISO)) {
+    if (m.itemType !== "product") continue;
+    const isIn = m.movementType === "stock_in";
+    const isOut = isStockOutMovement(m);
+    if (!isIn && !isOut) continue;
+    const brandId = brandOfVariant(m.variantId);
+    const e = entry(brandId);
+    const docs = isIn ? inDocs : outDocs;
+    if (!docs.has(brandId)) docs.set(brandId, new Set());
+    docs.get(brandId)!.add(m.relatedDocNo);
+    if (isIn) e.stockIn.qty += m.qtyChange;
+    else e.stockOut.qty += Math.abs(m.qtyChange);
+  }
+  for (const [brandId, set] of inDocs) entry(brandId).stockIn.docs = set.size;
+  for (const [brandId, set] of outDocs) entry(brandId).stockOut.docs = set.size;
+
+  return Array.from(map.values())
+    .filter((s) => s.brandId === null ? s.currentQty !== 0 || s.stockIn.qty !== 0 || s.stockOut.qty !== 0 : state.brands[s.brandId].active || s.currentQty !== 0 || s.stockIn.qty !== 0 || s.stockOut.qty !== 0)
+    .sort((a, b) => (a.brandId === null ? 1 : 0) - (b.brandId === null ? 1 : 0) || (state.brands[a.brandId ?? ""]?.createdAt ?? "").localeCompare(state.brands[b.brandId ?? ""]?.createdAt ?? ""));
+}
+
 export function dailySeries(state: AppState, fromISO: string, toISO: string) {
   const days: { date: string; label: string; sales: number; stockIn: number }[] = [];
   const from = new Date(fromISO);
