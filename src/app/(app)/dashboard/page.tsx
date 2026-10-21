@@ -102,9 +102,9 @@ export default function DashboardPage() {
                     <XAxis dataKey="label" tick={{ fontSize: 12, fill: "var(--color-on-surface-variant)" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 12, fill: "var(--color-on-surface-variant)" }} axisLine={false} tickLine={false} />
                     <Tooltip contentStyle={{ borderRadius: 12, borderColor: "var(--color-border)", fontSize: 12 }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => (v === "sales" ? "ยอดขาย" : "สต็อกเข้า")} />
-                    <Bar dataKey="sales" fill="var(--color-primary-container)" radius={[4, 4, 0, 0]} name="sales" />
-                    <Bar dataKey="stockIn" fill="#a0ced7" radius={[4, 4, 0, 0]} name="stockIn" />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="sales" fill="var(--color-primary-container)" radius={[4, 4, 0, 0]} name="ยอดขาย" />
+                    <Bar dataKey="stockIn" fill="#a0ced7" radius={[4, 4, 0, 0]} name="สต็อกเข้า" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

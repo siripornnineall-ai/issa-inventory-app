@@ -34,8 +34,9 @@ export function Header({
       className="flex flex-col gap-3 border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 pb-4 sm:px-6 sm:pb-5 lg:px-8 lg:pb-6"
       style={{ paddingTop: "max(1rem, calc(env(safe-area-inset-top) + 0.5rem))" }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 min-w-0">
+      {/* มือถือ: แถวบนเป็นปุ่มล้วน หัวข้อลงมาแถวของตัวเองเต็มความกว้าง (ไม่งั้นตัวอักษรถูกบีบเป็นคำละบรรทัด) / จอ sm ขึ้นไป: อยู่แถวเดียวกันเหมือนเดิม */}
+      <div className="flex flex-wrap items-start gap-x-3 gap-y-3 sm:flex-nowrap">
+        <div className="order-1 flex shrink-0 items-start gap-3 sm:contents">
           <button
             onClick={() => router.back()}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--color-border)] bg-white text-[var(--color-on-surface-variant)]"
@@ -50,12 +51,12 @@ export function Header({
           >
             <Menu className="h-[18px] w-[18px]" />
           </button>
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-semibold leading-tight tracking-tight text-[var(--color-on-surface)] sm:text-2xl lg:text-[28px]">{title}</h1>
-            {description && <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{description}</p>}
-          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <div className="order-3 min-w-0 basis-full sm:order-2 sm:flex-1 sm:basis-0">
+          <h1 className="text-xl font-semibold leading-tight tracking-tight text-[var(--color-on-surface)] sm:truncate sm:text-2xl lg:text-[28px]">{title}</h1>
+          {description && <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{description}</p>}
+        </div>
+        <div className="order-2 ml-auto flex shrink-0 items-center gap-2 sm:order-3 sm:ml-0 sm:gap-3">
           <RefreshButton />
           <NotificationBell />
           <button className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-border)] bg-white text-[var(--color-on-surface-variant)]" aria-label="ช่วยเหลือ">
