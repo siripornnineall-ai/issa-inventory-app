@@ -25,6 +25,7 @@ import { useDraft } from "@/lib/utils/useDraft";
 import { refreshAppData } from "@/lib/store/refresh";
 import { snapshotSystemQty } from "@/lib/utils/stockCountBaseline";
 import { DraftBanner } from "@/components/stock/DraftBanner";
+import { useSaveGuard } from "@/lib/utils/saveGuard";
 import { createClient } from "@/lib/supabase/client";
 import { fetchUnitTokenByScan } from "@/lib/supabase/fetch";
 import type { Product, ProductVariant } from "@/lib/types";
@@ -65,7 +66,9 @@ function StockCountForm() {
   const [scannedTokenIds, setScannedTokenIds] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  // ล็อกปุ่มทันทีที่กดบันทึก กันมือถือค้างแล้วบันทึกผลนับซ้ำ
+  const guard = useSaveGuard();
+  const saving = guard.locked;
   // สรุปผลหลังบันทึก: ใช้ตรวจว่ารอบนี้ครบไหม โดยเฉพาะรายการที่ไม่ได้นับแต่ยังมีสต็อก (ยอดเก่าที่ไม่ถูกแตะ)
   const [summary, setSummary] = useState<{
     adjusted: number;
@@ -260,7 +263,11 @@ function StockCountForm() {
 
   function handleSave() {
     if (!user || !warehouseId || touchedRows.length === 0) return;
-    setSaving(true);
+    guard.run(save);
+  }
+
+  function save(): "keep" | "release" {
+    if (!user || !warehouseId) return "release";
     try {
       const summaryNow = {
         adjusted: diffRows.length,
@@ -292,10 +299,11 @@ function StockCountForm() {
       setScannedTokenIds(new Set());
       // เริ่มรอบใหม่ต่อได้เลย: ยอดตอนเริ่มนับของรอบใหม่ = ยอดหลังปรับ
       if (productIds.length > 0) snapshotProducts(productIds, warehouseId, true);
+      // รอบนับถูกล้างแล้ว กดซ้ำจะไม่มีรายการให้บันทึก จึงปลดล็อกให้เริ่มรอบใหม่ได้
+      return "release";
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
-    } finally {
-      setSaving(false);
+      return "release";
     }
   }
 

@@ -20,6 +20,8 @@ import { toastError, toastSuccess } from "@/lib/toast";
 import { todayInputValue, dateInputToISO, formatThaiDateTime } from "@/lib/utils/date";
 import { formatNumber } from "@/lib/utils/money";
 import { useUnsavedChangesGuard } from "@/lib/utils/useUnsavedChangesGuard";
+import { DuplicateSaveDialog } from "@/components/stock/DuplicateSaveDialog";
+import { findRecentSimilarDoc, useSaveGuard } from "@/lib/utils/saveGuard";
 import type { Transfer } from "@/lib/types";
 
 interface Line {
@@ -40,7 +42,9 @@ function CreateEquipmentTransferForm() {
   const [toWarehouseId, setToWarehouseId] = useState(activeWarehouses[1]?.id ?? "");
   const [note, setNote] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
-  const [saving, setSaving] = useState(false);
+  // ล็อกปุ่มทันทีที่กด กันมือถือค้างแล้วสร้างรายการโอนซ้ำ
+  const guard = useSaveGuard();
+  const saving = guard.locked;
 
   const dirty = lines.length > 0 || note.trim().length > 0;
   useUnsavedChangesGuard(dirty);
@@ -77,7 +81,17 @@ function CreateEquipmentTransferForm() {
       return;
     }
     if (!user) return;
-    setSaving(true);
+    const similar = findRecentSimilarDoc(
+      Object.values(state.transfers)
+        .filter((t) => t.itemType === "equipment" && t.senderId === user.id && t.fromWarehouseId === fromWarehouseId && t.toWarehouseId === toWarehouseId)
+        .map((t) => ({ no: t.transferNo, createdAt: t.createdAt, lines: t.lines })),
+      lines.map((l) => ({ itemId: l.equipmentId, qty: l.qty }))
+    );
+    guard.run(save, similar);
+  }
+
+  function save(): "keep" | "release" {
+    if (!user) return "release";
     try {
       createTransfer({
         itemType: "equipment",
@@ -92,10 +106,11 @@ function CreateEquipmentTransferForm() {
       toastSuccess("สร้างรายการโอนย้ายเรียบร้อยแล้ว");
       setLines([]);
       setNote("");
+      // ฟอร์มถูกล้างแล้ว กดซ้ำจะไม่มีรายการให้บันทึก จึงปลดล็อกให้ทำรายการต่อได้
+      return "release";
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
-    } finally {
-      setSaving(false);
+      return "release";
     }
   }
 
@@ -222,6 +237,7 @@ function CreateEquipmentTransferForm() {
             สร้างรายการโอนย้าย
           </Button>
         </div>
+        <DuplicateSaveDialog guard={guard} docLabel="ใบโอนย้าย" />
       </CardContent>
     </Card>
   );

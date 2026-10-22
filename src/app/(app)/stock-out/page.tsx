@@ -24,6 +24,9 @@ import { useDraft } from "@/lib/utils/useDraft";
 import { pruneRestoredTokens } from "@/lib/utils/draftRestore";
 import { DraftBanner } from "@/components/stock/DraftBanner";
 import { PendingSaveBar } from "@/components/stock/PendingSaveBar";
+import { DuplicateSaveDialog } from "@/components/stock/DuplicateSaveDialog";
+import { SaveSuccessCard, type SavedInfo } from "@/components/stock/SaveSuccessCard";
+import { findRecentSimilarDoc, useSaveGuard } from "@/lib/utils/saveGuard";
 import { MOVEMENT_TYPE_LABEL_TH, SALES_CHANNEL_LABEL_TH, STOCK_OUT_REASONS, type SalesChannel, type UnitToken, type ProductVariant } from "@/lib/types";
 
 interface Line {
@@ -33,7 +36,7 @@ interface Line {
   unitPrice: number;
 }
 
-function StockOutForm() {
+function StockOutForm({ onAgain }: { onAgain: () => void }) {
   const state = useStore();
   const { stockOut, recordUnitScanOut } = useActions();
   const user = useCurrentUser();
@@ -51,7 +54,10 @@ function StockOutForm() {
   const [orderNo, setOrderNo] = useState("");
   const [note, setNote] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
-  const [saving, setSaving] = useState(false);
+  // ล็อกปุ่มบันทึกทันทีที่กด (กันมือถือค้างแล้วบันทึกซ้ำ) และขึ้นหน้ายืนยันเมื่อสำเร็จ
+  const guard = useSaveGuard();
+  const saving = guard.locked;
+  const [saved, setSaved] = useState<SavedInfo | null>(null);
   const [scannedTokensByVariant, setScannedTokensByVariant] = useState<Record<string, string[]>>({});
   const [scanLog, setScanLog] = useState<{ id: string; time: string; label: string; ok: boolean }[]>([]);
 
@@ -60,7 +66,7 @@ function StockOutForm() {
     setScanLog((prev) => [{ id: `${Date.now()}-${Math.random()}`, time, label, ok }, ...prev].slice(0, 30));
   }
 
-  const dirty = lines.length > 0 || note.trim().length > 0;
+  const dirty = !saved && (lines.length > 0 || note.trim().length > 0);
   useUnsavedChangesGuard(dirty);
 
   // เก็บร่างไว้ในเครื่อง: ปิดแอป/สลับแอปแล้วกลับมา รายการที่สแกนค้างไว้ไม่หาย (ถามก่อนว่าจะทำต่อไหม)
@@ -158,9 +164,19 @@ function StockOutForm() {
       return;
     }
     if (!user) return;
-    setSaving(true);
+    const similar = findRecentSimilarDoc(
+      Object.values(state.stockOutDocs)
+        .filter((d) => d.itemType === "product" && d.actorId === user.id && d.warehouseId === warehouseId && d.reasonType === reasonType)
+        .map((d) => ({ no: d.docNo, createdAt: d.createdAt, lines: d.lines })),
+      lines.map((l) => ({ itemId: l.variantId, qty: l.qty }))
+    );
+    guard.run(save, similar);
+  }
+
+  function save(): "keep" | "release" {
+    if (!user) return "release";
     try {
-      stockOut({
+      const { doc } = stockOut({
         itemType: "product",
         date: dateInputToISO(date),
         warehouseId,
@@ -184,12 +200,16 @@ function StockOutForm() {
       }
       draft.clear();
       toastSuccess("บันทึกการเบิกสินค้าออกเรียบร้อยแล้ว");
-      router.replace("/products/all");
+      setSaved({ docNo: doc.docNo, totalQty, lineCount: lines.length });
+      return "keep";
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
-    } finally {
-      setSaving(false);
+      return "release";
     }
+  }
+
+  if (saved) {
+    return <SaveSuccessCard title="บันทึกการเบิกสินค้าออกแล้ว" info={saved} againLabel="เบิกสินค้าออกต่อ" onAgain={onAgain} backHref="/products/all" backLabel="ไปหน้าสินค้า" />;
   }
 
   return (
@@ -420,17 +440,20 @@ function StockOutForm() {
         </Button>
       </div>
       <PendingSaveBar totalQty={totalQty} lineCount={lines.length} saveLabel="บันทึกการเบิกออก" onSave={handleSubmit} saving={saving} />
+      <DuplicateSaveDialog guard={guard} docLabel="ใบเบิกออก" />
     </div>
   );
 }
 
 export default function StockOutPage() {
+  // เปลี่ยน key เพื่อเริ่มฟอร์มใหม่ทั้งหมด (ปุ่ม "เบิกสินค้าออกต่อ" หลังบันทึกสำเร็จ)
+  const [round, setRound] = useState(0);
   return (
     <>
       <Header title="เบิกสินค้าออก" description="บันทึกการเบิกสินค้าออกจากคลัง เช่น การขาย ส่งหน้าร้าน หรือสาเหตุอื่น ๆ" />
       <PageContainer className="max-w-5xl">
         <RequireAccess perm="stock.out">
-          <StockOutForm />
+          <StockOutForm key={round} onAgain={() => setRound((n) => n + 1)} />
         </RequireAccess>
       </PageContainer>
     </>

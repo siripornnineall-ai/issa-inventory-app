@@ -19,6 +19,9 @@ import { toastError, toastSuccess } from "@/lib/toast";
 import { todayInputValue, dateInputToISO } from "@/lib/utils/date";
 import { formatNumber } from "@/lib/utils/money";
 import { useUnsavedChangesGuard } from "@/lib/utils/useUnsavedChangesGuard";
+import { DuplicateSaveDialog } from "@/components/stock/DuplicateSaveDialog";
+import { SaveSuccessCard, type SavedInfo } from "@/components/stock/SaveSuccessCard";
+import { findRecentSimilarDoc, useSaveGuard } from "@/lib/utils/saveGuard";
 import { MOVEMENT_TYPE_LABEL_TH, STOCK_OUT_REASONS } from "@/lib/types";
 
 const EQUIPMENT_STOCK_OUT_REASONS = STOCK_OUT_REASONS.filter((r) => r !== "sale");
@@ -29,7 +32,7 @@ interface Line {
   qty: number;
 }
 
-function EquipmentStockOutForm() {
+function EquipmentStockOutForm({ onAgain }: { onAgain: () => void }) {
   const state = useStore();
   const { stockOut } = useActions();
   const user = useCurrentUser();
@@ -42,9 +45,12 @@ function EquipmentStockOutForm() {
   const [reasonType, setReasonType] = useState<(typeof EQUIPMENT_STOCK_OUT_REASONS)[number]>("internal_use");
   const [note, setNote] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
-  const [saving, setSaving] = useState(false);
+  // ล็อกปุ่มบันทึกทันทีที่กด (กันมือถือค้างแล้วบันทึกซ้ำ) และขึ้นหน้ายืนยันเมื่อสำเร็จ
+  const guard = useSaveGuard();
+  const saving = guard.locked;
+  const [saved, setSaved] = useState<SavedInfo | null>(null);
 
-  const dirty = lines.length > 0 || note.trim().length > 0;
+  const dirty = !saved && (lines.length > 0 || note.trim().length > 0);
   useUnsavedChangesGuard(dirty);
 
   function addLine(equipmentId: string) {
@@ -75,9 +81,19 @@ function EquipmentStockOutForm() {
       return;
     }
     if (!user) return;
-    setSaving(true);
+    const similar = findRecentSimilarDoc(
+      Object.values(state.stockOutDocs)
+        .filter((d) => d.itemType === "equipment" && d.actorId === user.id && d.warehouseId === warehouseId && d.reasonType === reasonType)
+        .map((d) => ({ no: d.docNo, createdAt: d.createdAt, lines: d.lines })),
+      lines.map((l) => ({ itemId: l.equipmentId, qty: l.qty }))
+    );
+    guard.run(save, similar);
+  }
+
+  function save(): "keep" | "release" {
+    if (!user) return "release";
     try {
-      stockOut({
+      const { doc } = stockOut({
         itemType: "equipment",
         date: dateInputToISO(date),
         warehouseId,
@@ -88,12 +104,16 @@ function EquipmentStockOutForm() {
         lines: lines.map((l) => ({ itemId: l.equipmentId, qty: l.qty })),
       });
       toastSuccess("บันทึกการเบิกอุปกรณ์ออกเรียบร้อยแล้ว");
-      router.replace("/equipment");
+      setSaved({ docNo: doc.docNo, totalQty, lineCount: lines.length });
+      return "keep";
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
-    } finally {
-      setSaving(false);
+      return "release";
     }
+  }
+
+  if (saved) {
+    return <SaveSuccessCard title="บันทึกการเบิกอุปกรณ์ออกแล้ว" info={saved} againLabel="เบิกอุปกรณ์ออกต่อ" onAgain={onAgain} backHref="/equipment" backLabel="ไปหน้าอุปกรณ์" />;
   }
 
   return (
@@ -227,17 +247,20 @@ function EquipmentStockOutForm() {
           บันทึกการเบิกออก
         </Button>
       </div>
+      <DuplicateSaveDialog guard={guard} docLabel="ใบเบิกออก" />
     </div>
   );
 }
 
 export default function EquipmentStockOutPage() {
+  // เปลี่ยน key เพื่อเริ่มฟอร์มใหม่ทั้งหมด (ปุ่ม "เบิกอุปกรณ์ออกต่อ" หลังบันทึกสำเร็จ)
+  const [round, setRound] = useState(0);
   return (
     <>
       <Header title="เบิกอุปกรณ์ออก" description="บันทึกการเบิกอุปกรณ์ บรรจุภัณฑ์ หรือของใช้สิ้นเปลืองออกจากคลัง" />
       <PageContainer className="max-w-5xl">
         <RequireAccess perm="stock.out">
-          <EquipmentStockOutForm />
+          <EquipmentStockOutForm key={round} onAgain={() => setRound((n) => n + 1)} />
         </RequireAccess>
       </PageContainer>
     </>
