@@ -135,8 +135,10 @@ export function VariantPicker({
   }, []);
 
   function openPicker(group: { product: Product; variants: ProductVariant[]; all: ProductVariant[] }) {
-    // เลือกสีแรกที่ตรงกับคำค้นไว้ให้ก่อน แต่แสดงครบทุกสีของรุ่น
-    setPickerColor(group.variants[0]?.color ?? group.all[0]?.color ?? null);
+    // เลือกสีไว้ให้ก่อนเฉพาะเมื่อคำค้นตรงกับสีเดียวเท่านั้น (เช่นพิมพ์ "ดำ" หรือ SKU) ถ้าค้นด้วยชื่อรุ่นซึ่งตรงทุกสี ต้องให้ผู้ใช้กดเลือกสีเอง
+    // ไม่งั้นระบบจะหยิบสีแรกในรายการ (เช่น ครีม) แล้วกดไซซ์ลงผิดสีโดยไม่รู้ตัว
+    const matchedColors = new Set(group.variants.map((v) => v.color));
+    setPickerColor(matchedColors.size === 1 ? [...matchedColors][0] : null);
     setPickerGroup({ product: group.product, variants: group.all });
     setAddedIds(new Set());
     setOpen(false);
@@ -271,7 +273,20 @@ export function VariantPicker({
               </div>
             </div>
             <div>
-              <p className="mb-2 text-sm font-medium text-[var(--color-on-surface)]">ไซซ์ — แตะเพื่อเพิ่ม (เลือกได้หลายไซซ์/สี ค่อยกดปิดเองตอนเสร็จ)</p>
+              <p className="mb-2 text-sm font-medium text-[var(--color-on-surface)]">
+                {pickerColor ? (
+                  <>
+                    ไซซ์ของสี <span className="rounded bg-[var(--color-primary-container)]/10 px-1.5 py-0.5 text-[var(--color-primary-container)]">{pickerColor}</span> — แตะเพื่อเพิ่ม (เลือกได้หลายไซซ์/สี ค่อยกดปิดเองตอนเสร็จ)
+                  </>
+                ) : (
+                  "ไซซ์"
+                )}
+              </p>
+              {!pickerColor && (
+                <p className="mb-3 rounded-lg border border-dashed border-[var(--color-border)] px-3 py-3 text-sm text-[var(--color-on-surface-variant)]">
+                  เลือกสีด้านบนก่อน แล้วไซซ์ของสีนั้นจะขึ้นให้เลือก
+                </p>
+              )}
               {onSelectMany && pickerSizeRows.length > 1 && (
                 <label
                   htmlFor="picker-select-all-sizes"

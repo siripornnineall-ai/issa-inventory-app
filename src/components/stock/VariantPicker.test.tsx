@@ -22,9 +22,11 @@ function seed() {
   return ids;
 }
 
-function openPicker() {
+// ค้นด้วยชื่อรุ่น (ตรงทุกสี) แล้วกดเลือกสีเองเสมอ เหมือนที่ผู้ใช้ต้องทำจริง
+function openPicker(color = "ครีม") {
   fireEvent.change(screen.getByPlaceholderText(/ค้นหา/), { target: { value: "Billie" } });
   fireEvent.click(screen.getByText("Billie Slim", { selector: "span.block" }));
+  fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${color}$`) }));
 }
 
 describe("VariantPicker — ยิงบาร์โค้ดรหัสสั้นเฉพาะใบ", () => {
@@ -101,6 +103,41 @@ describe("VariantPicker — แสดงสีของรุ่นครบ", (
     expect(screen.getByLabelText(/เลือกทุกไซซ์ของสีดำ [(]2 ไซซ์[)]/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /^ครีม$/ }));
     expect(screen.getByLabelText(/เลือกทุกไซซ์ของสีครีม [(]3 ไซซ์[)]/)).toBeTruthy();
+  });
+});
+
+describe("VariantPicker — ไม่เลือกสีให้เอง (กันกดไซซ์ลงผิดสี)", () => {
+  beforeEach(() => cleanup());
+
+  it("searching by model name opens with NO color selected and no size buttons, so M cannot land on the wrong color", () => {
+    seed();
+    const onSelect = vi.fn();
+    render(<VariantPicker onSelect={onSelect} onSelectMany={vi.fn()} />);
+    fireEvent.change(screen.getByPlaceholderText(/ค้นหา/), { target: { value: "Billie" } });
+    fireEvent.click(screen.getByText("Billie Slim", { selector: "span.block" }));
+
+    expect(screen.getByText(/เลือกสีด้านบนก่อน/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^M$/ })).toBeNull();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("after the user picks black, tapping M adds black M and the heading names the chosen color", () => {
+    const ids = seed();
+    const onSelect = vi.fn();
+    render(<VariantPicker onSelect={onSelect} />);
+    openPicker("ดำ");
+    expect(screen.getByText(/ไซซ์ของสี/).textContent).toContain("ดำ");
+    fireEvent.click(screen.getByRole("button", { name: /^M$/ }));
+    expect(onSelect).toHaveBeenCalledWith(ids["ดำ-M"]);
+    expect(onSelect).not.toHaveBeenCalledWith(ids["ครีม-M"]);
+  });
+
+  it("when the search text matches only one color (typed the color), that color is selected for convenience", () => {
+    seed();
+    render(<VariantPicker onSelect={vi.fn()} onSelectMany={vi.fn()} />);
+    fireEvent.change(screen.getByPlaceholderText(/ค้นหา/), { target: { value: "ดำ" } });
+    fireEvent.click(screen.getByText("Billie Slim", { selector: "span.block" }));
+    expect(screen.getByLabelText(/เลือกทุกไซซ์ของสีดำ/)).toBeTruthy();
   });
 });
 
