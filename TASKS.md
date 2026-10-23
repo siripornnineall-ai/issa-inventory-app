@@ -17,7 +17,7 @@
 | 1 | ออกแบบ Supabase schema (SQL) | `supabase/migrations/0001_init.sql` ครอบคลุม products, variants, equipment, warehouses, suppliers, movements, orders, transfers, users/roles — ใช้จริงกับโปรเจกต์ Supabase แล้ว |
 | 2 | UI components ตาม Stitch design system | `src/components/ui/*` (Button, Card, Table, Dialog, Field, Badge, EmptyState, ImageUploader, DateRangePicker) |
 | 3 | Data layer เชื่อมต่อ Supabase จริง | `src/lib/supabase/fetch.ts` (โหลดข้อมูลทั้งหมดจาก Supabase), `src/lib/supabase/sync.ts` (บันทึกทุกการเปลี่ยนแปลงกลับไปที่ Supabase แบบ write-through), `src/lib/store/engine.ts` (business logic ล้วน ทำงานแบบ sync ในหน่วยความจำเพื่อ UI ตอบสนองทันที) |
-| 4 | ระบบ auth จริงผ่าน Supabase Auth | 5 บัญชีจริง (admin/manager/warehouse/sales/viewer @issa.demo, รหัสผ่าน `issa2024`) สร้างใน Supabase Auth + ตาราง `profiles` แล้ว พร้อม permission matrix (`src/lib/auth/permissions.ts`) และ RLS policies ที่ตรวจสอบบทบาทจริง |
+| 4 | ระบบ auth จริงผ่าน Supabase Auth | บัญชีจริงใน Supabase Auth (บัญชีเดโม่ช่วงแรกถูกลบแล้ว ตอนนี้เป็นบัญชีพนักงานจริง) + ตาราง `profiles` แล้ว พร้อม permission matrix (`src/lib/auth/permissions.ts`) และ RLS policies ที่ตรวจสอบบทบาทจริง |
 | 5 | หน้าสินค้า: list, add, detail, edit พร้อมตัวเลือกสี/ไซซ์ | `/products`, `/products/new`, `/products/[id]`, `/products/[id]/edit` |
 | 6 | หน้ารับเข้า/เบิกออก/โอนย้ายสต็อกสินค้า | `/stock-in`, `/stock-out`, `/transfer` — ค้นหาสินค้าแบบ real-time, ตรวจสอบสต็อกไม่พอ, สร้างออเดอร์อัตโนมัติเมื่อเหตุผลเป็น "ขายสินค้า" |
 | 7 | โมดูลอุปกรณ์ (แยกจากสต็อกสินค้า) | list/add/detail/edit + รับเข้า/เบิกออก/โอนย้าย/ใกล้หมด ที่ `/equipment/*` |
