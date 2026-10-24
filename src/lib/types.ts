@@ -430,6 +430,31 @@ export interface CompanyInfo {
   taxId?: string;
 }
 
+export type BannerTextAlign = "left" | "center" | "right";
+export type BannerOverlay = "none" | "soft" | "medium";
+
+/** การจัดวางแบนเนอร์บนเว็บหน้าร้าน (hero / promo) — ตั้งค่าจากหน้า ตั้งค่า */
+export interface BannerLayout {
+  /** รูปแนวตั้งสำหรับมือถือ ('' = ใช้รูปคอมแทน) */
+  mobileImageUrl: string;
+  /** จุดสำคัญของรูปเป็น % (0-100) ใช้เมื่อต้องครอป */
+  focusX: number;
+  focusY: number;
+  textAlign: BannerTextAlign;
+  /** false = ซ่อนหัวข้อ/คำโปรย/ปุ่มของเว็บ (รูปมีข้อความอยู่แล้ว) */
+  showText: boolean;
+  overlay: BannerOverlay;
+}
+
+export const DEFAULT_BANNER_LAYOUT: BannerLayout = {
+  mobileImageUrl: "",
+  focusX: 50,
+  focusY: 50,
+  textAlign: "left",
+  showText: true,
+  overlay: "soft",
+};
+
 export interface StorefrontSettings {
   announcementText: string;
   heroHeadingLine1: string;
@@ -450,6 +475,8 @@ export interface StorefrontSettings {
   socialYoutube: string;
   heroImageUrl: string;
   promoImageUrl: string;
+  heroLayout: BannerLayout;
+  promoLayout: BannerLayout;
 }
 
 export const MARKETPLACE_CHANNELS = ["shopee", "lazada", "tiktok"] as const;

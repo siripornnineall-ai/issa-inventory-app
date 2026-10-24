@@ -25,6 +25,7 @@ import type {
   UnitToken,
   Warehouse,
 } from "@/lib/types";
+import { DEFAULT_BANNER_LAYOUT } from "@/lib/types";
 import { cloneRolePermissions, type RolePermissionMap } from "@/lib/auth/permissions";
 
 export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
@@ -44,6 +45,8 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
   socialLazada: "",
   socialLineShopping: "",
   socialYoutube: "",
+  heroLayout: { ...DEFAULT_BANNER_LAYOUT },
+  promoLayout: { ...DEFAULT_BANNER_LAYOUT },
   heroImageUrl:
     "https://lh3.googleusercontent.com/aida-public/AB6AXuDW5FEck25ju-fz2vAkbZvAqDrxJrbrj0gZ1rKlct-h7upvC6n7h781j_PKQjAeA_7XD81HMThgKfRyGw81bvKN4bBGoVBdc-isxzj33kam2HyrSzhDtVkt_WIFU8VrhCHC5Uvd0Za0ZHrHijS-WzP_jt3ENHg4vSgKt6ErI1z3j7KZKauFABl7E1wvO_5S9ge2Sw-UwMrpq31rLlvhbr3bVKMd6TM9UyYlHupcAQkSwOViSNsnHl0B",
   promoImageUrl:

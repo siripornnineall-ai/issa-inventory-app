@@ -547,6 +547,18 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
           social_youtube: next.storefrontSettings.socialYoutube,
           hero_image_url: next.storefrontSettings.heroImageUrl,
           promo_image_url: next.storefrontSettings.promoImageUrl,
+          hero_mobile_image_url: next.storefrontSettings.heroLayout.mobileImageUrl,
+          hero_focus_x: next.storefrontSettings.heroLayout.focusX,
+          hero_focus_y: next.storefrontSettings.heroLayout.focusY,
+          hero_text_align: next.storefrontSettings.heroLayout.textAlign,
+          hero_show_text: next.storefrontSettings.heroLayout.showText,
+          hero_overlay: next.storefrontSettings.heroLayout.overlay,
+          promo_mobile_image_url: next.storefrontSettings.promoLayout.mobileImageUrl,
+          promo_focus_x: next.storefrontSettings.promoLayout.focusX,
+          promo_focus_y: next.storefrontSettings.promoLayout.focusY,
+          promo_text_align: next.storefrontSettings.promoLayout.textAlign,
+          promo_show_text: next.storefrontSettings.promoLayout.showText,
+          promo_overlay: next.storefrontSettings.promoLayout.overlay,
           updated_at: new Date().toISOString(),
         })
       )

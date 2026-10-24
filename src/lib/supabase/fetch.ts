@@ -656,6 +656,22 @@ export async function fetchAppState(supabase: SupabaseClient): Promise<AppState>
         socialYoutube: storefrontSettingsRow.social_youtube ?? "",
         heroImageUrl: storefrontSettingsRow.hero_image_url,
         promoImageUrl: storefrontSettingsRow.promo_image_url,
+        heroLayout: {
+          mobileImageUrl: storefrontSettingsRow.hero_mobile_image_url ?? "",
+          focusX: storefrontSettingsRow.hero_focus_x ?? 50,
+          focusY: storefrontSettingsRow.hero_focus_y ?? 50,
+          textAlign: (storefrontSettingsRow.hero_text_align ?? "left") as StorefrontSettings["heroLayout"]["textAlign"],
+          showText: storefrontSettingsRow.hero_show_text ?? true,
+          overlay: (storefrontSettingsRow.hero_overlay ?? "soft") as StorefrontSettings["heroLayout"]["overlay"],
+        },
+        promoLayout: {
+          mobileImageUrl: storefrontSettingsRow.promo_mobile_image_url ?? "",
+          focusX: storefrontSettingsRow.promo_focus_x ?? 50,
+          focusY: storefrontSettingsRow.promo_focus_y ?? 50,
+          textAlign: (storefrontSettingsRow.promo_text_align ?? "left") as StorefrontSettings["promoLayout"]["textAlign"],
+          showText: storefrontSettingsRow.promo_show_text ?? true,
+          overlay: (storefrontSettingsRow.promo_overlay ?? "soft") as StorefrontSettings["promoLayout"]["overlay"],
+        },
       }
     : { ...DEFAULT_STOREFRONT_SETTINGS };
 

@@ -17,6 +17,7 @@ import { SingleImageUploader } from "@/components/ui/SingleImageUploader";
 import { FitCoversCard } from "@/components/settings/FitCoversCard";
 import { FeedVideosCard } from "@/components/settings/FeedVideosCard";
 import { ChannelsEditor } from "@/components/settings/ChannelsEditor";
+import { BannerEditor } from "@/components/settings/BannerEditor";
 import { StockAuditCard } from "@/components/settings/StockAuditCard";
 import { useStore, useActions } from "@/lib/store";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -54,6 +55,8 @@ export default function SettingsPage() {
   const [contactPhone, setContactPhone] = useState(state.storefrontSettings.contactPhone);
   const [heroImageUrl, setHeroImageUrl] = useState(state.storefrontSettings.heroImageUrl);
   const [promoImageUrl, setPromoImageUrl] = useState(state.storefrontSettings.promoImageUrl);
+  const [heroLayout, setHeroLayout] = useState(state.storefrontSettings.heroLayout);
+  const [promoLayout, setPromoLayout] = useState(state.storefrontSettings.promoLayout);
 
   // กดถังขยะ: ถ้าลบไม่ได้ (มีสินค้า/ประวัติ/เหลือคลังเดียว) บอกเหตุผลทันที ถ้าลบได้ค่อยเปิดหน้าต่างยืนยัน
   function askDelete(w: Warehouse) {
@@ -104,6 +107,8 @@ export default function SettingsPage() {
       contactPhone: contactPhone.trim(),
       heroImageUrl,
       promoImageUrl,
+      heroLayout,
+      promoLayout,
     });
     toastSuccess("บันทึกข้อความหน้าเว็บเรียบร้อยแล้ว — จะขึ้นเว็บภายในไม่เกิน 1 นาที");
   }
@@ -187,11 +192,14 @@ export default function SettingsPage() {
               <FormField label="คำโปรยใต้พาดหัว">
                 <Input value={heroTagline} onChange={(e) => setHeroTagline(e.target.value)} />
               </FormField>
-              <SingleImageUploader
-                label="รูปแบนเนอร์ใหญ่หน้าแรก"
-                value={heroImageUrl}
-                onChange={setHeroImageUrl}
+              <BannerEditor
+                title="แบนเนอร์ใหญ่หน้าแรก (Hero)"
                 folder="hero"
+                imageUrl={heroImageUrl}
+                onImageChange={setHeroImageUrl}
+                layout={heroLayout}
+                onLayoutChange={setHeroLayout}
+                copy={{ line1: heroHeadingLine1, line2: heroHeadingLine2, tagline: heroTagline, button: "ช้อปเลย" }}
               />
 
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -205,11 +213,14 @@ export default function SettingsPage() {
               <FormField label="คำอธิบายแบนเนอร์โปรโมชัน">
                 <Input value={promoSubtext} onChange={(e) => setPromoSubtext(e.target.value)} />
               </FormField>
-              <SingleImageUploader
-                label="รูปแบนเนอร์โปรโมชัน"
-                value={promoImageUrl}
-                onChange={setPromoImageUrl}
+              <BannerEditor
+                title="แบนเนอร์โปรโมชัน"
                 folder="promo"
+                imageUrl={promoImageUrl}
+                onImageChange={setPromoImageUrl}
+                layout={promoLayout}
+                onLayoutChange={setPromoLayout}
+                copy={{ line1: promoHeadingLine1, line2: promoHeadingLine2, tagline: promoSubtext, button: "ช้อปเลย" }}
               />
 
               <div className="mt-2 border-t border-[var(--color-outline-variant)] pt-4">
