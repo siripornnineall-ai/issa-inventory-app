@@ -304,6 +304,7 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
           supplier_id: d.supplierId ?? null,
           po_number: d.poNumber ?? null,
           issue_po: d.issuePo ?? false,
+          return_type: d.returnType ?? null,
           issued_by_name: d.issuedByName ?? null,
           approved_by_name: d.approvedByName ?? null,
           bill_number: d.billNumber ?? null,

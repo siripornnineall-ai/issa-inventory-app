@@ -15,6 +15,17 @@ describe("movementDirection", () => {
     expect(movementDirection(m("adjustment", -2))).toBe("adjust");
     expect(movementDirection(m("adjustment", 0))).toBe("adjust");
   });
+  it("ทั้ง 4 ประเภทสินค้าคืนเป็นแท็บ 'สินค้าคืน' ของตัวเอง ไม่ปนกับสินค้าเข้า", () => {
+    for (const t of ["return_rts", "return_customer", "return_defective", "return_exchange"] as const) {
+      expect(movementDirection(m(t, 1))).toBe("return");
+      expect(movementTypesForTab("in")).not.toContain(t);
+      expect(movementTypesForTab("return")).toContain(t);
+    }
+  });
+  it("summarizeMovements นับสินค้าคืนแยก ไม่รวมกับยอดเข้า", () => {
+    const t = summarizeMovements([m("stock_in", 5), m("return_customer", 2), m("return_defective", 1)]);
+    expect(t).toMatchObject({ inQty: 5, inCount: 1, returnQty: 3, returnCount: 2 });
+  });
   it("ประเภทอื่น ๆ ดูจากเครื่องหมายของจำนวน", () => {
     expect(movementDirection(m("other", 3))).toBe("in");
     expect(movementDirection(m("other", -3))).toBe("out");

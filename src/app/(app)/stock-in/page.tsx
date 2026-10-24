@@ -170,7 +170,7 @@ function StockInForm({ onAgain }: { onAgain: () => void }) {
     if (!user) return;
     const similar = findRecentSimilarDoc(
       Object.values(state.stockInDocs)
-        .filter((d) => d.itemType === "product" && d.receivedBy === user.id && d.warehouseId === warehouseId)
+        .filter((d) => d.itemType === "product" && !d.returnType && d.receivedBy === user.id && d.warehouseId === warehouseId)
         .map((d) => ({ no: d.docNo, createdAt: d.createdAt, lines: d.lines })),
       lines.map((l) => ({ itemId: l.variantId, qty: l.qty }))
     );

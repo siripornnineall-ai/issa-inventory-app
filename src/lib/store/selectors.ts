@@ -1,6 +1,7 @@
 import type { AppState } from "./state";
 import { getStockLevel, normalizeUnitCode, UNIT_CODE_PATTERN } from "./engine";
-import type { Invoice, MovementType, Order, Product, StockInDoc, StockMovement } from "@/lib/types";
+import { STOCK_RETURN_TYPES, isStockReturnType } from "@/lib/types";
+import type { Invoice, MovementType, Order, Product, StockInDoc, StockMovement, StockReturnType } from "@/lib/types";
 import { sumBaht } from "@/lib/utils/money";
 
 // หาป้ายรายชิ้นจากสิ่งที่สแกนได้: id เต็ม (QR) หรือรหัสสั้น 8 ตัว (บาร์โค้ด) พิมพ์ตัวเล็กตัวใหญ่หรือมีช่องว่าง/ขีดก็ได้
@@ -166,6 +167,34 @@ export function dashboardStats(state: AppState, fromISO: string, toISO: string):
       baht: sumBaht(cancelledOrders.map(orderNetTotal)),
     },
   };
+}
+
+export interface ReturnStats {
+  total: { qty: number; docs: number };
+  byType: Record<StockReturnType, { qty: number; docs: number }>;
+  salesQty: number;
+  // ของที่รับคืนทุกประเภทรวมกัน เทียบกับยอดขาย (ชิ้น) ในช่วงเดียวกัน เป็นเปอร์เซ็นต์ / null เมื่อช่วงนั้นไม่มียอดขาย
+  ratePct: number | null;
+}
+
+// สต็อกคืนสินค้า (ตีกลับ / คืน / ตำหนิ / เปลี่ยน) แยกจากสต็อกเข้า: dashboardStats.stockIn นับเฉพาะรับสินค้าเข้าใหม่อยู่แล้ว
+export function returnStats(state: AppState, fromISO: string, toISO: string): ReturnStats {
+  const byType = Object.fromEntries(STOCK_RETURN_TYPES.map((t) => [t, { qty: 0, docs: 0 }])) as ReturnStats["byType"];
+  const docSets = Object.fromEntries(STOCK_RETURN_TYPES.map((t) => [t, new Set<string | undefined>()])) as Record<StockReturnType, Set<string | undefined>>;
+  const allDocs = new Set<string | undefined>();
+  let total = 0;
+  let salesQty = 0;
+  for (const m of movementsInRange(state, fromISO, toISO)) {
+    if (m.itemType !== "product") continue;
+    if (m.movementType === "sale") salesQty += Math.abs(m.qtyChange);
+    if (!isStockReturnType(m.movementType)) continue;
+    byType[m.movementType].qty += m.qtyChange;
+    docSets[m.movementType].add(m.relatedDocNo);
+    allDocs.add(m.relatedDocNo);
+    total += m.qtyChange;
+  }
+  for (const t of STOCK_RETURN_TYPES) byType[t].docs = docSets[t].size;
+  return { total: { qty: total, docs: allDocs.size }, byType, salesQty, ratePct: salesQty > 0 ? Math.round((total / salesQty) * 1000) / 10 : null };
 }
 
 // ไม่ระบุแบรนด์ (สินค้าที่ไม่ได้ผูกแบรนด์) ใช้ brandId เป็น null

@@ -71,6 +71,12 @@ export function RequisitionStatusBadge({ status }: { status: RequisitionStatus }
 
 export function MovementTypeBadge({ type }: { type: MovementType }) {
   const inbound = type === "stock_in" || type === "transfer_in" || type === "cancel_restock";
-  const tone: BadgeTone = inbound ? "success" : type === "sale" ? "warning" : type === "damaged" || type === "lost" ? "danger" : "info";
+  const tone: BadgeTone = inbound
+    ? "success"
+    : type === "sale" || type === "return_rts" || type === "return_customer" || type === "return_exchange"
+      ? "warning"
+      : type === "damaged" || type === "lost" || type === "return_defective"
+        ? "danger"
+        : "info";
   return <Badge tone={tone}>{MOVEMENT_TYPE_LABEL_TH[type]}</Badge>;
 }

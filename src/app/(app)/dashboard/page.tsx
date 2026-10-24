@@ -7,6 +7,7 @@ import {
   ClipboardList,
   ArrowDownToLine,
   ArrowUpFromLine,
+  Undo2,
   PackagePlus,
   LogIn,
   LogOut,
@@ -26,20 +27,22 @@ import {
   dailySeries,
   dashboardStats,
   dashboardStatsByBrand,
+  returnStats,
   equipmentOverview,
   lowStockVariants,
   recentMovements,
 } from "@/lib/store/selectors";
 import { formatNumber } from "@/lib/utils/money";
 import { formatThaiDateTime } from "@/lib/utils/date";
-import { MOVEMENT_TYPE_LABEL_TH } from "@/lib/types";
+import { MOVEMENT_TYPE_LABEL_TH, STOCK_RETURN_LABEL_TH, STOCK_RETURN_TYPES, type StockReturnType } from "@/lib/types";
 
 export default function DashboardPage() {
   const state = useStore();
   const { value: range, setValue: setRange } = useDateRange("30d");
-  const [drill, setDrill] = useState<{ kind: DrillKind; brandId?: string | null } | null>(null);
+  const [drill, setDrill] = useState<{ kind: DrillKind; brandId?: string | null; returnType?: StockReturnType } | null>(null);
 
   const stats = useMemo(() => dashboardStats(state, range.from, range.to), [state, range]);
+  const returns = useMemo(() => returnStats(state, range.from, range.to), [state, range]);
   const byBrand = useMemo(() => dashboardStatsByBrand(state, range.from, range.to), [state, range]);
   const kpiGroups = useMemo(
     () => [
@@ -110,6 +113,38 @@ export default function DashboardPage() {
               </div>
             </section>
           ))}
+
+          {/* สต็อกคืนสินค้า: รวมทุกประเภทก่อน ตามด้วย ตีกลับ / คืน / ตำหนิ / เปลี่ยน (แยกจากสต็อกเข้า) */}
+          <section aria-label="สต็อกคืนสินค้า">
+            <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--color-on-surface)]">
+              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[var(--color-surface-container)] text-[var(--color-primary-container)]">
+                <Undo2 className="h-4 w-4" />
+              </span>
+              สต็อกคืนสินค้า
+            </h2>
+            {returns.ratePct !== null && (
+              <p className="-mt-1 mb-2 text-xs text-[var(--color-on-surface-variant)]">
+                รวมคืน {formatNumber(returns.total.qty)} ชิ้น คิดเป็น {returns.ratePct}% ของยอดขาย ({formatNumber(returns.salesQty)} ชิ้น)
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 sm:gap-4">
+              <KpiCard
+                label="รวมทุกประเภท"
+                value={formatNumber(returns.total.qty)}
+                unit={`ชิ้น · ${returns.total.docs} รายการ`}
+                onClick={() => setDrill({ kind: "stockReturn" })}
+              />
+              {STOCK_RETURN_TYPES.map((t) => (
+                <KpiCard
+                  key={t}
+                  label={STOCK_RETURN_LABEL_TH[t]}
+                  value={formatNumber(returns.byType[t].qty)}
+                  unit={`ชิ้น · ${returns.byType[t].docs} รายการ`}
+                  onClick={() => setDrill({ kind: "stockReturn", returnType: t })}
+                />
+              ))}
+            </div>
+          </section>
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -262,7 +297,7 @@ export default function DashboardPage() {
         </div>
       </PageContainer>
 
-      {drill && <DrillDownDialog open onClose={() => setDrill(null)} kind={drill.kind} brandId={drill.brandId} range={range} />}
+      {drill && <DrillDownDialog open onClose={() => setDrill(null)} kind={drill.kind} brandId={drill.brandId} returnType={drill.returnType} range={range} />}
     </>
   );
 }

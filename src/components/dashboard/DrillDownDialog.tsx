@@ -9,10 +9,10 @@ import { useStore } from "@/lib/store";
 import { isStockOutMovement } from "@/lib/store/selectors";
 import { formatNumber, formatTHB } from "@/lib/utils/money";
 import { formatThaiDateTime } from "@/lib/utils/date";
-import { MOVEMENT_TYPE_LABEL_TH, SALES_CHANNEL_LABEL_TH, ORDER_STATUS_LABEL_TH } from "@/lib/types";
+import { MOVEMENT_TYPE_LABEL_TH, SALES_CHANNEL_LABEL_TH, ORDER_STATUS_LABEL_TH, STOCK_RETURN_LABEL_TH, isStockReturnType, type StockReturnType } from "@/lib/types";
 import type { AppState } from "@/lib/store/state";
 
-export type DrillKind = "currentQty" | "sales" | "stockIn" | "stockOut" | "cancelled";
+export type DrillKind = "currentQty" | "sales" | "stockIn" | "stockOut" | "stockReturn" | "cancelled";
 
 interface Row {
   id: string;
@@ -37,10 +37,11 @@ const TITLES: Record<DrillKind, string> = {
   sales: "รายละเอียดยอดขาย",
   stockIn: "รายละเอียดสต็อกเข้า",
   stockOut: "รายละเอียดสต็อกออก",
+  stockReturn: "รายละเอียดสต็อกคืนสินค้า",
   cancelled: "รายละเอียดยอดยกเลิก",
 };
 
-function buildRows(state: AppState, kind: DrillKind, fromISO: string, toISO: string): Row[] {
+function buildRows(state: AppState, kind: DrillKind, fromISO: string, toISO: string, returnType?: StockReturnType): Row[] {
   const from = new Date(fromISO).getTime();
   const to = new Date(toISO).getTime();
 
@@ -129,6 +130,7 @@ function buildRows(state: AppState, kind: DrillKind, fromISO: string, toISO: str
     if (t < from || t > to) continue;
     if (kind === "stockIn" && m.movementType !== "stock_in") continue;
     if (kind === "stockOut" && !isStockOutMovement(m)) continue;
+    if (kind === "stockReturn" && (!isStockReturnType(m.movementType) || (returnType && m.movementType !== returnType))) continue;
     const variant = m.variantId ? state.variants[m.variantId] : undefined;
     const { brandId, brand, model } = variant ? brandModel(variant.productId) : { brandId: null, brand: "-", model: "-" };
     rows.push({
@@ -145,7 +147,8 @@ function buildRows(state: AppState, kind: DrillKind, fromISO: string, toISO: str
       channel: "-",
       actor: m.actorName,
       status: "-",
-      note: m.note ?? m.reason ?? "-",
+      // ใบรับคืนบันทึกช่องทางไว้ใน reason ("สินค้าคืน · Shopee") แสดงคู่กับหมายเหตุ
+      note: kind === "stockReturn" ? [m.reason, m.note].filter(Boolean).join(" — ") || "-" : m.note ?? m.reason ?? "-",
     });
   }
   return rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -157,11 +160,14 @@ export function DrillDownDialog({
   kind,
   range,
   brandId,
+  returnType,
 }: {
   open: boolean;
   onClose: () => void;
   kind: DrillKind;
   range: { from: string; to: string };
+  // เฉพาะ kind = stockReturn: ไม่ส่ง = ทุกประเภทที่คืน
+  returnType?: StockReturnType;
   // ไม่ส่ง = ทุกแบรนด์ / ส่ง id = เฉพาะแบรนด์นั้น / ส่ง null = สินค้าที่ไม่ระบุแบรนด์
   brandId?: string | null;
 }) {
@@ -172,10 +178,11 @@ export function DrillDownDialog({
 
   const rows = useMemo(() => {
     if (!open) return [];
-    const all = buildRows(state, kind, range.from, range.to);
+    const all = buildRows(state, kind, range.from, range.to, returnType);
     return brandId === undefined ? all : all.filter((r) => r.brandId === brandId);
-  }, [open, state, kind, range, brandId]);
+  }, [open, state, kind, range, brandId, returnType]);
   const brandName = brandId === undefined ? undefined : brandId === null ? "ไม่ระบุแบรนด์" : state.brands[brandId]?.name;
+  const titleSuffix = brandName ?? (returnType ? STOCK_RETURN_LABEL_TH[returnType] : undefined);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -200,7 +207,7 @@ export function DrillDownDialog({
   const showChannelStatus = kind === "sales" || kind === "cancelled";
 
   return (
-    <Dialog open={open} onClose={onClose} title={brandName ? `${TITLES[kind]} — ${brandName}` : TITLES[kind]} size="xl">
+    <Dialog open={open} onClose={onClose} title={titleSuffix ? `${TITLES[kind]} — ${titleSuffix}` : TITLES[kind]} size="xl">
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหาแบรนด์/รุ่น/SKU/สี/ไซซ์/ผู้ทำรายการ..." />

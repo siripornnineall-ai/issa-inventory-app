@@ -21,7 +21,7 @@ import { formatThaiDateTime } from "@/lib/utils/date";
 import { HISTORY_TAB_LABEL, isVerificationOnly, movementDirection, movementTypesForTab, summarizeMovements, type HistoryTab } from "@/lib/utils/movementTabs";
 import { useCan } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
-import { MOVEMENT_TYPE_LABEL_TH, type MovementItemType, type MovementType, type StockMovement } from "@/lib/types";
+import { MOVEMENT_TYPE_LABEL_TH, STOCK_RETURN_LABEL_TH, STOCK_RETURN_TYPES, type MovementItemType, type MovementType, type StockMovement } from "@/lib/types";
 
 const PAGE_SIZE = 20;
 
@@ -63,7 +63,7 @@ export default function HistoryPage() {
   }, [movements, search, itemType, warehouseId, showVerified]);
 
   const tabCounts = useMemo(() => {
-    const counts: Record<HistoryTab, number> = { all: pre.length, in: 0, out: 0, adjust: 0 };
+    const counts: Record<HistoryTab, number> = { all: pre.length, in: 0, out: 0, adjust: 0, return: 0 };
     for (const m of pre) counts[movementDirection(m)] += 1;
     return counts;
   }, [pre]);
@@ -141,11 +141,22 @@ export default function HistoryPage() {
   }
 
   // หัวคอลัมน์ "ประเภท" และ "จำนวน" ปรับตามแท็บ
-  const typeHeader = tab === "out" ? "เหตุผลที่ออก" : tab === "adjust" ? "ที่มา" : "ประเภท";
-  const qtyHeader = tab === "in" ? "จำนวนเข้า" : tab === "out" ? "จำนวนออก" : tab === "adjust" ? "ผลต่าง" : "จำนวน";
+  const typeHeader = tab === "out" ? "เหตุผลที่ออก" : tab === "adjust" ? "ที่มา" : tab === "return" ? "ประเภทที่คืน" : "ประเภท";
+  const qtyHeader = tab === "in" ? "จำนวนเข้า" : tab === "out" ? "จำนวนออก" : tab === "adjust" ? "ผลต่าง" : tab === "return" ? "จำนวนรับคืน" : "จำนวน";
 
   function typeCell(m: StockMovement) {
-    return tab === "adjust" && m.reason ? <span className="text-xs">{m.reason}</span> : <MovementTypeBadge type={m.movementType} />;
+    if (tab === "adjust" && m.reason) return <span className="text-xs">{m.reason}</span>;
+    if (tab === "return") {
+      // reason ของใบรับคืนเป็น "ประเภท · ช่องทาง" (ช่องทางอาจไม่มี)
+      const channel = m.reason?.split(" · ")[1];
+      return (
+        <div className="flex flex-col items-start gap-1">
+          <MovementTypeBadge type={m.movementType} />
+          {channel && <span className="text-xs text-[var(--color-on-surface-variant)]">{channel}</span>}
+        </div>
+      );
+    }
+    return <MovementTypeBadge type={m.movementType} />;
   }
 
   function summaryText(): string {
@@ -153,7 +164,14 @@ export default function HistoryPage() {
     if (tab === "all") {
       parts.push(`เข้า ${formatNumber(totals.inQty)} ชิ้น (${totals.inCount} รายการ)`);
       parts.push(`ออก ${formatNumber(totals.outQty)} ชิ้น (${totals.outCount} รายการ)`);
+      parts.push(`รับคืน ${formatNumber(totals.returnQty)} ชิ้น (${totals.returnCount} รายการ)`);
       parts.push(`ปรับยอด +${formatNumber(totals.adjustUp)} / -${formatNumber(totals.adjustDown)} (${totals.adjustCount} รายการ)`);
+    } else if (tab === "return") {
+      parts.push(`รวมรับคืน ${formatNumber(totals.returnQty)} ชิ้น จาก ${totals.returnCount} รายการ`);
+      for (const t of STOCK_RETURN_TYPES) {
+        const qty = tabbedAll.filter((m) => m.movementType === t).reduce((s, m) => s + m.qtyChange, 0);
+        parts.push(`${STOCK_RETURN_LABEL_TH[t]} ${formatNumber(qty)}`);
+      }
     } else if (tab === "in") {
       parts.push(`รวมเข้า ${formatNumber(totals.inQty)} ชิ้น จาก ${totals.inCount} รายการ`);
     } else if (tab === "out") {

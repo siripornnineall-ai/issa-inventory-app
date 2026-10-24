@@ -517,6 +517,7 @@ export async function fetchAppState(supabase: SupabaseClient): Promise<AppState>
       supplierId: row.supplier_id ?? undefined,
       poNumber: row.po_number ?? undefined,
       issuePo: row.issue_po ?? false,
+      returnType: (row.return_type as StockInDoc["returnType"]) ?? undefined,
       issuedByName: row.issued_by_name ?? undefined,
       approvedByName: row.approved_by_name ?? undefined,
       billNumber: row.bill_number ?? undefined,

@@ -37,6 +37,8 @@ function seed() {
     mv("ปรับขึ้น-D", "adjustment", 3, 1, "นับสต็อก — D"),
     mv("ปรับลง-E", "adjustment", -2, 4, "นับสต็อก — E"),
     mv("ยืนยันยอด-F", "adjustment", 0, 6, "นับสต็อก (ตรงกับระบบ) — F"),
+    mv("คืน-G", "return_customer", 2, 3, "สินค้าคืน · Shopee"),
+    mv("ตำหนิ-H", "return_defective", 1, 0, "สินค้าตำหนิ"),
   ];
   useStore.getState().actions.hydrate({
     ...emptyState(),
@@ -58,7 +60,8 @@ describe("หน้าประวัติการเคลื่อนไห�
 
   it("ค่าเริ่มต้น: แท็บทั้งหมด ซ่อนรายการยืนยันยอด (0 ชิ้น) และตัวเลขบนแท็บนับตามนั้น", () => {
     render(<HistoryPage />);
-    expect(tabBtn(/ทั้งหมด \(5\)/)).toBeTruthy(); // 6 รายการ ซ่อนยืนยันยอด 1
+    expect(tabBtn(/ทั้งหมด \(7\)/)).toBeTruthy(); // 8 รายการ ซ่อนยืนยันยอด 1
+    expect(tabBtn(/สินค้าคืน \(2\)/)).toBeTruthy();
     expect(tabBtn(/สินค้าเข้า \(1\)/)).toBeTruthy();
     expect(tabBtn(/สินค้าออก \(2\)/)).toBeTruthy();
     expect(tabBtn(/นับสต็อก\/ปรับยอด \(2\)/)).toBeTruthy();
@@ -99,6 +102,24 @@ describe("หน้าประวัติการเคลื่อนไห�
     expect(screen.queryByText("ยืนยันยอด-F")).toBeNull();
     fireEvent.click(screen.getByLabelText(/แสดงรายการยืนยันยอด/));
     expect(screen.getAllByText("ยืนยันยอด-F").length).toBeGreaterThan(0);
+  });
+
+  it("แท็บสินค้าคืน: เห็นเฉพาะของคืน แยกตามประเภท พร้อมช่องทาง และไม่ปนในแท็บสินค้าเข้า", () => {
+    render(<HistoryPage />);
+    fireEvent.click(tabBtn(/สินค้าเข้า/));
+    expect(screen.queryByText("คืน-G")).toBeNull();
+    expect(screen.queryByText("ตำหนิ-H")).toBeNull();
+
+    fireEvent.click(tabBtn(/สินค้าคืน/));
+    expect(screen.getAllByText("คืน-G").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ตำหนิ-H").length).toBeGreaterThan(0);
+    expect(screen.queryByText("รับเข้า-A")).toBeNull();
+    expect(screen.getAllByText("Shopee").length).toBeGreaterThan(0);
+    const summary = screen.getByRole("status").textContent ?? "";
+    expect(summary).toContain("รวมรับคืน 3 ชิ้น จาก 2 รายการ");
+    expect(summary).toContain("สินค้าคืน 2");
+    expect(summary).toContain("สินค้าตำหนิ 1");
+    expect(summary).toContain("สินค้าตีกลับ 0");
   });
 
   it("เปลี่ยนแท็บแล้วตัวกรองประเภทกลับเป็นทั้งหมด ไม่ค้างค่าของแท็บเก่า", () => {

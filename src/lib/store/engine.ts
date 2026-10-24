@@ -21,6 +21,7 @@ import type {
   StockLevel,
   StockMovement,
   StockOutDoc,
+  StockReturnType,
   StorefrontSettings,
   Supplier,
   SupplierImage,
@@ -30,6 +31,7 @@ import type {
   UserRole,
   Warehouse,
 } from "@/lib/types";
+import { SALES_CHANNEL_LABEL_TH, STOCK_RETURN_LABEL_TH, STOCK_RETURN_TYPES } from "@/lib/types";
 import { ADMIN_ONLY_PERMISSIONS, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, type Permission } from "@/lib/auth/permissions";
 import { AppState, stockKey } from "./state";
 import { NO_TAX_INVOICE_BUYER_LABEL } from "@/lib/types";
@@ -523,6 +525,79 @@ export function stockIn(draft: Draft<AppState>, input: StockInInput): StockInDoc
     approvedByName: input.approvedByName,
     billNumber: input.billNumber,
     receiptImages: input.receiptImages ?? [],
+    warehouseId: input.warehouseId,
+    lines,
+    receivedBy: input.receivedBy,
+    note: input.note,
+    status: "confirmed",
+    createdAt: nowISO(),
+  };
+  draft.stockInDocs[docId] = doc;
+  return doc;
+}
+
+// ===================== สต็อกคืนสินค้า (Stock Return) =====================
+// รับสินค้าที่กลับมาเข้าคลัง แยกจากการรับสินค้าเข้าใหม่: ตีกลับ / คืน / ตำหนิ / เปลี่ยน
+// ใช้ใบรับเข้า (StockInDoc) เดิมแต่ใส่ returnType เลขที่ใบขึ้นต้น SRT และ movement ใช้ชนิดของแต่ละประเภทคืน
+export interface StockReturnInput {
+  date: string;
+  warehouseId: string;
+  returnType: StockReturnType;
+  channel?: string; // ช่องทางที่ขายสินค้านั้น (ไม่บังคับ)
+  receivedBy: string;
+  receivedByName: string;
+  note?: string;
+  lines: { itemId: string; qty: number }[];
+}
+
+export function stockReturn(draft: Draft<AppState>, input: StockReturnInput): StockInDoc {
+  if (!STOCK_RETURN_TYPES.includes(input.returnType)) throw new BusinessRuleError("กรุณาเลือกประเภทสินค้าที่คืน");
+  if (input.lines.length === 0) throw new BusinessRuleError("กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ");
+  for (const line of input.lines) {
+    if (!(line.qty > 0)) throw new BusinessRuleError("จำนวนที่รับคืนต้องมากกว่า 0");
+  }
+  const docId = newId();
+  const docNo = genDocNo("SRT", nextSeq(draft, "SRT"));
+  const channelLabel = input.channel ? (SALES_CHANNEL_LABEL_TH as Record<string, string>)[input.channel] ?? input.channel : undefined;
+  const reason = channelLabel ? `${STOCK_RETURN_LABEL_TH[input.returnType]} · ${channelLabel}` : STOCK_RETURN_LABEL_TH[input.returnType];
+  const lines: StockDocLine[] = [];
+
+  for (const line of input.lines) {
+    const current = getStockLevel(draft.variantStock, line.itemId, input.warehouseId);
+    const after = current.qtyOnHand + line.qty;
+    writeStockLevel(draft, draft.variantStock, line.itemId, input.warehouseId, { ...current, qtyOnHand: after });
+    const info = describeItem(draft, "product", line.itemId);
+    pushMovement(draft, {
+      refNo: docNo,
+      itemType: "product",
+      itemId: line.itemId,
+      variantId: line.itemId,
+      itemName: info.name,
+      sku: info.sku,
+      color: info.color,
+      size: info.size,
+      movementType: input.returnType,
+      qtyChange: line.qty,
+      qtyBefore: current.qtyOnHand,
+      qtyAfter: after,
+      warehouseToId: input.warehouseId,
+      actorId: input.receivedBy,
+      actorName: input.receivedByName,
+      reason,
+      note: input.note,
+      relatedDocNo: docNo,
+      createdAt: input.date,
+    } as StockMovement);
+    lines.push({ id: newId(), itemId: line.itemId, qty: line.qty });
+  }
+
+  const doc: StockInDoc = {
+    id: docId,
+    docNo,
+    date: input.date,
+    itemType: "product",
+    returnType: input.returnType,
+    receiptImages: [],
     warehouseId: input.warehouseId,
     lines,
     receivedBy: input.receivedBy,

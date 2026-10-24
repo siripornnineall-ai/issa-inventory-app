@@ -229,7 +229,30 @@ export type MovementType =
   | "color_change"
   | "send_to_store"
   | "cancel_restock"
+  | "return_rts"
+  | "return_customer"
+  | "return_defective"
+  | "return_exchange"
   | "other";
+
+// สต็อกคืนสินค้า: 4 ประเภทที่รับเข้าคลัง (แยกจากการรับสินค้าเข้าใหม่)
+export type StockReturnType = "return_rts" | "return_customer" | "return_defective" | "return_exchange";
+export const STOCK_RETURN_TYPES: StockReturnType[] = ["return_rts", "return_customer", "return_defective", "return_exchange"];
+export const STOCK_RETURN_LABEL_TH: Record<StockReturnType, string> = {
+  return_rts: "สินค้าตีกลับ",
+  return_customer: "สินค้าคืน",
+  return_defective: "สินค้าตำหนิ",
+  return_exchange: "สินค้าเปลี่ยน",
+};
+export const STOCK_RETURN_HINT_TH: Record<StockReturnType, string> = {
+  return_rts: "พัสดุส่งไม่สำเร็จ ขนส่งตีกลับมา",
+  return_customer: "ลูกค้าส่งคืน",
+  return_defective: "รับคืนมาแล้วสินค้ามีตำหนิ",
+  return_exchange: "ลูกค้าส่งมาเปลี่ยนไซซ์/สี/สินค้า",
+};
+export function isStockReturnType(t: string): t is StockReturnType {
+  return (STOCK_RETURN_TYPES as string[]).includes(t);
+}
 
 export const MOVEMENT_TYPE_LABEL_TH: Record<MovementType, string> = {
   stock_in: "รับสินค้าเข้า",
@@ -246,6 +269,10 @@ export const MOVEMENT_TYPE_LABEL_TH: Record<MovementType, string> = {
   color_change: "เปลี่ยนสี",
   send_to_store: "ส่งหน้าร้าน",
   cancel_restock: "คืนสต็อก (ยกเลิกออเดอร์)",
+  return_rts: STOCK_RETURN_LABEL_TH.return_rts,
+  return_customer: STOCK_RETURN_LABEL_TH.return_customer,
+  return_defective: STOCK_RETURN_LABEL_TH.return_defective,
+  return_exchange: STOCK_RETURN_LABEL_TH.return_exchange,
   other: "อื่น ๆ",
 };
 
@@ -305,6 +332,7 @@ export interface StockInDoc {
   itemType: MovementItemType;
   supplierId?: string;
   poNumber?: string;
+  returnType?: StockReturnType; // มีค่า = ใบรับคืนสินค้า (ไม่ใช่การรับสินค้าเข้าใหม่)
   issuePo?: boolean; // ออกใบสั่งซื้อ (PO) อัตโนมัติสำหรับเบิกจ่าย/ยื่นภาษี
   issuedByName?: string; // ชื่อผู้สั่งซื้อที่แสดงบนใบ PO
   approvedByName?: string; // ชื่อผู้อนุมัติที่แสดงบนใบ PO
