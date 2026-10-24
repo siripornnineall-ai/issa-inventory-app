@@ -54,6 +54,10 @@ export default function SettingsPage() {
   const [socialFacebook, setSocialFacebook] = useState(state.storefrontSettings.socialFacebook);
   const [socialInstagram, setSocialInstagram] = useState(state.storefrontSettings.socialInstagram);
   const [socialTiktok, setSocialTiktok] = useState(state.storefrontSettings.socialTiktok);
+  const [socialShopee, setSocialShopee] = useState(state.storefrontSettings.socialShopee);
+  const [socialLazada, setSocialLazada] = useState(state.storefrontSettings.socialLazada);
+  const [socialLineShopping, setSocialLineShopping] = useState(state.storefrontSettings.socialLineShopping);
+  const [socialYoutube, setSocialYoutube] = useState(state.storefrontSettings.socialYoutube);
   const [heroImageUrl, setHeroImageUrl] = useState(state.storefrontSettings.heroImageUrl);
   const [promoImageUrl, setPromoImageUrl] = useState(state.storefrontSettings.promoImageUrl);
 
@@ -108,6 +112,10 @@ export default function SettingsPage() {
       socialFacebook: socialFacebook.trim(),
       socialInstagram: socialInstagram.trim(),
       socialTiktok: socialTiktok.trim(),
+      socialShopee: socialShopee.trim(),
+      socialLazada: socialLazada.trim(),
+      socialLineShopping: socialLineShopping.trim(),
+      socialYoutube: socialYoutube.trim(),
       heroImageUrl,
       promoImageUrl,
     });
@@ -220,7 +228,7 @@ export default function SettingsPage() {
 
               <div className="mt-2 border-t border-[var(--color-outline-variant)] pt-4">
                 <p className="mb-3 text-sm font-medium text-[var(--color-on-surface)]">
-                  ช่องทางติดต่อ (แสดงที่หน้า Contact และท้ายเว็บ)
+                  ช่องทางติดต่อและช่องทางขาย (แสดงที่หน้า Contact และท้ายเว็บ — ช่องที่เว้นว่างจะไม่แสดง)
                 </p>
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <FormField label="เบอร์โทรศัพท์ร้าน">
@@ -237,6 +245,18 @@ export default function SettingsPage() {
                   </FormField>
                   <FormField label="ลิงก์ TikTok">
                     <Input value={socialTiktok} onChange={(e) => setSocialTiktok(e.target.value)} />
+                  </FormField>
+                  <FormField label="ลิงก์ร้าน Shopee" hint="เช่น https://shopee.co.th/xxxxx">
+                    <Input value={socialShopee} onChange={(e) => setSocialShopee(e.target.value)} />
+                  </FormField>
+                  <FormField label="ลิงก์ร้าน Lazada" hint="เช่น https://www.lazada.co.th/shop/xxxxx">
+                    <Input value={socialLazada} onChange={(e) => setSocialLazada(e.target.value)} />
+                  </FormField>
+                  <FormField label="ลิงก์ LINE Shopping / MyShop" hint="เช่น https://shop.line.me/@xxxxx">
+                    <Input value={socialLineShopping} onChange={(e) => setSocialLineShopping(e.target.value)} />
+                  </FormField>
+                  <FormField label="ลิงก์ YouTube">
+                    <Input value={socialYoutube} onChange={(e) => setSocialYoutube(e.target.value)} />
                   </FormField>
                 </div>
               </div>

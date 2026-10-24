@@ -649,6 +649,10 @@ export async function fetchAppState(supabase: SupabaseClient): Promise<AppState>
         socialFacebook: storefrontSettingsRow.social_facebook,
         socialInstagram: storefrontSettingsRow.social_instagram,
         socialTiktok: storefrontSettingsRow.social_tiktok,
+        socialShopee: storefrontSettingsRow.social_shopee ?? "",
+        socialLazada: storefrontSettingsRow.social_lazada ?? "",
+        socialLineShopping: storefrontSettingsRow.social_line_shopping ?? "",
+        socialYoutube: storefrontSettingsRow.social_youtube ?? "",
         heroImageUrl: storefrontSettingsRow.hero_image_url,
         promoImageUrl: storefrontSettingsRow.promo_image_url,
       }

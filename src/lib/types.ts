@@ -415,6 +415,11 @@ export interface StorefrontSettings {
   socialFacebook: string;
   socialInstagram: string;
   socialTiktok: string;
+  /** ช่องทางขายเพิ่มเติม — ค่าว่าง = ไม่ใช้ช่องทางนี้ (หน้าเว็บจะซ่อนลิงก์) */
+  socialShopee: string;
+  socialLazada: string;
+  socialLineShopping: string;
+  socialYoutube: string;
   heroImageUrl: string;
   promoImageUrl: string;
 }
