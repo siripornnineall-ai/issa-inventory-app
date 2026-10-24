@@ -16,6 +16,7 @@ import { warehouseRemovalBlocker } from "@/lib/store/engine";
 import { SingleImageUploader } from "@/components/ui/SingleImageUploader";
 import { FitCoversCard } from "@/components/settings/FitCoversCard";
 import { FeedVideosCard } from "@/components/settings/FeedVideosCard";
+import { ChannelsEditor } from "@/components/settings/ChannelsEditor";
 import { StockAuditCard } from "@/components/settings/StockAuditCard";
 import { useStore, useActions } from "@/lib/store";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -51,14 +52,6 @@ export default function SettingsPage() {
   const [promoHeadingLine2, setPromoHeadingLine2] = useState(state.storefrontSettings.promoHeadingLine2);
   const [promoSubtext, setPromoSubtext] = useState(state.storefrontSettings.promoSubtext);
   const [contactPhone, setContactPhone] = useState(state.storefrontSettings.contactPhone);
-  const [socialLine, setSocialLine] = useState(state.storefrontSettings.socialLine);
-  const [socialFacebook, setSocialFacebook] = useState(state.storefrontSettings.socialFacebook);
-  const [socialInstagram, setSocialInstagram] = useState(state.storefrontSettings.socialInstagram);
-  const [socialTiktok, setSocialTiktok] = useState(state.storefrontSettings.socialTiktok);
-  const [socialShopee, setSocialShopee] = useState(state.storefrontSettings.socialShopee);
-  const [socialLazada, setSocialLazada] = useState(state.storefrontSettings.socialLazada);
-  const [socialLineShopping, setSocialLineShopping] = useState(state.storefrontSettings.socialLineShopping);
-  const [socialYoutube, setSocialYoutube] = useState(state.storefrontSettings.socialYoutube);
   const [heroImageUrl, setHeroImageUrl] = useState(state.storefrontSettings.heroImageUrl);
   const [promoImageUrl, setPromoImageUrl] = useState(state.storefrontSettings.promoImageUrl);
 
@@ -109,14 +102,6 @@ export default function SettingsPage() {
       promoHeadingLine2: promoHeadingLine2.trim(),
       promoSubtext: promoSubtext.trim(),
       contactPhone: contactPhone.trim(),
-      socialLine: socialLine.trim(),
-      socialFacebook: socialFacebook.trim(),
-      socialInstagram: socialInstagram.trim(),
-      socialTiktok: socialTiktok.trim(),
-      socialShopee: socialShopee.trim(),
-      socialLazada: socialLazada.trim(),
-      socialLineShopping: socialLineShopping.trim(),
-      socialYoutube: socialYoutube.trim(),
       heroImageUrl,
       promoImageUrl,
     });
@@ -228,36 +213,9 @@ export default function SettingsPage() {
               />
 
               <div className="mt-2 border-t border-[var(--color-outline-variant)] pt-4">
-                <p className="mb-3 text-sm font-medium text-[var(--color-on-surface)]">
-                  ช่องทางติดต่อและช่องทางขาย (แสดงที่หน้า Contact และท้ายเว็บ — ช่องที่เว้นว่างจะไม่แสดง)
-                </p>
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <FormField label="เบอร์โทรศัพท์ร้าน">
+                  <FormField label="เบอร์โทรศัพท์ร้าน" hint="แสดงที่หน้า Contact">
                     <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
-                  </FormField>
-                  <FormField label="ลิงก์ LINE" hint="เช่น https://line.me/ti/p/xxxxx">
-                    <Input value={socialLine} onChange={(e) => setSocialLine(e.target.value)} />
-                  </FormField>
-                  <FormField label="ลิงก์ Facebook">
-                    <Input value={socialFacebook} onChange={(e) => setSocialFacebook(e.target.value)} />
-                  </FormField>
-                  <FormField label="ลิงก์ Instagram">
-                    <Input value={socialInstagram} onChange={(e) => setSocialInstagram(e.target.value)} />
-                  </FormField>
-                  <FormField label="ลิงก์ TikTok">
-                    <Input value={socialTiktok} onChange={(e) => setSocialTiktok(e.target.value)} />
-                  </FormField>
-                  <FormField label="ลิงก์ร้าน Shopee" hint="เช่น https://shopee.co.th/xxxxx">
-                    <Input value={socialShopee} onChange={(e) => setSocialShopee(e.target.value)} />
-                  </FormField>
-                  <FormField label="ลิงก์ร้าน Lazada" hint="เช่น https://www.lazada.co.th/shop/xxxxx">
-                    <Input value={socialLazada} onChange={(e) => setSocialLazada(e.target.value)} />
-                  </FormField>
-                  <FormField label="ลิงก์ LINE Shopping / MyShop" hint="เช่น https://shop.line.me/@xxxxx">
-                    <Input value={socialLineShopping} onChange={(e) => setSocialLineShopping(e.target.value)} />
-                  </FormField>
-                  <FormField label="ลิงก์ YouTube">
-                    <Input value={socialYoutube} onChange={(e) => setSocialYoutube(e.target.value)} />
                   </FormField>
                 </div>
               </div>
@@ -265,6 +223,8 @@ export default function SettingsPage() {
               <div className="flex items-end">
                 <Button onClick={saveStorefrontSettings}>บันทึกข้อความหน้าเว็บ</Button>
               </div>
+
+              <ChannelsEditor />
             </CardContent>
           </Card>
         </RequireAccess>
