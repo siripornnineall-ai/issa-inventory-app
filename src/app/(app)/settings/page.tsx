@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/components/ui/Dialog";
 import { warehouseRemovalBlocker } from "@/lib/store/engine";
 import { SingleImageUploader } from "@/components/ui/SingleImageUploader";
 import { FitCoversCard } from "@/components/settings/FitCoversCard";
+import { FeedVideosCard } from "@/components/settings/FeedVideosCard";
 import { StockAuditCard } from "@/components/settings/StockAuditCard";
 import { useStore, useActions } from "@/lib/store";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -266,6 +267,10 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+        </RequireAccess>
+
+        <RequireAccess perm="settings.write">
+          <FeedVideosCard />
         </RequireAccess>
 
         <RequireAccess perm="settings.write">
