@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Loader2, Trash2, Video } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, Link as LinkIcon, Loader2, Trash2, Video } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input, Select } from "@/components/ui/Field";
 import { useStore } from "@/lib/store";
@@ -22,6 +22,48 @@ interface FeedItem {
 const MAX_ITEMS = 8;
 const MAX_SIZE = 30 * 1024 * 1024; // 30MB
 const BUCKET = "storefront-assets";
+
+type Platform = "tiktok" | "instagram" | "youtube" | "facebook";
+const PLATFORM_LABEL: Record<Platform, string> = { tiktok: "TikTok", instagram: "Instagram", youtube: "YouTube", facebook: "Facebook" };
+
+/**
+ * Where a pasted link points. Mirrors the storefront's parser
+ * (issa-storefront/src/lib/video-embed.ts): platform links play in that
+ * platform's embed; anything else must be a direct video file.
+ */
+function detectLink(raw: string): { kind: Platform | "file"; url: string } | { error: string } {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    return { error: "ลิงก์ไม่ถูกต้อง — ต้องขึ้นต้นด้วย https://" };
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return { error: "ลิงก์ต้องขึ้นต้นด้วย https://" };
+  const host = url.hostname.toLowerCase().replace(/^www\.|^m\.|^vm\.|^vt\./, "");
+  if (host === "tiktok.com" || host.endsWith(".tiktok.com")) return { kind: "tiktok", url: url.toString() };
+  if (host === "instagram.com" || host.endsWith(".instagram.com")) {
+    if (!/\/(reel|reels|p|tv)\/[^/]+/.test(url.pathname)) return { error: "ลิงก์ Instagram ต้องเป็นลิงก์ของโพสต์/Reel (มี /reel/… หรือ /p/…) ไม่ใช่หน้าโปรไฟล์" };
+    return { kind: "instagram", url: url.toString() };
+  }
+  if (host === "youtu.be" || host === "youtube.com" || host.endsWith(".youtube.com")) {
+    const hasId = host === "youtu.be" || url.searchParams.get("v") || /\/(shorts|embed|live)\/[^/]+/.test(url.pathname);
+    if (!hasId) return { error: "ลิงก์ YouTube ต้องเป็นลิงก์ของคลิป (youtube.com/shorts/… หรือ youtu.be/…) ไม่ใช่หน้าช่อง" };
+    return { kind: "youtube", url: url.toString() };
+  }
+  if (host === "facebook.com" || host.endsWith(".facebook.com") || host === "fb.watch" || host === "fb.com") {
+    return { kind: "facebook", url: url.toString() };
+  }
+  if (/\.(mp4|webm|mov|m4v)(\?|$)/i.test(url.pathname + url.search)) return { kind: "file", url: url.toString() };
+  return {
+    error: "รองรับเฉพาะลิงก์ TikTok, Instagram, YouTube, Facebook หรือลิงก์ไฟล์วิดีโอโดยตรง (.mp4) — ลิงก์จาก Google Drive/Dropbox ใช้ไม่ได้ ให้อัปโหลดไฟล์แทน",
+  };
+}
+
+function platformOf(videoUrl: string): Platform | null {
+  const d = detectLink(videoUrl);
+  if ("error" in d || d.kind === "file") return null;
+  return d.kind;
+}
 
 /** Returns null (after toasting) when the query fails. */
 async function loadFeedItems(): Promise<FeedItem[] | null> {
@@ -52,6 +94,8 @@ export function FeedVideosCard() {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [link, setLink] = useState("");
+  const [addingLink, setAddingLink] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -122,6 +166,38 @@ export function FeedVideosCard() {
     }
   }
 
+  async function handleLink() {
+    const detected = detectLink(link);
+    if ("error" in detected) {
+      toastError(detected.error);
+      return;
+    }
+    if (items.length >= MAX_ITEMS) {
+      toastError(`ใส่ได้สูงสุด ${MAX_ITEMS} คลิป — ลบคลิปเก่าก่อน`);
+      return;
+    }
+    if (items.some((it) => it.video_url === detected.url)) {
+      toastError("ลิงก์นี้อยู่ในรายการแล้ว");
+      return;
+    }
+    setAddingLink(true);
+    try {
+      const nextOrder = items.length ? Math.max(...items.map((i) => i.sort_order)) + 1 : 0;
+      const { error } = await createClient()
+        .from("storefront_feed_items")
+        .insert({ video_url: detected.url, sort_order: nextOrder });
+      if (error) throw error;
+      setLink("");
+      await reload();
+      const where = detected.kind === "file" ? "ไฟล์วิดีโอ" : PLATFORM_LABEL[detected.kind];
+      toastSuccess(`เพิ่มคลิปจาก ${where} แล้ว — เลือกสินค้าที่เกี่ยวข้องด้านล่าง จะขึ้นเว็บภายในไม่เกิน 1 นาที`);
+    } catch (e) {
+      toastError(e instanceof Error ? `เพิ่มลิงก์ไม่สำเร็จ: ${e.message}` : "เพิ่มลิงก์ไม่สำเร็จ");
+    } finally {
+      setAddingLink(false);
+    }
+  }
+
   async function move(index: number, dir: -1 | 1) {
     const target = index + dir;
     if (target < 0 || target >= items.length) return;
@@ -166,10 +242,36 @@ export function FeedVideosCard() {
       <CardHeader>
         <CardTitle>วิดีโอ &quot;Shop the Feed&quot; (หน้าแรกของเว็บ)</CardTitle>
         <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-          คลิปสั้นแนวตั้ง (9:16) แบบ TikTok/Reels สูงสุด {MAX_ITEMS} คลิป ไฟล์ MP4 ไม่เกิน 30MB — ถ้ายังไม่มีคลิป เว็บจะซ่อนส่วนนี้ให้เอง
+          คลิปสั้นแนวตั้ง (9:16) แบบ TikTok/Reels สูงสุด {MAX_ITEMS} คลิป — อัปโหลดไฟล์ MP4 (ไม่เกิน 30MB) หรือวางลิงก์คลิปจาก TikTok / Instagram / YouTube Shorts / Facebook ก็ได้ ถ้ายังไม่มีคลิป เว็บจะซ่อนส่วนนี้ให้เอง
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-5 pt-0">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Input
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleLink();
+              }
+            }}
+            placeholder="วางลิงก์คลิป เช่น https://www.tiktok.com/@issa/video/… หรือ https://youtube.com/shorts/…"
+            className="flex-1"
+          />
+          <button
+            type="button"
+            disabled={addingLink || !link.trim() || items.length >= MAX_ITEMS}
+            onClick={handleLink}
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-[var(--color-primary-container)] px-3 py-2 text-sm text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {addingLink ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}
+            เพิ่มจากลิงก์
+          </button>
+        </div>
+        <p className="-mt-3 text-xs text-[var(--color-on-surface-variant)]">
+          คลิปจากลิงก์จะเล่นผ่านกล่องของแพลตฟอร์มนั้นบนเว็บ (ลูกค้ากดเล่นได้ในหน้าเว็บเรา) ส่วนคลิปที่อัปโหลดเองจะเล่นอัตโนมัติเมื่อชี้เมาส์
+        </p>
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -205,15 +307,29 @@ export function FeedVideosCard() {
             key={item.id}
             className={`flex flex-col gap-3 rounded-lg border border-[var(--color-border)] p-3 sm:flex-row ${item.active ? "" : "opacity-60"}`}
           >
-            <video
-              src={item.video_url}
-              poster={item.poster_url || undefined}
-              controls
-              muted
-              playsInline
-              preload="metadata"
-              className="h-44 w-full shrink-0 rounded-md bg-black object-contain sm:w-28"
-            />
+            {platformOf(item.video_url) ? (
+              <a
+                href={item.video_url}
+                target="_blank"
+                rel="noreferrer"
+                title={item.video_url}
+                className="flex h-44 w-full shrink-0 flex-col items-center justify-center gap-1 rounded-md bg-[var(--color-primary)] px-2 text-center text-white sm:w-28"
+              >
+                <LinkIcon className="h-5 w-5 opacity-80" />
+                <span className="text-xs font-semibold">{PLATFORM_LABEL[platformOf(item.video_url)!]}</span>
+                <span className="text-[10px] opacity-70">เปิดลิงก์</span>
+              </a>
+            ) : (
+              <video
+                src={item.video_url}
+                poster={item.poster_url || undefined}
+                controls
+                muted
+                playsInline
+                preload="metadata"
+                className="h-44 w-full shrink-0 rounded-md bg-black object-contain sm:w-28"
+              />
+            )}
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <label className="flex flex-col gap-1 text-xs text-[var(--color-on-surface-variant)]">
                 สินค้าที่อยู่ในคลิป (ลูกค้ากดแล้วไปหน้าสินค้านี้)
