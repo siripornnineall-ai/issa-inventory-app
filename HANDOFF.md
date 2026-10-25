@@ -56,7 +56,7 @@ npx vercel deploy --prod --yes --scope issa16
 
 ## 6. ฐานข้อมูล (Supabase)
 
-- ไฟล์ migration อยู่ที่ `supabase/migrations/NNNN_ชื่อ.sql` เลขเรียงต่อกัน ปัจจุบันถึง `0021`
+- ไฟล์ migration อยู่ที่ `supabase/migrations/NNNN_ชื่อ.sql` เลขเรียงต่อกัน ปัจจุบันถึง `0022`
 - **ก่อนสร้าง migration ใหม่ ให้เช็กรายการใน Supabase (`list_migrations`) ว่าเลขล่าสุดคืออะไร** กันเลขซ้ำเมื่อหลายเครื่องทำงาน
 - ใช้ `apply_migration` บนฐานข้อมูลจริง **และต้องเซฟไฟล์เดียวกันลง repo ด้วยเสมอ**
 - สิทธิ์ทุกอย่างผ่านฟังก์ชัน `has_perm(p)` / `has_any_perm(p[])` ตามตาราง `role_permissions` และสิทธิ์รายคน `profiles.permissions` (ว่าง = ตามตำแหน่ง) ตารางใหม่และกฎ Storage ต้องใช้ฟังก์ชันนี้ ห้ามเช็กตามชื่อตำแหน่ง (เคยทำให้ฝ่ายขายที่ได้สิทธิ์รายคนอัปโหลดรูปไม่ได้)
