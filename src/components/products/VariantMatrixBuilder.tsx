@@ -12,6 +12,7 @@ import { useStore, useActions } from "@/lib/store";
 import { toastError } from "@/lib/toast";
 import type { Brand } from "@/lib/types";
 import { ColorSwatch } from "./ColorSwatch";
+import { BulkPriceAdjust } from "./BulkPriceAdjust";
 
 export interface DraftVariant {
   key: string;
@@ -352,6 +353,8 @@ export function VariantMatrixBuilder({
           </Button>
         )}
       </div>
+
+      {rows.length > 0 && <BulkPriceAdjust rows={rows} onChange={onChange} />}
 
       {rows.length > 0 && (
         <Table>
