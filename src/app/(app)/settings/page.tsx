@@ -199,7 +199,6 @@ export default function SettingsPage() {
                 onImageChange={setHeroImageUrl}
                 layout={heroLayout}
                 onLayoutChange={setHeroLayout}
-                copy={{ line1: heroHeadingLine1, line2: heroHeadingLine2, tagline: heroTagline, button: "ช้อปเลย" }}
               />
 
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -220,7 +219,6 @@ export default function SettingsPage() {
                 onImageChange={setPromoImageUrl}
                 layout={promoLayout}
                 onLayoutChange={setPromoLayout}
-                copy={{ line1: promoHeadingLine1, line2: promoHeadingLine2, tagline: promoSubtext, button: "ช้อปเลย" }}
               />
 
               <div className="mt-2 border-t border-[var(--color-outline-variant)] pt-4">
