@@ -18,6 +18,7 @@ import { FeedVideosCard } from "@/components/settings/FeedVideosCard";
 import { WebCollectionsCard } from "@/components/settings/WebCollectionsCard";
 import { ChannelsEditor } from "@/components/settings/ChannelsEditor";
 import { BannerEditor } from "@/components/settings/BannerEditor";
+import { BrandBannersCard } from "@/components/settings/BrandBannersCard";
 import { StockAuditCard } from "@/components/settings/StockAuditCard";
 import { useStore, useActions } from "@/lib/store";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -236,6 +237,10 @@ export default function SettingsPage() {
               <ChannelsEditor />
             </CardContent>
           </Card>
+        </RequireAccess>
+
+        <RequireAccess perm="settings.write">
+          <BrandBannersCard />
         </RequireAccess>
 
         <RequireAccess perm="master.write">

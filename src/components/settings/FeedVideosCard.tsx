@@ -14,6 +14,8 @@ interface FeedItem {
   video_url: string;
   poster_url: string;
   product_id: string | null;
+  /** Which brand's section on the home page the clip sits under (null → first brand). */
+  brand_id: string | null;
   caption: string;
   sort_order: number;
   active: boolean;
@@ -69,7 +71,7 @@ function platformOf(videoUrl: string): Platform | null {
 async function loadFeedItems(): Promise<FeedItem[] | null> {
   const { data, error } = await createClient()
     .from("storefront_feed_items")
-    .select("id, video_url, poster_url, product_id, caption, sort_order, active")
+    .select("id, video_url, poster_url, product_id, brand_id, caption, sort_order, active")
     .order("sort_order")
     .order("created_at");
   if (error) {
@@ -90,6 +92,7 @@ export function FeedVideosCard() {
   const products = Object.values(state.products)
     .filter((p) => p.status === "active")
     .sort((a, b) => a.sellingName.localeCompare(b.sellingName, "th"));
+  const brands = Object.values(state.brands).filter((b) => b.active);
 
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -331,20 +334,43 @@ export function FeedVideosCard() {
               />
             )}
             <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <label className="flex flex-col gap-1 text-xs text-[var(--color-on-surface-variant)]">
-                สินค้าที่อยู่ในคลิป (ลูกค้ากดแล้วไปหน้าสินค้านี้)
-                <Select
-                  value={item.product_id ?? ""}
-                  onChange={(e) => patch(item.id, { product_id: e.target.value || null }, "บันทึกสินค้าของคลิปแล้ว")}
-                >
-                  <option value="">— ไม่ผูกสินค้า —</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.sellingName}
-                    </option>
-                  ))}
-                </Select>
-              </label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label className="flex flex-col gap-1 text-xs text-[var(--color-on-surface-variant)]">
+                  สินค้าที่อยู่ในคลิป (ลูกค้ากดแล้วไปหน้าสินค้านี้)
+                  <Select
+                    value={item.product_id ?? ""}
+                    onChange={(e) => {
+                      const productId = e.target.value || null;
+                      const productBrand = productId ? state.products[productId]?.brandId : undefined;
+                      // First product pick also files the clip under that product's brand.
+                      const changes: Partial<FeedItem> = { product_id: productId };
+                      if (!item.brand_id && productBrand) changes.brand_id = productBrand;
+                      patch(item.id, changes, "บันทึกสินค้าของคลิปแล้ว");
+                    }}
+                  >
+                    <option value="">— ไม่ผูกสินค้า —</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.sellingName}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-[var(--color-on-surface-variant)]">
+                  อยู่ใต้ส่วนของแบรนด์ (บนหน้าแรก)
+                  <Select
+                    value={item.brand_id ?? ""}
+                    onChange={(e) => patch(item.id, { brand_id: e.target.value || null }, "บันทึกแบรนด์ของคลิปแล้ว")}
+                  >
+                    <option value="">— ไม่ระบุ (ไปอยู่ใต้แบรนด์แรก) —</option>
+                    {brands.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+              </div>
               <label className="flex flex-col gap-1 text-xs text-[var(--color-on-surface-variant)]">
                 คำบรรยายสั้น ๆ (ไม่บังคับ)
                 <Input
