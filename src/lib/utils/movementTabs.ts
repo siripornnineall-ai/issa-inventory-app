@@ -1,7 +1,7 @@
 import { STOCK_RETURN_TYPES, type MovementType, type StockMovement } from "@/lib/types";
 
-// แยกประวัติการเคลื่อนไหวเป็น 5 มุมมอง: ทั้งหมด / สินค้าเข้า / สินค้าออก / นับสต็อก-ปรับยอด / สินค้าคืน
-export type HistoryTab = "all" | "in" | "out" | "adjust" | "return";
+// แยกประวัติการเคลื่อนไหวเป็น 6 มุมมอง: ทั้งหมด / สินค้าเข้า / สินค้าออก / นับสต็อก-ปรับยอด / สินค้าคืน / แปลงรุ่น
+export type HistoryTab = "all" | "in" | "out" | "adjust" | "return" | "convert";
 
 export const HISTORY_TAB_LABEL: Record<HistoryTab, string> = {
   all: "ทั้งหมด",
@@ -9,17 +9,21 @@ export const HISTORY_TAB_LABEL: Record<HistoryTab, string> = {
   out: "สินค้าออก",
   adjust: "นับสต็อก/ปรับยอด",
   return: "สินค้าคืน",
+  convert: "แปลงรุ่น",
 };
 
 const IN_TYPES: MovementType[] = ["stock_in", "transfer_in", "cancel_restock"];
 const OUT_TYPES: MovementType[] = ["sale", "transfer_out", "damaged", "lost", "photoshoot", "internal_use", "return_to_source", "send_to_store", "size_change", "color_change"];
 const RETURN_TYPES: MovementType[] = [...STOCK_RETURN_TYPES];
+// เย็บตามออเดอร์: ตัดตัวเปล่ารุ่นต้นทาง (convert_out) แล้วได้สินค้ารุ่นปลายทาง (convert_in) ของยังอยู่ในคลัง ไม่ใช่เข้า/ออกจริง
+const CONVERT_TYPES: MovementType[] = ["convert_out", "convert_in"];
 
 // ทิศทางของการเคลื่อนไหวหนึ่งรายการ "ปรับยอด" และ "สินค้าคืน" แยกเป็นของตัวเองเสมอ ไม่ปนกับเข้า/ออก
 // ประเภท "อื่น ๆ" ดูจากเครื่องหมายของจำนวน (บวก = เข้า, ลบ = ออก, 0 = ปรับยอด)
 export function movementDirection(m: Pick<StockMovement, "movementType" | "qtyChange">): Exclude<HistoryTab, "all"> {
   if (m.movementType === "adjustment") return "adjust";
   if (RETURN_TYPES.includes(m.movementType)) return "return";
+  if (CONVERT_TYPES.includes(m.movementType)) return "convert";
   if (IN_TYPES.includes(m.movementType)) return "in";
   if (OUT_TYPES.includes(m.movementType)) return "out";
   if (m.qtyChange > 0) return "in";
@@ -32,6 +36,7 @@ export function movementTypesForTab(tab: HistoryTab): MovementType[] | null {
   if (tab === "in") return IN_TYPES;
   if (tab === "out") return OUT_TYPES;
   if (tab === "return") return RETURN_TYPES;
+  if (tab === "convert") return CONVERT_TYPES;
   return ["adjustment"];
 }
 
@@ -47,6 +52,9 @@ export interface HistoryTotals {
   outCount: number;
   returnQty: number;
   returnCount: number;
+  // แปลงรุ่น: นับตามจำนวนที่ได้ (convert_in) ไม่นับซ้ำกับฝั่งตัดตัวเปล่า
+  convertQty: number;
+  convertCount: number;
   adjustUp: number;
   adjustDown: number;
   adjustCount: number;
@@ -54,7 +62,7 @@ export interface HistoryTotals {
 }
 
 export function summarizeMovements(list: Pick<StockMovement, "movementType" | "qtyChange">[]): HistoryTotals {
-  const t: HistoryTotals = { inQty: 0, inCount: 0, outQty: 0, outCount: 0, returnQty: 0, returnCount: 0, adjustUp: 0, adjustDown: 0, adjustCount: 0, verifiedCount: 0 };
+  const t: HistoryTotals = { inQty: 0, inCount: 0, outQty: 0, outCount: 0, returnQty: 0, returnCount: 0, convertQty: 0, convertCount: 0, adjustUp: 0, adjustDown: 0, adjustCount: 0, verifiedCount: 0 };
   for (const m of list) {
     const d = movementDirection(m);
     if (d === "in") {
@@ -66,6 +74,11 @@ export function summarizeMovements(list: Pick<StockMovement, "movementType" | "q
     } else if (d === "return") {
       t.returnQty += m.qtyChange;
       t.returnCount += 1;
+    } else if (d === "convert") {
+      if (m.movementType === "convert_in") {
+        t.convertQty += m.qtyChange;
+        t.convertCount += 1;
+      }
     } else if (m.qtyChange === 0) {
       t.verifiedCount += 1;
     } else {

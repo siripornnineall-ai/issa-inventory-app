@@ -65,6 +65,8 @@ interface Actions {
 
   stockIn: (input: engine.StockInInput) => ReturnType<typeof engine.stockIn>;
   stockReturn: (input: engine.StockReturnInput) => ReturnType<typeof engine.stockReturn>;
+  linkProductSource: (productId: string, sourceProductId: string) => ReturnType<typeof engine.linkProductSource>;
+  unlinkProductSource: (productId: string) => number;
   stockOut: (input: engine.StockOutInput) => ReturnType<typeof engine.stockOut>;
   createTransfer: (input: engine.TransferInput) => string;
   receiveTransfer: (transferId: string, receiverId: string, receiverName: string) => void;
@@ -215,6 +217,8 @@ export const useStore = create<Store>()((set, get) => ({
     stockIn: (input) =>
       runChecked(set, get, input.itemType === "product" ? "stock.in" : "equipment.write", (draft) => engine.stockIn(draft as never, input)),
     stockReturn: (input) => runChecked(set, get, "stock.in", (draft) => engine.stockReturn(draft as never, input)),
+    linkProductSource: (productId, sourceProductId) => runChecked(set, get, "product.write", (draft) => engine.linkProductSource(draft as never, productId, sourceProductId)),
+    unlinkProductSource: (productId) => runChecked(set, get, "product.write", (draft) => engine.unlinkProductSource(draft as never, productId)),
     stockOut: (input) =>
       runChecked(set, get, input.reasonType === "sale" ? "order.create" : "stock.out", (draft) => engine.stockOut(draft as never, input)),
     createTransfer: (input) => runChecked(set, get, "stock.transfer", (draft) => engine.createTransfer(draft as never, input).id),

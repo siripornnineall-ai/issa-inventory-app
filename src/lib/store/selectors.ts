@@ -125,7 +125,14 @@ export interface DashboardStats {
 // ถือเป็น "สต็อกออก" เฉพาะการเบิก/ขาย/ใช้จริงเท่านั้น: การปรับยอดจากการนับสต็อก (ปรับลงเมื่อนับใหม่แล้วพบว่าน้อยกว่า) ไม่ใช่ของออกจากคลัง
 // และการคืนสต็อกจากการยกเลิกออเดอร์ก็ไม่ใช่ (เป็นยอดเข้า)
 export function isStockOutMovement(m: { qtyChange: number; movementType: string }): boolean {
-  return m.qtyChange < 0 && m.movementType !== "cancel_restock" && m.movementType !== "adjustment";
+  // convert_out = ตัดตัวเปล่าไปเย็บเป็นอีกรุ่น (ของยังอยู่ในคลัง ไม่ใช่ของออก)
+  return m.qtyChange < 0 && m.movementType !== "cancel_restock" && m.movementType !== "adjustment" && m.movementType !== "convert_out";
+}
+
+// ตัวเลือกที่เย็บตามออเดอร์: ต้นทางที่ตัดตัวเปล่ามา (ถ้ามี)
+export function sourceVariantFor(state: AppState, variantId: string) {
+  const v = state.variants[variantId];
+  return v?.sourceVariantId && v.sourceVariantId !== v.id ? state.variants[v.sourceVariantId] : undefined;
 }
 
 export function dashboardStats(state: AppState, fromISO: string, toISO: string): DashboardStats {
@@ -297,7 +304,8 @@ export function bestSellers(state: AppState, fromISO: string, toISO: string, lim
 
 export function lowStockVariants(state: AppState) {
   return Object.values(state.variants)
-    .filter((v) => v.active)
+    // ตัวเลือกที่เย็บตามออเดอร์ไม่ถือสต็อกเอง แจ้งเตือนใกล้หมดที่ตัวเปล่าของรุ่นต้นทางแทน
+    .filter((v) => v.active && !sourceVariantFor(state, v.id))
     .map((v) => ({ variant: v, stock: variantStockAcrossWarehouses(state, v.id) }))
     .filter((x) => x.stock.onHand <= x.variant.reorderPoint);
 }

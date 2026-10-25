@@ -240,6 +240,7 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
           storage_location: v.storageLocation ?? null,
           active: v.active,
           is_defective: v.isDefective,
+          source_variant_id: v.sourceVariantId ?? null,
         })
       )
     );

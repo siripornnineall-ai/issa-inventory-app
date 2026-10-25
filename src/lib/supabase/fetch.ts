@@ -375,6 +375,7 @@ export async function fetchAppState(supabase: SupabaseClient): Promise<AppState>
       storageLocation: row.storage_location ?? undefined,
       active: row.active,
       isDefective: row.is_defective,
+      sourceVariantId: row.source_variant_id ?? undefined,
     };
   }
 

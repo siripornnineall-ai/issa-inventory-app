@@ -63,7 +63,7 @@ export default function HistoryPage() {
   }, [movements, search, itemType, warehouseId, showVerified]);
 
   const tabCounts = useMemo(() => {
-    const counts: Record<HistoryTab, number> = { all: pre.length, in: 0, out: 0, adjust: 0, return: 0 };
+    const counts: Record<HistoryTab, number> = { all: pre.length, in: 0, out: 0, adjust: 0, return: 0, convert: 0 };
     for (const m of pre) counts[movementDirection(m)] += 1;
     return counts;
   }, [pre]);
@@ -166,6 +166,8 @@ export default function HistoryPage() {
       parts.push(`ออก ${formatNumber(totals.outQty)} ชิ้น (${totals.outCount} รายการ)`);
       parts.push(`รับคืน ${formatNumber(totals.returnQty)} ชิ้น (${totals.returnCount} รายการ)`);
       parts.push(`ปรับยอด +${formatNumber(totals.adjustUp)} / -${formatNumber(totals.adjustDown)} (${totals.adjustCount} รายการ)`);
+    } else if (tab === "convert") {
+      parts.push(`แปลงรุ่น (ตัดตัวเปล่าไปเย็บตามออเดอร์) ${formatNumber(totals.convertQty)} ชิ้น จาก ${totals.convertCount} รายการ`);
     } else if (tab === "return") {
       parts.push(`รวมรับคืน ${formatNumber(totals.returnQty)} ชิ้น จาก ${totals.returnCount} รายการ`);
       for (const t of STOCK_RETURN_TYPES) {

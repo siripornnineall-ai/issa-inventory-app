@@ -22,6 +22,14 @@ describe("movementDirection", () => {
       expect(movementTypesForTab("return")).toContain(t);
     }
   });
+  it("แปลงรุ่น (ตัดตัวเปล่า/ได้ของที่เย็บ) เป็นแท็บของตัวเอง ไม่นับเป็นเข้า/ออก และนับจำนวนที่ได้ครั้งเดียว", () => {
+    expect(movementDirection(m("convert_out", -2))).toBe("convert");
+    expect(movementDirection(m("convert_in", 2))).toBe("convert");
+    expect(movementTypesForTab("convert")).toEqual(["convert_out", "convert_in"]);
+    expect(movementTypesForTab("out")).not.toContain("convert_out");
+    const t = summarizeMovements([m("sale", -2), m("convert_out", -2), m("convert_in", 2)]);
+    expect(t).toMatchObject({ outQty: 2, outCount: 1, convertQty: 2, convertCount: 1, inQty: 0 });
+  });
   it("summarizeMovements นับสินค้าคืนแยก ไม่รวมกับยอดเข้า", () => {
     const t = summarizeMovements([m("stock_in", 5), m("return_customer", 2), m("return_defective", 1)]);
     expect(t).toMatchObject({ inQty: 5, inCount: 1, returnQty: 3, returnCount: 2 });

@@ -148,6 +148,8 @@ export interface ProductVariant {
   storageLocation?: string;
   active: boolean;
   isDefective: boolean;
+  // เย็บตามออเดอร์จากตัวเปล่ารุ่นอื่น: ชี้ไปที่ตัวเลือก (สี/ไซซ์เดียวกัน) ของรุ่นต้นทาง ตอนขายถ้าไม่มีสต็อกของตัวเอง ระบบตัดตัวเปล่าจากต้นทางมาให้ก่อน
+  sourceVariantId?: string;
 }
 
 // ป้าย QR ต่อชิ้นจริง (ไม่ใช่ต่อ SKU) — ปริ้นทีไรได้รหัสใหม่ไม่ซ้ำใคร ใช้กันสแกนซ้ำชิ้นเดิมตอนรับเข้า/เบิกออก/นับสต็อก
@@ -233,6 +235,8 @@ export type MovementType =
   | "return_customer"
   | "return_defective"
   | "return_exchange"
+  | "convert_out"
+  | "convert_in"
   | "other";
 
 // สต็อกคืนสินค้า: 4 ประเภทที่รับเข้าคลัง (แยกจากการรับสินค้าเข้าใหม่)
@@ -273,6 +277,8 @@ export const MOVEMENT_TYPE_LABEL_TH: Record<MovementType, string> = {
   return_customer: STOCK_RETURN_LABEL_TH.return_customer,
   return_defective: STOCK_RETURN_LABEL_TH.return_defective,
   return_exchange: STOCK_RETURN_LABEL_TH.return_exchange,
+  convert_out: "ตัดตัวเปล่าไปเย็บ",
+  convert_in: "ได้สินค้าที่เย็บแล้ว",
   other: "อื่น ๆ",
 };
 

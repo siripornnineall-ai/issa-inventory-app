@@ -328,6 +328,9 @@ export function removeVariant(draft: Draft<AppState>, variantId: string) {
     .reduce((sum, s) => sum + s.qtyOnHand, 0);
   if (totalStock > 0) throw new BusinessRuleError("ไม่สามารถลบตัวเลือกนี้ได้ เนื่องจากยังมีสต็อกคงเหลืออยู่");
   delete draft.variants[variantId];
+  for (const other of Object.values(draft.variants)) {
+    if (other.sourceVariantId === variantId) delete other.sourceVariantId;
+  }
   for (const key of Object.keys(draft.variantStock)) {
     if (draft.variantStock[key].itemId === variantId) delete draft.variantStock[key];
   }
@@ -609,6 +612,118 @@ export function stockReturn(draft: Draft<AppState>, input: StockReturnInput): St
   return doc;
 }
 
+// ===================== เย็บตามออเดอร์: แปลงตัวเปล่ารุ่นต้นทางเป็นรุ่นปลายทาง =====================
+// ใช้กับสินค้าเช่น Bobbie Mid (เพิ่มดีเทลบนตัวเปล่า Billie Wide) ที่ไม่ถือสต็อกเอง: ขายแล้วค่อยตัดตัวเปล่ามาเย็บ
+function canConvertForSale(input: { itemType: MovementItemType; reasonType: MovementType }): boolean {
+  return input.itemType === "product" && input.reasonType === "sale";
+}
+
+function sourceVariantOf(draft: Draft<AppState>, variantId: string): ProductVariant | undefined {
+  const v = draft.variants[variantId];
+  if (!v?.sourceVariantId || v.sourceVariantId === v.id) return undefined;
+  return draft.variants[v.sourceVariantId];
+}
+
+interface ConvertInput {
+  targetId: string;
+  sourceId: string;
+  warehouseId: string;
+  qty: number;
+  docNo: string;
+  actorId: string;
+  actorName: string;
+  date: string;
+}
+
+// ตัดตัวเปล่าจากต้นทาง qty ชิ้น แล้วเพิ่มให้ปลายทาง qty ชิ้น เป็นรายการเคลื่อนไหวคู่ (ออก/เข้า) ใต้เลขที่เอกสารเดียวกับใบขาย
+// ผลรวมสต็อกของสองรุ่นไม่เปลี่ยน และไม่นับเป็นสต็อกเข้า/ออกจริงบนแดชบอร์ด
+function convertFromSource(draft: Draft<AppState>, c: ConvertInput) {
+  const src = getStockLevel(draft.variantStock, c.sourceId, c.warehouseId);
+  if (src.qtyOnHand < c.qty) {
+    const info = describeItem(draft, "product", c.sourceId);
+    throw new BusinessRuleError(`ตัวเปล่า "${info.name}" (SKU: ${info.sku}) ไม่พอ คงเหลือ ${src.qtyOnHand} ชิ้น ต้องใช้ ${c.qty} ชิ้น`);
+  }
+  const tgt = getStockLevel(draft.variantStock, c.targetId, c.warehouseId);
+  const srcInfo = describeItem(draft, "product", c.sourceId);
+  const tgtInfo = describeItem(draft, "product", c.targetId);
+  writeStockLevel(draft, draft.variantStock, c.sourceId, c.warehouseId, { ...src, qtyOnHand: src.qtyOnHand - c.qty });
+  writeStockLevel(draft, draft.variantStock, c.targetId, c.warehouseId, { ...tgt, qtyOnHand: tgt.qtyOnHand + c.qty });
+  const common = { refNo: c.docNo, itemType: "product" as const, actorId: c.actorId, actorName: c.actorName, relatedDocNo: c.docNo, createdAt: c.date };
+  pushMovement(draft, {
+    ...common,
+    itemId: c.sourceId,
+    variantId: c.sourceId,
+    itemName: srcInfo.name,
+    sku: srcInfo.sku,
+    color: srcInfo.color,
+    size: srcInfo.size,
+    movementType: "convert_out",
+    qtyChange: -c.qty,
+    qtyBefore: src.qtyOnHand,
+    qtyAfter: src.qtyOnHand - c.qty,
+    warehouseFromId: c.warehouseId,
+    reason: `ตัดตัวเปล่าไปเย็บเป็น ${tgtInfo.name}`,
+  } as StockMovement);
+  pushMovement(draft, {
+    ...common,
+    itemId: c.targetId,
+    variantId: c.targetId,
+    itemName: tgtInfo.name,
+    sku: tgtInfo.sku,
+    color: tgtInfo.color,
+    size: tgtInfo.size,
+    movementType: "convert_in",
+    qtyChange: c.qty,
+    qtyBefore: tgt.qtyOnHand,
+    qtyAfter: tgt.qtyOnHand + c.qty,
+    warehouseToId: c.warehouseId,
+    reason: `เย็บจากตัวเปล่า ${srcInfo.name}`,
+  } as StockMovement);
+}
+
+const sameColor = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const sameSize = (a: string, b: string) => a.trim().toUpperCase() === b.trim().toUpperCase();
+
+// ตั้งให้สินค้าเย็บตามออเดอร์จากตัวเปล่ารุ่นอื่น: จับคู่ทุกตัวเลือกด้วยสี + ไซซ์ (+ ตำหนิ) ที่ตรงกัน ตัวที่หาคู่ไม่เจอจะไม่ถูกเชื่อม
+export function linkProductSource(draft: Draft<AppState>, productId: string, sourceProductId: string): { linked: number; unmatched: string[] } {
+  const product = draft.products[productId];
+  const source = draft.products[sourceProductId];
+  if (!product || !source) throw new BusinessRuleError("ไม่พบสินค้าที่ต้องการเชื่อม");
+  if (productId === sourceProductId) throw new BusinessRuleError("เลือกรุ่นเดียวกับตัวเองไม่ได้");
+  const targets = Object.values(draft.variants).filter((v) => v.productId === productId);
+  const sources = Object.values(draft.variants).filter((v) => v.productId === sourceProductId);
+  const targetIds = new Set(targets.map((v) => v.id));
+  // กันวงกลม/เป็นทอด: ต้นทางต้องไม่ถูกเชื่อมกับรุ่นอื่นอีกที และไม่มีรุ่นไหนใช้รุ่นนี้เป็นต้นทางอยู่
+  if (sources.some((v) => v.sourceVariantId)) throw new BusinessRuleError(`รุ่น "${source.sellingName}" เองก็ตัดจากรุ่นอื่นอยู่ เชื่อมเป็นทอดไม่ได้`);
+  if (Object.values(draft.variants).some((v) => v.sourceVariantId && targetIds.has(v.sourceVariantId))) {
+    throw new BusinessRuleError(`มีรุ่นอื่นตัดสต็อกจากรุ่น "${product.sellingName}" อยู่ ตั้งให้รุ่นนี้ตัดจากรุ่นอื่นอีกไม่ได้`);
+  }
+  let linked = 0;
+  const unmatched: string[] = [];
+  for (const t of targets) {
+    const s = sources.find((x) => sameColor(x.color, t.color) && sameSize(x.size, t.size) && x.isDefective === t.isDefective);
+    if (s) {
+      t.sourceVariantId = s.id;
+      linked += 1;
+    } else {
+      delete t.sourceVariantId;
+      unmatched.push(`${t.color} / ${t.size}`);
+    }
+  }
+  return { linked, unmatched };
+}
+
+export function unlinkProductSource(draft: Draft<AppState>, productId: string): number {
+  let n = 0;
+  for (const v of Object.values(draft.variants)) {
+    if (v.productId === productId && v.sourceVariantId) {
+      delete v.sourceVariantId;
+      n += 1;
+    }
+  }
+  return n;
+}
+
 // ===================== เบิกออก (Stock Out) =====================
 export interface StockOutLineInput {
   itemId: string;
@@ -642,10 +757,15 @@ export function stockOut(draft: Draft<AppState>, input: StockOutInput): { doc: S
       continue;
     }
     const current = getStockLevel(map, line.itemId, input.warehouseId);
-    if (current.qtyOnHand - line.qty < 0) {
+    // ขาย (เฉพาะสินค้า) ตัวเลือกที่เย็บตามออเดอร์: นับตัวเปล่าของรุ่นต้นทางเป็นของที่ขายได้ด้วย
+    const source = canConvertForSale(input) ? sourceVariantOf(draft, line.itemId) : undefined;
+    const blanks = source ? getStockLevel(draft.variantStock, source.id, input.warehouseId).qtyOnHand : 0;
+    if (current.qtyOnHand + blanks - line.qty < 0) {
       const info = describeItem(draft, input.itemType, line.itemId);
       errors.push(
-        `สต็อกไม่เพียงพอสำหรับ "${info.name}" (SKU: ${info.sku}) — คงเหลือ ${current.qtyOnHand} ชิ้น แต่ต้องการเบิก ${line.qty} ชิ้น`
+        source
+          ? `สต็อกไม่เพียงพอสำหรับ "${info.name}" (SKU: ${info.sku}) — มีที่เย็บแล้ว ${current.qtyOnHand} ชิ้น และตัวเปล่า ${describeItem(draft, "product", source.id).name} อีก ${blanks} ชิ้น แต่ต้องการเบิก ${line.qty} ชิ้น`
+          : `สต็อกไม่เพียงพอสำหรับ "${info.name}" (SKU: ${info.sku}) — คงเหลือ ${current.qtyOnHand} ชิ้น แต่ต้องการเบิก ${line.qty} ชิ้น`
       );
     }
   }
@@ -658,6 +778,14 @@ export function stockOut(draft: Draft<AppState>, input: StockOutInput): { doc: S
   const lines: StockDocLine[] = [];
 
   for (const line of input.lines) {
+    // ไม่มีของที่เย็บแล้วพอ: ตัดตัวเปล่าจากรุ่นต้นทางมาเป็นสินค้าปลายทางเท่าที่ขาด (บันทึกเป็นแปลงรุ่น แล้วจึงขายตามปกติ)
+    const source = canConvertForSale(input) ? sourceVariantOf(draft, line.itemId) : undefined;
+    if (source) {
+      const own = getStockLevel(map, line.itemId, input.warehouseId).qtyOnHand;
+      if (own < line.qty) {
+        convertFromSource(draft, { targetId: line.itemId, sourceId: source.id, warehouseId: input.warehouseId, qty: line.qty - own, docNo, actorId: input.actorId, actorName: input.actorName, date: input.date });
+      }
+    }
     const current = getStockLevel(map, line.itemId, input.warehouseId);
     const after = current.qtyOnHand - line.qty;
     writeStockLevel(draft, map, line.itemId, input.warehouseId, { ...current, qtyOnHand: after });

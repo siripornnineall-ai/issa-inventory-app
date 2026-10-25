@@ -24,6 +24,7 @@ import { formatThaiDate } from "@/lib/utils/date";
 import { useCan, useCanViewCost } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
 import type { ProductVariant } from "@/lib/types";
+import { SourceLinkCard } from "@/components/products/SourceLinkCard";
 
 export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
@@ -271,6 +272,8 @@ export default function ProductDetailPage() {
             </CardContent>
           </Card>
         )}
+
+        {canWrite && product && <SourceLinkCard productId={product.id} />}
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">

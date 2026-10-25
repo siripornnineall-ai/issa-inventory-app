@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Camera } from "lucide-react";
 import { useStore, useActions } from "@/lib/store";
 import { getStockLevel } from "@/lib/store/engine";
-import { resolveUnitToken } from "@/lib/store/selectors";
+import { resolveUnitToken, sourceVariantFor } from "@/lib/store/selectors";
 import { Input } from "@/components/ui/Field";
 import { Dialog } from "@/components/ui/Dialog";
 import { ColorSwatch } from "@/components/products/ColorSwatch";
@@ -313,6 +313,9 @@ export function VariantPicker({
               <div className="flex flex-wrap gap-2">
                 {pickerSizeRows.map((v) => {
                   const stock = warehouseId ? getStockLevel(state.variantStock, v.id, warehouseId) : undefined;
+                  // ตัวเลือกที่เย็บตามออเดอร์: บอกจำนวนตัวเปล่าของรุ่นต้นทางที่ใช้เย็บได้ด้วย
+                  const source = warehouseId ? sourceVariantFor(state, v.id) : undefined;
+                  const blanks = source && warehouseId ? getStockLevel(state.variantStock, source.id, warehouseId).qtyOnHand : undefined;
                   const added = addedIds.has(v.id);
                   return (
                     <button
@@ -332,7 +335,12 @@ export function VariantPicker({
                     >
                       {added ? "✓ " : ""}
                       {v.size}
-                      {stock && <span className="text-[10px] font-normal text-[var(--color-on-surface-variant)]">คงเหลือ {formatNumber(stock.qtyOnHand)}</span>}
+                      {stock && (
+                        <span className="text-[10px] font-normal text-[var(--color-on-surface-variant)]">
+                          คงเหลือ {formatNumber(stock.qtyOnHand)}
+                          {blanks !== undefined && ` + ตัวเปล่า ${formatNumber(blanks)}`}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
