@@ -21,7 +21,7 @@ interface FeedItem {
   active: boolean;
 }
 
-const MAX_ITEMS = 8;
+const MAX_ITEMS = 30; // total across all brands (each brand shows its own clips on the home page)
 const MAX_SIZE = 30 * 1024 * 1024; // 30MB
 const BUCKET = "storefront-assets";
 
@@ -245,7 +245,7 @@ export function FeedVideosCard() {
       <CardHeader>
         <CardTitle>วิดีโอ &quot;Shop the Feed&quot; (หน้าแรกของเว็บ)</CardTitle>
         <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-          คลิปสั้นแนวตั้ง (9:16) แบบ TikTok/Reels สูงสุด {MAX_ITEMS} คลิป — อัปโหลดไฟล์ MP4 (ไม่เกิน 30MB) หรือวางลิงก์คลิปจาก TikTok / Instagram / YouTube Shorts / Facebook ก็ได้ ถ้ายังไม่มีคลิป เว็บจะซ่อนส่วนนี้ให้เอง
+          คลิปสั้นแนวตั้ง (9:16) แบบ TikTok/Reels สูงสุด {MAX_ITEMS} คลิปรวมทุกแบรนด์ (แต่ละคลิปเลือกได้ว่าอยู่ใต้แบรนด์ไหน) — อัปโหลดไฟล์ MP4 (ไม่เกิน 30MB) หรือวางลิงก์คลิปจาก TikTok / Instagram / YouTube Shorts / Facebook ก็ได้ ถ้ายังไม่มีคลิป เว็บจะซ่อนส่วนนี้ให้เอง
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-5 pt-0">
