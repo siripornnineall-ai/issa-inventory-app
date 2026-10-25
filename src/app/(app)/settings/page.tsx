@@ -14,7 +14,6 @@ import { WarehouseDialog } from "@/components/settings/WarehouseDialog";
 import { ConfirmDialog } from "@/components/ui/Dialog";
 import { warehouseRemovalBlocker } from "@/lib/store/engine";
 import { SingleImageUploader } from "@/components/ui/SingleImageUploader";
-import { FitCoversCard } from "@/components/settings/FitCoversCard";
 import { FeedVideosCard } from "@/components/settings/FeedVideosCard";
 import { ChannelsEditor } from "@/components/settings/ChannelsEditor";
 import { BannerEditor } from "@/components/settings/BannerEditor";
@@ -242,10 +241,6 @@ export default function SettingsPage() {
 
         <RequireAccess perm="settings.write">
           <FeedVideosCard />
-        </RequireAccess>
-
-        <RequireAccess perm="settings.write">
-          <FitCoversCard />
         </RequireAccess>
 
         <RequireAccess perm="master.write">
