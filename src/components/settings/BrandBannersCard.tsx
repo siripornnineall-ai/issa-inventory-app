@@ -23,6 +23,8 @@ const EMPTY: BrandBannerForm = { imageUrl: "", headingLine1: "", headingLine2: "
 
 /** Same order as the storefront's brand sections. */
 const BRAND_ORDER = ["ISSA Apparel", "ISSA Activewear", "Fasonaf"];
+/** The main brand's banner is the site hero (edited in the storefront card), so it gets no extra banner here. */
+const MAIN_BRAND = "ISSA Apparel";
 
 interface Row {
   brand_id: string;
@@ -82,7 +84,7 @@ function toRow(brandId: string, f: BrandBannerForm): Row & { updated_at: string 
 export function BrandBannersCard() {
   const state = useStore();
   const brands = Object.values(state.brands)
-    .filter((b) => b.active)
+    .filter((b) => b.active && b.name !== MAIN_BRAND)
     .sort((a, b) => {
       const ia = BRAND_ORDER.indexOf(a.name);
       const ib = BRAND_ORDER.indexOf(b.name);
@@ -126,7 +128,7 @@ export function BrandBannersCard() {
       <CardHeader>
         <CardTitle>แบนเนอร์ของแต่ละแบรนด์ (หน้าแรกของเว็บ)</CardTitle>
         <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-          แบนเนอร์เต็มความกว้างที่อยู่เหนือการ์ดสินค้าของแบรนด์นั้นบนหน้าแรก (แบนเนอร์ใหญ่บนสุดของเว็บแก้ที่การ์ด &quot;เว็บไซต์หน้าร้าน&quot; ด้านบน) —
+          แบนเนอร์เต็มความกว้างที่อยู่เหนือการ์ดสินค้าของแบรนด์นั้นบนหน้าแรก — ISSA Apparel ใช้แบนเนอร์ใหญ่บนสุดของเว็บอยู่แล้ว (แก้ที่การ์ด &quot;เว็บไซต์หน้าร้าน&quot; ด้านบน)
           แบรนด์ที่ไม่ใส่รูปจะไม่มีแบนเนอร์ แสดงเฉพาะการ์ดสินค้ากับวิดีโอ
         </p>
       </CardHeader>
