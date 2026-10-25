@@ -6,9 +6,9 @@ import type { BannerLayout, BannerOverlay, BannerTextAlign } from "@/lib/types";
 
 /**
  * Settings UI for one storefront banner (hero or promo): desktop + mobile
- * image, focal point, text alignment, show/hide the website's own text,
- * overlay strength. (The owner asked for no preview panel — check the
- * real site after saving; it updates within a minute.)
+ * image, text alignment, show/hide the website's own text, overlay
+ * strength. No preview and no focal-point sliders — the owner asked for
+ * the simplest form; the focal point stays at the stored value (50/50 by default).
  */
 export function BannerEditor({
   title,
@@ -64,17 +64,6 @@ export function BannerEditor({
           แสดงหัวข้อ คำโปรย และปุ่มของเว็บทับบนรูป
           <span className="text-xs text-[var(--color-on-surface-variant)]">(ปิดถ้ารูปมีข้อความอยู่แล้ว)</span>
         </label>
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label={`จุดสำคัญแนวนอน ${layout.focusX}%`}>
-            <input type="range" min={0} max={100} value={layout.focusX} onChange={(e) => set({ focusX: Number(e.target.value) })} className="w-full" />
-          </FormField>
-          <FormField label={`จุดสำคัญแนวตั้ง ${layout.focusY}%`}>
-            <input type="range" min={0} max={100} value={layout.focusY} onChange={(e) => set({ focusY: Number(e.target.value) })} className="w-full" />
-          </FormField>
-        </div>
-        <p className="text-xs text-[var(--color-on-surface-variant)]">
-          จุดสำคัญคือส่วนของรูปที่ต้องเห็นเสมอ (เช่น หน้านางแบบ) 50/50 = กลางรูป; เลื่อนแนวตั้งลง (เช่น 30%) ถ้าอยากให้เห็นส่วนบนของรูปมากขึ้น
-        </p>
       </div>
     </div>
   );
