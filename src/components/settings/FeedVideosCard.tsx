@@ -386,7 +386,7 @@ export function FeedVideosCard() {
                     <button
                       type="button"
                       onClick={() => remove(item)}
-                      className="rounded bg-[var(--color-error)] px-2 py-1 text-white"
+                      className="rounded bg-[var(--color-danger)] px-2 py-1 text-white"
                     >
                       ยืนยันลบ
                     </button>
@@ -398,7 +398,7 @@ export function FeedVideosCard() {
                   <button
                     type="button"
                     onClick={() => setPendingDelete(item.id)}
-                    className="flex items-center gap-1 rounded border border-[var(--color-border)] px-2 py-1 text-[var(--color-error)] hover:bg-[var(--color-surface-container)]"
+                    className="flex items-center gap-1 rounded border border-[var(--color-border)] px-2 py-1 text-[var(--color-danger)] hover:bg-[var(--color-surface-container)]"
                   >
                     <Trash2 className="h-3.5 w-3.5" /> ลบ
                   </button>

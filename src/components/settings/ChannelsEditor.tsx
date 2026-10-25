@@ -200,7 +200,7 @@ export function ChannelsEditor() {
                   type="button"
                   aria-label="ลบช่องทางนี้"
                   onClick={() => remove(row.id)}
-                  className="rounded border border-[var(--color-border)] p-1.5 text-[var(--color-error)] hover:bg-[var(--color-surface-container)]"
+                  className="rounded border border-[var(--color-border)] p-1.5 text-[var(--color-danger)] hover:bg-[var(--color-surface-container)]"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

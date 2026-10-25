@@ -252,11 +252,11 @@ export function WebCollectionsCard() {
                   </button>
                   {pendingDelete === c.id ? (
                     <>
-                      <button type="button" onClick={() => remove(c.id)} className="rounded bg-[var(--color-error)] px-2 py-1.5 text-white">ยืนยันลบ</button>
+                      <button type="button" onClick={() => remove(c.id)} className="rounded bg-[var(--color-danger)] px-2 py-1.5 text-white">ยืนยันลบ</button>
                       <button type="button" onClick={() => setPendingDelete(null)} className="px-2 py-1.5 underline">ยกเลิก</button>
                     </>
                   ) : (
-                    <button type="button" onClick={() => setPendingDelete(c.id)} className="flex items-center gap-1 rounded border border-[var(--color-border)] px-2 py-1.5 text-[var(--color-error)]">
+                    <button type="button" onClick={() => setPendingDelete(c.id)} className="flex items-center gap-1 rounded border border-[var(--color-border)] px-2 py-1.5 text-[var(--color-danger)]">
                       <Trash2 className="h-3.5 w-3.5" /> ลบ
                     </button>
                   )}
