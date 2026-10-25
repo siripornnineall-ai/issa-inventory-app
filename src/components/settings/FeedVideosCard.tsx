@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Link as LinkIcon, Loader2, Trash2, Video } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Eye, EyeOff, Link as LinkIcon, Loader2, Trash2, Video } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input, Select } from "@/components/ui/Field";
 import { useStore } from "@/lib/store";
@@ -100,7 +100,29 @@ export function FeedVideosCard() {
   const [link, setLink] = useState("");
   const [addingLink, setAddingLink] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  /** Collapsed/expanded state per brand group (key = brand id, or "none"); groups start collapsed. */
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const BRAND_ORDER = ["ISSA Apparel", "ISSA Activewear", "Fasonaf"];
+  const orderedBrands = [...brands].sort((a, b) => {
+    const ia = BRAND_ORDER.indexOf(a.name);
+    const ib = BRAND_ORDER.indexOf(b.name);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.name.localeCompare(b.name);
+  });
+  const groups = [
+    ...orderedBrands.map((b) => ({ key: b.id, name: b.name, items: items.filter((it) => it.brand_id === b.id) })),
+    {
+      key: "none",
+      name: "ยังไม่ระบุแบรนด์ (บนเว็บจะอยู่ใต้แบรนด์แรก)",
+      items: items.filter((it) => !it.brand_id || !brands.some((b) => b.id === it.brand_id)),
+    },
+  ].filter((g) => g.items.length > 0);
+  const allOpen = groups.length > 0 && groups.every((g) => openGroups[g.key]);
+
+  function toggleGroup(key: string) {
+    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
 
   async function reload() {
     const rows = await loadFeedItems();
@@ -161,6 +183,7 @@ export function FeedVideosCard() {
         .insert({ video_url: data.publicUrl, sort_order: nextOrder });
       if (insertError) throw insertError;
       await reload();
+      setOpenGroups((prev) => ({ ...prev, none: true }));
       toastSuccess("อัปโหลดวิดีโอแล้ว — เลือกสินค้าที่เกี่ยวข้องด้านล่าง จะขึ้นเว็บภายในไม่เกิน 1 นาที");
     } catch (e) {
       toastError(e instanceof Error ? `อัปโหลดไม่สำเร็จ: ${e.message}` : "อัปโหลดไม่สำเร็จ");
@@ -192,6 +215,7 @@ export function FeedVideosCard() {
       if (error) throw error;
       setLink("");
       await reload();
+      setOpenGroups((prev) => ({ ...prev, none: true }));
       const where = detected.kind === "file" ? "ไฟล์วิดีโอ" : PLATFORM_LABEL[detected.kind];
       toastSuccess(`เพิ่มคลิปจาก ${where} แล้ว — เลือกสินค้าที่เกี่ยวข้องด้านล่าง จะขึ้นเว็บภายในไม่เกิน 1 นาที`);
     } catch (e) {
@@ -201,15 +225,17 @@ export function FeedVideosCard() {
     }
   }
 
-  async function move(index: number, dir: -1 | 1) {
+  /** Swaps the order of two neighbours within one brand group (sort_order is global, so swapping the two values keeps the brand's own order right). */
+  async function move(group: FeedItem[], index: number, dir: -1 | 1) {
     const target = index + dir;
-    if (target < 0 || target >= items.length) return;
-    const a = items[index];
-    const b = items[target];
-    const reordered = items.slice();
-    reordered[index] = { ...b, sort_order: a.sort_order };
-    reordered[target] = { ...a, sort_order: b.sort_order };
-    setItems(reordered);
+    if (target < 0 || target >= group.length) return;
+    const a = group[index];
+    const b = group[target];
+    setItems((prev) =>
+      prev
+        .map((it) => (it.id === a.id ? { ...it, sort_order: b.sort_order } : it.id === b.id ? { ...it, sort_order: a.sort_order } : it))
+        .sort((x, y) => x.sort_order - y.sort_order),
+    );
     const supabase = createClient();
     const [r1, r2] = await Promise.all([
       supabase.from("storefront_feed_items").update({ sort_order: b.sort_order }).eq("id", a.id),
@@ -288,6 +314,15 @@ export function FeedVideosCard() {
           <span className="text-xs text-[var(--color-on-surface-variant)]">
             {items.length}/{MAX_ITEMS} คลิป
           </span>
+          {groups.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setOpenGroups(Object.fromEntries(groups.map((g) => [g.key, !allOpen])))}
+              className="ml-auto text-xs text-[var(--color-on-surface-variant)] underline"
+            >
+              {allOpen ? "พับทั้งหมด" : "ขยายทั้งหมด"}
+            </button>
+          )}
           <input
             ref={inputRef}
             type="file"
@@ -305,7 +340,25 @@ export function FeedVideosCard() {
           <p className="text-sm text-[var(--color-on-surface-variant)]">ยังไม่มีวิดีโอ — กด &quot;เพิ่มวิดีโอ&quot; เพื่ออัปโหลดคลิปแรก</p>
         )}
 
-        {items.map((item, index) => (
+        {groups.map((g) => {
+          const open = Boolean(openGroups[g.key]);
+          return (
+            <div key={g.key} className="rounded-lg border border-[var(--color-border)]">
+              <button
+                type="button"
+                onClick={() => toggleGroup(g.key)}
+                className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-semibold text-[var(--color-on-surface)] hover:bg-[var(--color-surface-container)]"
+              >
+                <span className="flex items-center gap-2">
+                  {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  {g.name}
+                  <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">{g.items.length} คลิป</span>
+                </span>
+                <span className="text-xs font-normal text-[var(--color-on-surface-variant)] underline">{open ? "พับ" : "ขยาย"}</span>
+              </button>
+              {open && (
+                <div className="flex flex-col gap-3 border-t border-[var(--color-border)] p-3">
+                  {g.items.map((item, index) => (
           <div
             key={item.id}
             className={`flex flex-col gap-3 rounded-lg border border-[var(--color-border)] p-3 sm:flex-row ${item.active ? "" : "opacity-60"}`}
@@ -385,7 +438,7 @@ export function FeedVideosCard() {
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <button
                   type="button"
-                  onClick={() => move(index, -1)}
+                  onClick={() => move(g.items, index, -1)}
                   disabled={index === 0}
                   className="flex items-center gap-1 rounded border border-[var(--color-border)] px-2 py-1 hover:bg-[var(--color-surface-container)] disabled:opacity-40"
                 >
@@ -393,8 +446,8 @@ export function FeedVideosCard() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => move(index, 1)}
-                  disabled={index === items.length - 1}
+                  onClick={() => move(g.items, index, 1)}
+                  disabled={index === g.items.length - 1}
                   className="flex items-center gap-1 rounded border border-[var(--color-border)] px-2 py-1 hover:bg-[var(--color-surface-container)] disabled:opacity-40"
                 >
                   <ArrowDown className="h-3.5 w-3.5" /> เลื่อนลง
@@ -432,7 +485,12 @@ export function FeedVideosCard() {
               </div>
             </div>
           </div>
-        ))}
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </CardContent>
     </Card>
   );
