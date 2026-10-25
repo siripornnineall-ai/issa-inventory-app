@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/components/ui/Dialog";
 import { warehouseRemovalBlocker } from "@/lib/store/engine";
 import { SingleImageUploader } from "@/components/ui/SingleImageUploader";
 import { FeedVideosCard } from "@/components/settings/FeedVideosCard";
+import { WebCollectionsCard } from "@/components/settings/WebCollectionsCard";
 import { ChannelsEditor } from "@/components/settings/ChannelsEditor";
 import { BannerEditor } from "@/components/settings/BannerEditor";
 import { StockAuditCard } from "@/components/settings/StockAuditCard";
@@ -237,6 +238,10 @@ export default function SettingsPage() {
               <ChannelsEditor />
             </CardContent>
           </Card>
+        </RequireAccess>
+
+        <RequireAccess perm="master.write">
+          <WebCollectionsCard />
         </RequireAccess>
 
         <RequireAccess perm="settings.write">
