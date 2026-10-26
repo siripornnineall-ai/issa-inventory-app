@@ -55,7 +55,9 @@ export function BrandSlidesCard() {
   const [loading, setLoading] = useState(true);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  /** Collapsed/expanded per brand; all collapsed at first, like the video card. */
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const allOpen = brands.length > 0 && brands.every((b) => open[b.id]);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   async function reload() {
@@ -173,27 +175,42 @@ export function BrandSlidesCard() {
       </CardHeader>
       <CardContent className="flex flex-col gap-4 pt-0">
         {loading && <p className="text-sm text-[var(--color-on-surface-variant)]">กำลังโหลด...</p>}
+        {!loading && brands.length > 0 && (
+          <div className="flex items-center justify-between text-xs text-[var(--color-on-surface-variant)]">
+            <span>{slides.length} รูปรวมทุกแบรนด์</span>
+            <button
+              type="button"
+              onClick={() => setOpen(Object.fromEntries(brands.map((b) => [b.id, !allOpen])))}
+              className="underline"
+            >
+              {allOpen ? "พับทั้งหมด" : "ขยายทั้งหมด"}
+            </button>
+          </div>
+        )}
         {!loading &&
           brands.map((b) => {
             const mine = slides.filter((s) => s.brand_id === b.id);
             const isOpen = Boolean(open[b.id]);
             return (
               <div key={b.id} className="rounded-lg border border-[var(--color-border)]">
-                <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                <div className="flex items-center gap-3 pr-3">
                   <button
                     type="button"
                     onClick={() => setOpen((prev) => ({ ...prev, [b.id]: !prev[b.id] }))}
-                    className="flex items-center gap-2 text-left text-sm font-semibold text-[var(--color-on-surface)]"
+                    className="flex flex-1 items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-semibold text-[var(--color-on-surface)] hover:bg-[var(--color-surface-container)]"
                   >
-                    {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    {b.name}
-                    <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">{mine.length}/{MAX_PER_BRAND} รูป</span>
+                    <span className="flex items-center gap-2">
+                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      {b.name}
+                      <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">{mine.length}/{MAX_PER_BRAND} รูป</span>
+                    </span>
+                    <span className="text-xs font-normal text-[var(--color-on-surface-variant)] underline">{isOpen ? "พับ" : "ขยาย"}</span>
                   </button>
                   <button
                     type="button"
                     disabled={uploadingFor === b.id || mine.length >= MAX_PER_BRAND}
                     onClick={() => inputRefs.current[b.id]?.click()}
-                    className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-sm text-[var(--color-on-surface-variant)] hover:border-[var(--color-primary-container)] hover:text-[var(--color-primary-container)] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-sm text-[var(--color-on-surface-variant)] hover:border-[var(--color-primary-container)] hover:text-[var(--color-primary-container)] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {uploadingFor === b.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
                     เพิ่มรูปสไลด์
