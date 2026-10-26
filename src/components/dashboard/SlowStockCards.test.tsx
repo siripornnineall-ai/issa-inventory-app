@@ -47,12 +47,24 @@ describe("SlowStockCards: สินค้าค้างสต็อกแยก
     expect(screen.getByRole("heading", { name: "ISSA Apparel" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "ISSA Activewear" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Fasonaf" })).toBeTruthy();
-    expect(screen.getByText("ค้าง 24 ชิ้น · 2 ตัวเลือก")).toBeTruthy(); // ISSA Apparel: v1 + v2
-    expect(screen.getByText("ค้าง 12 ชิ้น · 1 ตัวเลือก")).toBeTruthy(); // ISSA Activewear
+    const header = (brand: string) => screen.getByRole("heading", { name: brand }).parentElement?.textContent ?? "";
+    expect(header("ISSA Apparel")).toContain("ค้าง 24 ชิ้น · 2 ตัวเลือก"); // v1 + v2
+    expect(header("ISSA Activewear")).toContain("ค้าง 12 ชิ้น · 1 ตัวเลือก");
+    expect(header("Fasonaf")).toContain("ไม่มีสินค้าค้างสต็อก");
     expect(screen.getByText("ไม่มีสินค้าค้างสต็อก")).toBeTruthy(); // Fasonaf
     expect(screen.getByText("Billie Slim")).toBeTruthy();
     // แบรนด์ที่ไม่มีของค้างไม่มีลิงก์ดูทั้งหมด
     expect(screen.getAllByText("ดูสินค้าค้างทั้งหมด →")).toHaveLength(2);
+  });
+
+  it("หัวข้อเป็นตัวใหญ่หนา และคำว่า 'ค้าง' (ป้ายและจำนวนชิ้น) เป็นสีแดง", () => {
+    render(<SlowStockCards />);
+    const heading = screen.getByRole("heading", { name: "สินค้าค้างสต็อก (ขายช้า)" });
+    expect(heading.className).toContain("text-lg");
+    expect(heading.className).toContain("font-bold");
+    for (const badge of screen.getAllByText("ค้าง", { selector: "span" })) expect(badge.className).toMatch(/danger/);
+    const headerCount = within(screen.getByRole("heading", { name: "ISSA Apparel" }).parentElement as HTMLElement).getByText("ค้าง 24 ชิ้น");
+    expect(headerCount.className).toContain("text-[var(--color-danger)]");
   });
 
   it("บอกกติกาที่ใช้คิดไว้ชัดเจนในหน้า (30 วัน / 15 วัน / 5 ชิ้น)", () => {

@@ -27,8 +27,8 @@ export function SlowStockCards() {
   return (
     <section aria-label="สินค้าค้างสต็อก">
       <div className="mb-2">
-        <h2 className="text-sm font-semibold text-[var(--color-on-surface)]">สินค้าค้างสต็อก (ขายช้า)</h2>
-        <p className="text-xs text-[var(--color-on-surface-variant)]">
+        <h2 className="text-lg font-bold text-[var(--color-on-surface)] sm:text-xl">สินค้าค้างสต็อก (ขายช้า)</h2>
+        <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
           มีของตั้งแต่ {r.minStock} ชิ้น ขายได้ไม่เกิน {r.maxSold} ชิ้นใน {r.windowDays} วันล่าสุด และรับเข้ามาเกิน {r.graceDays} วันแล้ว (รับเข้า/รับคืนเพิ่มเมื่อไหร่ นับ {r.graceDays} วันใหม่)
         </p>
       </div>
@@ -50,7 +50,13 @@ function BrandBox({ brand, items, onOpen }: { brand: SlowBrand; items: SlowVaria
       <CardHeader>
         <CardTitle>{brand.name}</CardTitle>
         <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-          {brand.variants === 0 ? "ไม่มีสินค้าค้างสต็อก" : `ค้าง ${formatNumber(brand.pieces)} ชิ้น · ${formatNumber(brand.variants)} ตัวเลือก`}
+          {brand.variants === 0 ? (
+            "ไม่มีสินค้าค้างสต็อก"
+          ) : (
+            <>
+              <span className="font-semibold text-[var(--color-danger)]">ค้าง {formatNumber(brand.pieces)} ชิ้น</span> · {formatNumber(brand.variants)} ตัวเลือก
+            </>
+          )}
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 pt-0">
@@ -59,10 +65,10 @@ function BrandBox({ brand, items, onOpen }: { brand: SlowBrand; items: SlowVaria
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-[var(--color-on-surface)]">{g.label}</p>
               <p className="text-xs text-[var(--color-on-surface-variant)]">
-                {formatNumber(g.variants)} ตัวเลือก · ค้าง {formatNumber(g.pieces)} ชิ้น
+                {formatNumber(g.variants)} ตัวเลือก · <span className="font-medium text-[var(--color-danger)]">ค้าง {formatNumber(g.pieces)} ชิ้น</span>
               </p>
             </div>
-            <Badge tone="warning">ค้าง</Badge>
+            <Badge tone="danger">ค้าง</Badge>
           </div>
         ))}
         {brand.variants > 0 && (
