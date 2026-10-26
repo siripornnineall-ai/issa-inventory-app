@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/Button";
 import { DateRangePicker, useDateRange } from "@/components/ui/DateRangePicker";
 import { Badge } from "@/components/ui/Badge";
 import { DrillDownDialog, type DrillKind } from "@/components/dashboard/DrillDownDialog";
+import { SlowStockCards } from "@/components/dashboard/SlowStockCards";
 import { useStore } from "@/lib/store";
 import {
   dailySeries,
@@ -146,6 +147,8 @@ export default function DashboardPage() {
             </div>
           </section>
         </div>
+
+        <SlowStockCards />
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <Card className="xl:col-span-2">

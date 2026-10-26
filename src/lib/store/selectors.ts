@@ -352,3 +352,110 @@ export function reasonLabel(reason: string): string {
 export function movementTypeIsInbound(t: MovementType): boolean {
   return t === "stock_in" || t === "transfer_in" || t === "cancel_restock";
 }
+
+// ===================== สินค้าค้างสต็อก (ขายช้า) =====================
+// ค้าง = มีของตั้งแต่ minStock ชิ้น + ขายได้ไม่เกิน maxSold ชิ้นใน windowDays วันล่าสุด + รับเข้ามาเกิน graceDays วัน
+// ผ่อนผัน graceDays นับใหม่ทุกครั้งที่รับของเข้า/รับคืนมาเพิ่ม (กันตัวที่เพิ่งเติมสต็อกถูกว่าค้าง)
+export const SLOW_STOCK_RULES = { windowDays: 30, graceDays: 15, minStock: 5, maxSold: 1 } as const;
+
+export interface SlowVariant {
+  variantId: string;
+  productId: string;
+  brandId: string | null;
+  color: string;
+  size: string;
+  qty: number;
+  sold: number;
+  receivedAt: string;
+  daysSinceReceived: number;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function slowMovers(state: AppState, now = Date.now(), rules: { windowDays: number; graceDays: number; minStock: number; maxSold: number } = SLOW_STOCK_RULES): SlowVariant[] {
+  const since = now - rules.windowDays * DAY_MS;
+  const sold = new Map<string, number>();
+  const lastIn = new Map<string, number>();
+  const lastAdjustUp = new Map<string, number>();
+  for (const m of Object.values(state.movements)) {
+    if (m.itemType !== "product" || !m.variantId) continue;
+    const t = new Date(m.createdAt).getTime();
+    if (m.movementType === "sale") {
+      if (t >= since && t <= now) sold.set(m.variantId, (sold.get(m.variantId) ?? 0) + Math.abs(m.qtyChange));
+    } else if (m.qtyChange > 0 && (m.movementType === "stock_in" || isStockReturnType(m.movementType))) {
+      if (t > (lastIn.get(m.variantId) ?? 0)) lastIn.set(m.variantId, t);
+    } else if (m.qtyChange > 0 && m.movementType === "adjustment") {
+      if (t > (lastAdjustUp.get(m.variantId) ?? 0)) lastAdjustUp.set(m.variantId, t);
+    }
+  }
+  // ตัวเลือกที่เย็บตามออเดอร์ขายแล้วตัดตัวเปล่าต้นทาง: ยอดขายของปลายทางนับเป็นความต้องการของต้นทางด้วย
+  const demand = new Map<string, number>(sold);
+  for (const v of Object.values(state.variants)) {
+    if (v.sourceVariantId && state.variants[v.sourceVariantId]) {
+      demand.set(v.sourceVariantId, (demand.get(v.sourceVariantId) ?? 0) + (sold.get(v.id) ?? 0));
+    }
+  }
+
+  const out: SlowVariant[] = [];
+  for (const v of Object.values(state.variants)) {
+    if (!v.active || sourceVariantFor(state, v.id)) continue; // ตัวเลือกที่เชื่อมต้นทางไม่ถือสต็อกเอง ดูที่ต้นทางแทน
+    const qty = variantStockAcrossWarehouses(state, v.id).onHand;
+    if (qty < rules.minStock) continue;
+    const sales = demand.get(v.id) ?? 0;
+    if (sales > rules.maxSold) continue;
+    const receivedMs = lastIn.get(v.id) ?? lastAdjustUp.get(v.id) ?? new Date(state.products[v.productId]?.createdAt ?? 0).getTime();
+    const days = Math.floor((now - receivedMs) / DAY_MS);
+    if (days < rules.graceDays) continue;
+    const product = state.products[v.productId];
+    const brandId = product?.brandId && state.brands[product.brandId] ? product.brandId : null;
+    out.push({ variantId: v.id, productId: v.productId, brandId, color: v.color, size: v.size, qty, sold: sales, receivedAt: new Date(receivedMs).toISOString(), daysSinceReceived: days });
+  }
+  return out;
+}
+
+export interface SlowGroup {
+  key: string;
+  label: string;
+  variants: number;
+  pieces: number;
+  sold: number;
+}
+
+export function groupSlowMovers(state: AppState, list: SlowVariant[], by: "product" | "color" | "size"): SlowGroup[] {
+  const map = new Map<string, SlowGroup>();
+  for (const s of list) {
+    const key = by === "product" ? s.productId : by === "color" ? s.color : s.size;
+    const label = by === "product" ? state.products[s.productId]?.sellingName ?? "-" : key;
+    const g = map.get(key) ?? { key, label, variants: 0, pieces: 0, sold: 0 };
+    g.variants += 1;
+    g.pieces += s.qty;
+    g.sold += s.sold;
+    map.set(key, g);
+  }
+  return Array.from(map.values()).sort((a, b) => b.pieces - a.pieces || a.label.localeCompare(b.label));
+}
+
+export interface SlowBrand {
+  brandId: string | null;
+  name: string;
+  variants: number;
+  pieces: number;
+}
+
+// ทุกแบรนด์ที่ยังใช้งานอยู่ (แม้ไม่มีของค้างก็แสดงกล่อง) + "ไม่ระบุแบรนด์" เฉพาะเมื่อมีของค้าง เรียงตามลำดับที่สร้างแบรนด์
+export function slowMoversByBrand(state: AppState, list: SlowVariant[]): SlowBrand[] {
+  const rows = new Map<string | null, SlowBrand>();
+  for (const b of Object.values(state.brands).sort((a, b2) => a.createdAt.localeCompare(b2.createdAt))) {
+    if (b.active) rows.set(b.id, { brandId: b.id, name: b.name, variants: 0, pieces: 0 });
+  }
+  for (const s of list) {
+    let r = rows.get(s.brandId);
+    if (!r) {
+      r = { brandId: s.brandId, name: s.brandId ? state.brands[s.brandId]?.name ?? "-" : "ไม่ระบุแบรนด์", variants: 0, pieces: 0 };
+      rows.set(s.brandId, r);
+    }
+    r.variants += 1;
+    r.pieces += s.qty;
+  }
+  return Array.from(rows.values());
+}
