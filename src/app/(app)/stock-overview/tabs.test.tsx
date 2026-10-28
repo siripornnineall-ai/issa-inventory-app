@@ -3,6 +3,9 @@ import { render, screen, fireEvent, cleanup, within } from "@testing-library/rea
 import StockOverviewPage from "./page";
 import { useStore } from "@/lib/store";
 import { emptyState } from "@/lib/store/state";
+import * as excel from "@/lib/utils/excelMonths";
+
+vi.mock("@/lib/utils/excelMonths", async (orig) => ({ ...(await orig<typeof import("@/lib/utils/excelMonths")>()), downloadWorkbook: vi.fn() }));
 
 vi.mock("@/components/layout/Header", () => ({ Header: ({ title, description }: { title: string; description?: string }) => (
   <header>
@@ -80,8 +83,8 @@ describe("สต็อกภาพรวม: แท็บสต็อกปั�
     window.history.replaceState(null, "", "/stock-overview?tab=recount");
     render(<StockOverviewPage />);
     const status = screen.getByRole("status").textContent ?? "";
-    expect(status).toContain("นับได้ 10 ชิ้น");
-    expect(status).toContain("ระบบก่อนนับ 12 ชิ้น");
+    expect(status).toContain("นับได้จริง 10 ชิ้น");
+    expect(status).toContain("ระบบเดิม (ก่อนนับ) 12 ชิ้น");
     expect(status).toContain("-2");
     const table = screen.getAllByRole("table")[0];
     const row = within(table).getAllByRole("row")[1];
@@ -107,4 +110,23 @@ describe("สต็อกภาพรวม: แท็บสต็อกปั�
     expect(screen.getByText("เดือนนี้ยังไม่มีการนับสต็อก")).toBeTruthy();
     expect(screen.getByRole("link", { name: "ไปหน้านับสต็อก" }).getAttribute("href")).toBe("/stock-count");
   });
-});
+  it("แท็บสต็อกนับใหม่: Excel ทุกเดือนย้อนหลัง ได้หนึ่งชีตต่อเดือนที่เคยนับ ตั้งแต่เดือนที่นับครั้งแรก", () => {
+    const download = vi.mocked(excel.downloadWorkbook);
+    download.mockClear();
+    window.history.replaceState(null, "", "/stock-overview?tab=recount");
+    render(<StockOverviewPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Excel ทุกเดือนย้อนหลัง/ }));
+    expect(download).toHaveBeenCalledTimes(1);
+    expect(download.mock.calls[0][0]).toBe("นับสต็อก-ทุกเดือน.xlsx");
+    const now = new Date();
+    expect(download.mock.calls[0][1].map((s) => s.name)).toEqual([`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`]);
+    expect(download.mock.calls[0][1][0].rows.flat()).toContain("Billie Slim");
+  });
+
+  it("แท็บสต็อกนับใหม่: มีคำอธิบายวิธีอ่านตาราง และหัวคอลัมน์สื่อความหมาย", () => {
+    window.history.replaceState(null, "", "/stock-overview?tab=recount");
+    render(<StockOverviewPage />);
+    expect(screen.getByText("อ่านตารางนี้ยังไง")).toBeTruthy();
+    const header = within(screen.getAllByRole("table")[0]).getAllByRole("row")[0].textContent ?? "";
+    for (const h of ["นับได้จริง", "ระบบเดิม", "ต่าง", "สต็อกตอนนี้"]) expect(header).toContain(h);
+  });});

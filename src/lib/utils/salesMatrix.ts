@@ -15,6 +15,30 @@ export function shiftMonth(year: number, month0: number, delta: number): { year:
   return { year: d.getFullYear(), month0: d.getMonth() };
 }
 
+// ทุกเดือนตั้งแต่เดือนของเวลาเริ่มต้นจนถึงเดือนนี้ เรียงจากใหม่ไปเก่า (ใช้ส่งออก Excel ย้อนหลัง) / ว่างเมื่อไม่มีเวลาเริ่มต้น
+export function monthsSince(startMs: number | null, now = new Date()): { year: number; month0: number }[] {
+  if (startMs === null || !Number.isFinite(startMs)) return [];
+  const start = new Date(startMs);
+  const out: { year: number; month0: number }[] = [];
+  let cur = { year: now.getFullYear(), month0: now.getMonth() };
+  while (cur.year > start.getFullYear() || (cur.year === start.getFullYear() && cur.month0 >= start.getMonth())) {
+    out.push(cur);
+    cur = shiftMonth(cur.year, cur.month0, -1);
+  }
+  return out;
+}
+
+// วันที่ขายแรกสุดของออเดอร์ที่ไม่ถูกยกเลิก
+export function firstSaleMs(state: AppState): number | null {
+  let min: number | null = null;
+  for (const o of Object.values(state.orders)) {
+    if (o.status === "cancelled") continue;
+    const t = new Date(o.date).getTime();
+    if (Number.isFinite(t) && (min === null || t < min)) min = t;
+  }
+  return min;
+}
+
 interface Tally {
   sold: number;
   returned: number;

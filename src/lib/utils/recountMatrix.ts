@@ -7,6 +7,19 @@ import { qtyByVariant } from "./stockMatrix";
 // จึงอ่านประวัติการนับย้อนหลังได้จาก stock_movements โดยไม่ต้องมีตารางเพิ่ม: ยอดก่อนนับ = qtyBefore, ยอดที่นับได้ = qtyAfter
 export const COUNT_REASON_PREFIX = "นับสต็อก";
 
+const isCountMovement = (m: AppState["movements"][string]) => m.itemType === "product" && !!m.variantId && m.movementType === "adjustment" && !!m.reason?.startsWith(COUNT_REASON_PREFIX);
+
+// วันที่บันทึกผลนับครั้งแรกสุด (null = ยังไม่เคยนับ)
+export function firstCountMs(state: AppState): number | null {
+  let min: number | null = null;
+  for (const m of Object.values(state.movements)) {
+    if (!isCountMovement(m)) continue;
+    const t = new Date(m.createdAt).getTime();
+    if (Number.isFinite(t) && (min === null || t < min)) min = t;
+  }
+  return min;
+}
+
 export interface RecountCell {
   counted: number;
   // ยอดในระบบก่อนบันทึกผลนับ
@@ -47,7 +60,7 @@ export function monthlyRecount(state: AppState, year: number, month0: number, op
   const { from, to } = monthRange(year, month0);
   const latest = new Map<string, { at: number; whId: string; before: number; after: number }>();
   for (const m of Object.values(state.movements)) {
-    if (m.itemType !== "product" || !m.variantId || m.movementType !== "adjustment" || !m.reason?.startsWith(COUNT_REASON_PREFIX)) continue;
+    if (!isCountMovement(m) || !m.variantId) continue;
     const whId = m.warehouseToId ?? "";
     if (opts.warehouseId && whId !== opts.warehouseId) continue;
     const at = new Date(m.createdAt).getTime();

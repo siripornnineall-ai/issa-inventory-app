@@ -4,6 +4,9 @@ import { render, screen, fireEvent, cleanup, within } from "@testing-library/rea
 import { SalesTab } from "./SalesTab";
 import { useStore } from "@/lib/store";
 import { emptyState } from "@/lib/store/state";
+import * as excel from "@/lib/utils/excelMonths";
+
+vi.mock("@/lib/utils/excelMonths", async (orig) => ({ ...(await orig<typeof import("@/lib/utils/excelMonths")>()), downloadWorkbook: vi.fn() }));
 
 function StockOutOverviewPage() {
   const [brandId, setBrandId] = useState("");
@@ -99,6 +102,32 @@ describe("แท็บยอดขาย (สต็อกภาพรวม)", (
     fireEvent.click(screen.getByRole("button", { name: "เดือนก่อน" }));
     fireEvent.click(screen.getByRole("button", { name: "เดือนก่อน" }));
     expect(screen.getByText("ไม่มียอดขายในเดือนนี้")).toBeTruthy();
-    expect((screen.getByRole("button", { name: /ส่งออก Excel/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /Excel เดือนที่เลือก/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("Excel ทุกเดือนย้อนหลัง: ไฟล์เดียว หนึ่งชีตต่อเดือน เรียงใหม่ไปเก่า ใช้ตัวกรองแบรนด์เดียวกัน", () => {
+    const download = vi.mocked(excel.downloadWorkbook);
+    download.mockClear();
+    render(<StockOutOverviewPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Excel ทุกเดือนย้อนหลัง/ }));
+    expect(download).toHaveBeenCalledTimes(1);
+    expect(download.mock.calls[0][0]).toBe("ยอดขาย-ทุกเดือน.xlsx");
+    expect(download.mock.calls[0][1].map((s) => s.name)).toEqual(["2026-10", "2026-09"]);
+    expect(download.mock.calls[0][1][1].rows.flat().join(" ")).toContain("ช่วงก่อน 12 ต.ค. 2569 อาจไม่ครบ");
+
+    download.mockClear();
+    fireEvent.change(screen.getByLabelText("แบรนด์"), { target: { value: "b2" } });
+    fireEvent.click(screen.getByRole("button", { name: /Excel ทุกเดือนย้อนหลัง/ }));
+    expect(download.mock.calls[0][1].map((s) => s.name)).toEqual(["2026-10"]); // Fitty ขายแค่ ต.ค.
+  });
+
+  it("Excel เดือนที่เลือก: ได้เฉพาะเดือนที่ดูอยู่", () => {
+    const download = vi.mocked(excel.downloadWorkbook);
+    download.mockClear();
+    render(<StockOutOverviewPage />);
+    fireEvent.click(screen.getByRole("button", { name: "เดือนก่อน" }));
+    fireEvent.click(screen.getByRole("button", { name: /Excel เดือนที่เลือก/ }));
+    expect(download.mock.calls[0][0]).toBe("ยอดขาย-2026-09.xlsx");
+    expect(download.mock.calls[0][1].map((s) => s.name)).toEqual(["2026-09"]);
   });
 });

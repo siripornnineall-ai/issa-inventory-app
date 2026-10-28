@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { Download, Search } from "lucide-react";
-import * as XLSX from "xlsx";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useStore } from "@/lib/store";
-import { REAL_DATA_START, changePct, monthRange, monthlySales, salesSheetRows, type ProductSales } from "@/lib/utils/salesMatrix";
+import { REAL_DATA_START, changePct, firstSaleMs, monthRange, monthlySales, monthsSince, salesSheetRows, type ProductSales } from "@/lib/utils/salesMatrix";
+import { downloadWorkbook, monthSheets } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
 import { MonthPicker, monthLabel, type YearMonth } from "./MonthPicker";
 
@@ -38,14 +38,23 @@ export function SalesTab({ brandId, setBrandId }: { brandId: string; setBrandId:
   }, [all, search, brandId]);
   const totalNet = products.reduce((s, p) => s + p.net, 0);
 
-  function exportExcel() {
-    if (products.length === 0) return;
-    const ws = XLSX.utils.aoa_to_sheet(salesSheetRows(`ยอดขายสุทธิ ${label}`, products));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "ยอดขาย");
-    XLSX.writeFile(wb, `ยอดขาย-${ym.year}-${String(ym.month0 + 1).padStart(2, "0")}.xlsx`);
-  }
+  const filterProducts = (list: ProductSales[]) => {
+    const q = search.trim().toLowerCase();
+    return list.filter((p) => (!brandId || p.brandId === brandId) && (!q || p.name.toLowerCase().includes(q)));
+  };
+  const firstSale = useMemo(() => firstSaleMs(state), [state]);
 
+  // ส่งออกเดือนที่เลือก หรือทุกเดือนย้อนหลัง (หนึ่งชีตต่อเดือน) ใช้ตัวกรองรุ่น/แบรนด์/สีที่ตั้งไว้เหมือนกัน
+  function exportExcel(allMonths: boolean) {
+    const months = allMonths ? monthsSince(firstSale) : [ym];
+    const sheets = monthSheets(months, (m) => {
+      const list = filterProducts(monthlySales(state, m.year, m.month0, { includeEmptyColors: showEmpty }));
+      if (list.length === 0) return null;
+      const early = monthRange(m.year, m.month0).from < new Date(REAL_DATA_START).getTime();
+      return salesSheetRows(`ยอดขายสุทธิ ${monthLabel(m.year, m.month0)}${early ? " (ช่วงก่อน 12 ต.ค. 2569 อาจไม่ครบ)" : ""}`, list);
+    });
+    downloadWorkbook(allMonths ? "ยอดขาย-ทุกเดือน.xlsx" : `ยอดขาย-${ym.year}-${String(ym.month0 + 1).padStart(2, "0")}.xlsx`, sheets);
+  }
   return (
     <>
         <div className="flex flex-wrap items-center gap-3">
@@ -66,9 +75,14 @@ export function SalesTab({ brandId, setBrandId }: { brandId: string; setBrandId:
             <input id="so-empty" type="checkbox" checked={showEmpty} onChange={(e) => setShowEmpty(e.target.checked)} className="h-4 w-4" />
             แสดงสีที่ไม่มียอด
           </label>
-          <Button variant="ghost" onClick={exportExcel} disabled={products.length === 0} className="ml-auto">
-            <Download className="h-4 w-4" /> ส่งออก Excel
-          </Button>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button variant="ghost" onClick={() => exportExcel(false)} disabled={products.length === 0}>
+              <Download className="h-4 w-4" /> Excel เดือนที่เลือก
+            </Button>
+            <Button variant="ghost" onClick={() => exportExcel(true)} disabled={firstSale === null} title="ไฟล์เดียว หนึ่งชีตต่อเดือน ย้อนหลังตั้งแต่เดือนที่มียอดขายครั้งแรก">
+              <Download className="h-4 w-4" /> Excel ทุกเดือนย้อนหลัง
+            </Button>
+          </div>
         </div>
 
         <p role="status" className="px-1 text-sm text-[var(--color-on-surface-variant)]">

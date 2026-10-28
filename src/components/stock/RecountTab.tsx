@@ -3,13 +3,14 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Download, Search } from "lucide-react";
-import * as XLSX from "xlsx";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useStore } from "@/lib/store";
-import { monthlyRecount, recountSheetRows, type ProductRecount } from "@/lib/utils/recountMatrix";
+import { firstCountMs, monthlyRecount, recountSheetRows, type ProductRecount } from "@/lib/utils/recountMatrix";
+import { monthsSince } from "@/lib/utils/salesMatrix";
+import { downloadWorkbook, monthSheets } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
 import { MonthPicker, monthLabel, type YearMonth } from "./MonthPicker";
 
@@ -40,14 +41,20 @@ export function RecountTab({ brandId, setBrandId }: { brandId: string; setBrandI
   const cells = products.reduce((s, p) => s + p.countedCells, 0);
   const diffCells = products.reduce((s, p) => s + p.diffCells, 0);
 
-  function exportExcel() {
-    if (products.length === 0) return;
-    const ws = XLSX.utils.aoa_to_sheet(recountSheetRows(`ผลนับสต็อก ${label}`, products));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "นับสต็อก");
-    XLSX.writeFile(wb, `นับสต็อก-${ym.year}-${String(ym.month0 + 1).padStart(2, "0")}.xlsx`);
-  }
+  const firstCount = useMemo(() => firstCountMs(state), [state]);
 
+  // ส่งออกเดือนที่เลือก หรือทุกเดือนย้อนหลัง (หนึ่งชีตต่อเดือน) ใช้ตัวกรองรุ่น/แบรนด์/คลังที่ตั้งไว้เหมือนกัน
+  function exportExcel(allMonths: boolean) {
+    const months = allMonths ? monthsSince(firstCount) : [ym];
+    const q = search.trim().toLowerCase();
+    const sheets = monthSheets(months, (m) => {
+      const list = monthlyRecount(state, m.year, m.month0, { warehouseId: warehouseId || undefined }).filter(
+        (p) => (!brandId || p.brandId === brandId) && (!q || p.name.toLowerCase().includes(q)) && (!onlyDiff || p.diffCells > 0),
+      );
+      return list.length === 0 ? null : recountSheetRows(`ผลนับสต็อก ${monthLabel(m.year, m.month0)}`, list);
+    });
+    downloadWorkbook(allMonths ? "นับสต็อก-ทุกเดือน.xlsx" : `นับสต็อก-${ym.year}-${String(ym.month0 + 1).padStart(2, "0")}.xlsx`, sheets);
+  }
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">
@@ -76,16 +83,36 @@ export function RecountTab({ brandId, setBrandId }: { brandId: string; setBrandI
           <input id="rc-only-diff" type="checkbox" checked={onlyDiff} onChange={(e) => setOnlyDiff(e.target.checked)} className="h-4 w-4" />
           เฉพาะรุ่นที่ไม่ตรงกับระบบ
         </label>
-        <Button variant="ghost" onClick={exportExcel} disabled={products.length === 0} className="ml-auto">
-          <Download className="h-4 w-4" /> ส่งออก Excel
-        </Button>
+        <div className="ml-auto flex flex-wrap gap-2">
+          <Button variant="ghost" onClick={() => exportExcel(false)} disabled={products.length === 0}>
+            <Download className="h-4 w-4" /> Excel เดือนที่เลือก
+          </Button>
+          <Button variant="ghost" onClick={() => exportExcel(true)} disabled={firstCount === null} title="ไฟล์เดียว หนึ่งชีตต่อเดือน ย้อนหลังตั้งแต่เดือนที่นับสต็อกครั้งแรก">
+            <Download className="h-4 w-4" /> Excel ทุกเดือนย้อนหลัง
+          </Button>
+        </div>
       </div>
 
       <p role="status" className="px-1 text-sm text-[var(--color-on-surface-variant)]">
-        <span className="font-semibold text-[var(--color-on-surface)]">ผลนับสต็อกเดือน {label}:</span> นับแล้ว {formatNumber(products.length)} รุ่น {formatNumber(cells)} ตัวเลือก · นับได้ {formatNumber(counted)} ชิ้น · ระบบก่อนนับ{" "}
-        {formatNumber(system)} ชิ้น · ผลต่าง <span className={`font-semibold ${diffTone(counted - system)}`}>{signed(counted - system)}</span> · ไม่ตรงกับระบบ {formatNumber(diffCells)} ตัวเลือก
-        <span className="block text-xs">ช่องสีแดง = นับได้น้อยกว่าระบบ (ขาด) · ช่องสีเขียว = นับได้มากกว่าระบบ (เกิน) · ตัวเลขเล็กในช่อง = ยอดในระบบก่อนบันทึกผลนับ · &quot;ตอนนี้&quot; = สต็อกปัจจุบัน (รวมรายการที่เคลื่อนไหวหลังนับ)</span>
+        <span className="font-semibold text-[var(--color-on-surface)]">ผลนับสต็อกเดือน {label}:</span> นับแล้ว {formatNumber(products.length)} รุ่น {formatNumber(cells)} ตัวเลือก · นับได้จริง {formatNumber(counted)} ชิ้น · ระบบเดิม (ก่อนนับ){" "}
+        {formatNumber(system)} ชิ้น · ต่าง <span className={`font-semibold ${diffTone(counted - system)}`}>{signed(counted - system)}</span> ชิ้น · นับแล้วไม่ตรงกับระบบ {formatNumber(diffCells)} ตัวเลือก
       </p>
+      <details className="rounded-xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-on-surface-variant)]" open>
+        <summary className="cursor-pointer font-semibold text-[var(--color-on-surface)]">อ่านตารางนี้ยังไง</summary>
+        <ul className="mt-2 list-inside list-disc space-y-1">
+          <li>
+            <span className="font-semibold text-[var(--color-on-surface)]">ตัวเลขใหญ่ในช่อง</span> = จำนวนที่นับได้จริงตอนนับ ถ้าไม่ตรงกับระบบ ช่องจะมีสี และมีตัวเล็กใต้เลขบอกว่า &quot;ระบบ N&quot; คือระบบเคยมีกี่ชิ้นก่อนบันทึกผลนับ
+          </li>
+          <li>
+            <span className="rounded bg-[var(--color-success-container)] px-1">สีเขียว</span> = นับเจอมากกว่าที่ระบบมี (เกิน) · <span className="rounded bg-[var(--color-danger-container)] px-1">สีแดง</span> = นับเจอน้อยกว่าที่ระบบมี (ขาด) · ไม่มีสี = ตรงกัน · &quot;–&quot; = เดือนนี้ยังไม่ได้นับตัวเลือกนี้
+          </li>
+          <li>
+            คอลัมน์ขวา: <span className="font-semibold text-[var(--color-on-surface)]">นับได้จริง</span> (รวมของที่นับ) · <span className="font-semibold text-[var(--color-on-surface)]">ระบบเดิม</span> (ยอดในระบบก่อนบันทึกผลนับ) ·{" "}
+            <span className="font-semibold text-[var(--color-on-surface)]">ต่าง</span> = นับได้จริง − ระบบเดิม · <span className="font-semibold text-[var(--color-on-surface)]">สต็อกตอนนี้</span> = ยอดในระบบตอนนี้ (หลังบันทึกผลนับ ระบบปรับให้เท่าที่นับแล้ว จึงต่างจากนับได้จริงถ้ามีขายหรือรับของเข้าหลังจากนั้น)
+          </li>
+          <li>ตัวอย่าง: ช่อง ดำ/S ขึ้น 2 และ &quot;ระบบ 0&quot; แปลว่าตอนนับระบบมี 0 ชิ้น แต่ของจริงนับเจอ 2 ชิ้น ต่าง +2</li>
+        </ul>
+      </details>
 
       {products.length === 0 ? (
         <Card className="p-8">
@@ -115,7 +142,7 @@ function RecountBlock({ product: p, defaultOpen }: { product: ProductRecount; de
         <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-5 py-4">
           <span className="text-base font-semibold text-[var(--color-on-surface)]">{p.name}</span>
           <span className="text-sm text-[var(--color-on-surface-variant)]">
-            นับแล้ว {p.countedCells}/{p.totalCells} ตัวเลือก · นับได้ {formatNumber(p.counted)} · ระบบก่อนนับ {formatNumber(p.system)} · ผลต่าง{" "}
+            นับแล้ว {p.countedCells}/{p.totalCells} ตัวเลือก · นับได้จริง {formatNumber(p.counted)} · ระบบเดิม {formatNumber(p.system)} · ต่าง{" "}
             <span className={`font-semibold ${diffTone(p.diff)}`}>{signed(p.diff)}</span>
             {p.diffCells > 0 && <span className="text-[var(--color-danger)]"> (ไม่ตรง {p.diffCells} ตัวเลือก)</span>}
           </span>
@@ -130,10 +157,16 @@ function RecountBlock({ product: p, defaultOpen }: { product: ProductRecount; de
                     {s}
                   </th>
                 ))}
-                <th className="bg-[var(--color-primary)] px-3 py-2 text-center font-medium">นับได้</th>
-                <th className="bg-[var(--color-primary)] px-3 py-2 text-center font-medium">ระบบก่อนนับ</th>
-                <th className="bg-[var(--color-primary)] px-3 py-2 text-center font-medium">ผลต่าง</th>
-                <th className="bg-[var(--color-primary)] px-3 py-2 text-center font-medium">ตอนนี้</th>
+                <th className="bg-[var(--color-primary)] px-3 py-2 text-center font-medium">นับได้จริง</th>
+                <th className="bg-[var(--color-primary)] px-3 py-2 text-center font-medium">
+                  ระบบเดิม<span className="block text-[10px] font-normal opacity-80">ก่อนนับ</span>
+                </th>
+                <th className="bg-[var(--color-primary)] px-3 py-2 text-center font-medium">
+                  ต่าง<span className="block text-[10px] font-normal opacity-80">นับได้ − ระบบเดิม</span>
+                </th>
+                <th className="bg-[var(--color-primary)] px-3 py-2 text-center font-medium">
+                  สต็อกตอนนี้<span className="block text-[10px] font-normal opacity-80">หลังขาย/รับของต่อ</span>
+                </th>
               </tr>
             </thead>
             <tbody>
