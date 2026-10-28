@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { useState } from "react";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
-import StockOutOverviewPage from "./page";
+import { SalesTab } from "./SalesTab";
 import { useStore } from "@/lib/store";
 import { emptyState } from "@/lib/store/state";
 
-vi.mock("@/components/layout/Header", () => ({ Header: ({ title }: { title: string }) => <h1>{title}</h1> }));
+function StockOutOverviewPage() {
+  const [brandId, setBrandId] = useState("");
+  return <SalesTab brandId={brandId} setBrandId={setBrandId} />;
+}
 
 const line = (variantId: string, productId: string, qty: number) => ({ id: variantId + qty, productId, variantId, qty, unitPrice: 100, discount: 0 });
 
@@ -32,7 +36,7 @@ function seed() {
   } as never);
 }
 
-describe("หน้าสต็อกออกภาพรวม", () => {
+describe("แท็บยอดขาย (สต็อกภาพรวม)", () => {
   beforeEach(() => {
     cleanup();
     vi.useFakeTimers({ toFake: ["Date"] });
