@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, HelpCircle, KeyRound, LogOut, ChevronDown, Menu } from "lucide-react";
+import { ArrowLeft, HelpCircle, KeyRound, LogOut, ChevronDown, Menu, Grid3x3 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/account/ChangePassword";
+import { PinSetupDialog } from "@/components/account/PinSetup";
 import { useCurrentUser } from "@/lib/auth/session";
 import { useActions, useStore } from "@/lib/store";
 import { ROLE_LABEL_TH } from "@/lib/types";
@@ -27,6 +28,7 @@ export function Header({
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [pinOpen, setPinOpen] = useState(false);
   const { setOpen: setMobileNavOpen } = useMobileNav();
 
   return (
@@ -88,6 +90,17 @@ export function Header({
                   >
                     <KeyRound className="h-4 w-4" /> เปลี่ยนรหัสผ่าน
                   </button>
+                  {user.role !== "admin" && (
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setPinOpen(true);
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-[var(--color-on-surface)] hover:bg-[var(--color-surface-container)]"
+                    >
+                      <Grid3x3 className="h-4 w-4" /> ตั้ง PIN เข้าระบบ
+                    </button>
+                  )}
                   <button
                     onClick={async () => {
                       await createClient().auth.signOut();
@@ -107,6 +120,7 @@ export function Header({
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2 sm:gap-3">{actions}</div>}
       <ChangePasswordDialog open={passwordOpen} onClose={() => setPasswordOpen(false)} />
+      <PinSetupDialog open={pinOpen} onClose={() => setPinOpen(false)} />
     </header>
   );
 }

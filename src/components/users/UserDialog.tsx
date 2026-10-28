@@ -10,6 +10,7 @@ import { UserPermissionsEditor } from "./UserPermissionsEditor";
 import { ALL_PERMISSIONS, ADMIN_ONLY_PERMISSIONS, effectivePermissions, type Permission } from "@/lib/auth/permissions";
 import { useCan, useCurrentUser } from "@/lib/auth/session";
 import { adminCreateUser, adminResetPassword, adminUpdateEmail, generateTempPassword, MIN_PASSWORD_LENGTH } from "@/lib/supabase/adminUsers";
+import { pinAdminClear } from "@/lib/supabase/pinAuth";
 import type { AppUser, UserRole } from "@/lib/types";
 import { ROLE_LABEL_TH } from "@/lib/types";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -68,6 +69,7 @@ function UserDialogForm({ open, onClose, existing, onChangeOwnPassword }: UserDi
   const [resetPassword, setResetPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [clearingPin, setClearingPin] = useState(false);
   // สิทธิ์รายบุคคล: ถ้าผู้ใช้เคยถูกกำหนดเองไว้ เริ่มที่โหมดกำหนดเอง ไม่งั้นตามตำแหน่ง
   const [customPerms, setCustomPerms] = useState(Boolean(existing?.customPermissions));
   const [perms, setPerms] = useState<Set<Permission>>(
@@ -147,6 +149,8 @@ function UserDialogForm({ open, onClose, existing, onChangeOwnPassword }: UserDi
     setResetting(true);
     try {
       await adminResetPassword(existing.id, resetPassword);
+      // ตั้งรหัสผ่านใหม่ถือว่าบัญชีอาจไม่ปลอดภัย: ล้าง PIN เดิมด้วย ให้เจ้าตัวตั้ง PIN ใหม่เองหลังเข้าด้วยรหัสผ่าน (ล้มเหลวก็ไม่กระทบการตั้งรหัสผ่าน)
+      await pinAdminClear(existing.id).catch(() => {});
       mergeUser({ ...existing, mustChangePassword: true });
       toastSuccess(`ตั้งรหัสผ่านใหม่ให้ "${existing.name}" แล้ว — เจ้าตัวต้องตั้งรหัสของตัวเองเมื่อเข้าระบบครั้งถัดไป`);
       onClose();
@@ -154,6 +158,19 @@ function UserDialogForm({ open, onClose, existing, onChangeOwnPassword }: UserDi
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
     } finally {
       setResetting(false);
+    }
+  }
+
+  async function handleClearPin() {
+    if (!existing) return;
+    setClearingPin(true);
+    try {
+      await pinAdminClear(existing.id);
+      toastSuccess(`ล้าง PIN ของ "${existing.name}" แล้ว (ปลดล็อกด้วย) — เจ้าตัวเข้าด้วยอีเมลและรหัสผ่าน แล้วตั้ง PIN ใหม่ได้เอง`);
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
+    } finally {
+      setClearingPin(false);
     }
   }
 
@@ -248,6 +265,18 @@ function UserDialogForm({ open, onClose, existing, onChangeOwnPassword }: UserDi
             </div>
             <Button type="button" variant="ghost" size="sm" className="mt-3" onClick={handleResetPassword} loading={resetting} disabled={!resetPassword}>
               ตั้งรหัสผ่านใหม่
+            </Button>
+          </div>
+        )}
+
+        {canResetOther && existing?.role !== "admin" && (
+          <div className="mt-2 rounded-xl border border-[var(--color-border)] p-4">
+            <p className="text-sm font-medium text-[var(--color-on-surface)]">PIN เข้าระบบ</p>
+            <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
+              ใช้เมื่อผู้ใช้ลืม PIN หรือบัญชีถูกล็อกเพราะใส่ PIN ผิดหลายครั้ง — ล้างแล้วเจ้าตัวเข้าด้วยอีเมลและรหัสผ่าน แล้วตั้ง PIN ใหม่เอง (ผู้ดูแลระบบไม่เห็น PIN ของใคร)
+            </p>
+            <Button type="button" variant="ghost" size="sm" className="mt-3" onClick={handleClearPin} loading={clearingPin}>
+              ล้าง PIN / ปลดล็อก
             </Button>
           </div>
         )}
