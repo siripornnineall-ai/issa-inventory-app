@@ -66,6 +66,8 @@ export default function LoginPage() {
   const [pinError, setPinError] = useState("");
   const [pinLocked, setPinLocked] = useState(false);
   const [pinBusy, setPinBusy] = useState(false);
+  // แตะการ์ดของคนที่ยังไม่ตั้ง PIN: พาไปเข้าด้วยอีเมลและรหัสผ่านครั้งแรก (เก็บชื่อไว้ทักทาย)
+  const [firstTimeName, setFirstTimeName] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -143,6 +145,13 @@ export default function LoginPage() {
   }
 
   function chooseCard(card: PinUser) {
+    if (!card.hasPin) {
+      setFirstTimeName(card.name);
+      setError("");
+      setMode("email");
+      return;
+    }
+    setFirstTimeName(null);
     setSelected(card);
     setPin("");
     setPinError("");
@@ -198,7 +207,7 @@ export default function LoginPage() {
           {mode === "cards" ? (
             <>
               <h1 className="mt-6 text-center text-2xl font-semibold text-[var(--color-on-surface)]">เลือกบัญชีของคุณ</h1>
-              <p className="mt-1 text-center text-sm text-[var(--color-on-surface-variant)]">แตะชื่อของคุณ แล้วใส่ PIN {PIN_LENGTH} หลัก</p>
+              <p className="mt-1 text-center text-sm text-[var(--color-on-surface-variant)]">แตะชื่อของคุณ แล้วใส่ PIN {PIN_LENGTH} หลัก (ครั้งแรกเข้าด้วยอีเมลและรหัสผ่านที่ได้รับ แล้วตั้ง PIN)</p>
               <ul className="mt-6 flex max-h-[26rem] flex-col gap-2 overflow-y-auto">
                 {cards.map((c) => (
                   <li key={c.id}>
@@ -210,14 +219,17 @@ export default function LoginPage() {
                       <Avatar name={c.name} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-semibold text-[var(--color-on-surface)]">{c.name}</span>
-                        <span className="block truncate text-xs text-[var(--color-on-surface-variant)]">{ROLE_LABEL_TH[c.role] ?? c.role}</span>
+                        <span className="block truncate text-xs text-[var(--color-on-surface-variant)]">
+                          {ROLE_LABEL_TH[c.role] ?? c.role}
+                          {!c.hasPin && <span className="ml-2 rounded-full bg-[var(--color-surface-container)] px-2 py-0.5 text-[10px] font-medium">ยังไม่ตั้ง PIN</span>}
+                        </span>
                       </span>
                       <ChevronRight className="h-5 w-5 shrink-0 text-[var(--color-on-surface-variant)]" />
                     </button>
                   </li>
                 ))}
               </ul>
-              <p className="mt-5 text-center text-xs text-[var(--color-on-surface-variant)]">ไม่พบชื่อของคุณ? ผู้ดูแลระบบและคนที่ยังไม่ได้ตั้ง PIN เข้าด้วยอีเมลและรหัสผ่านด้านล่าง</p>
+              <p className="mt-5 text-center text-xs text-[var(--color-on-surface-variant)]">ไม่พบชื่อของคุณ? ผู้ดูแลระบบและบัญชีใหม่เข้าด้วยอีเมลและรหัสผ่านด้านล่าง</p>
               <Button variant="secondary" className="mt-3 w-full" onClick={() => setMode("email")}>
                 เข้าด้วยอีเมลและรหัสผ่าน
               </Button>
@@ -292,11 +304,23 @@ export default function LoginPage() {
 
         <div className="flex flex-col justify-center p-8 md:p-10">
           {cards.length > 0 && (
-            <button type="button" onClick={() => setMode("cards")} className="mb-4 flex items-center gap-1 self-start text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
+            <button
+              type="button"
+              onClick={() => {
+                setFirstTimeName(null);
+                setMode("cards");
+              }}
+              className="mb-4 flex items-center gap-1 self-start text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]"
+            >
               <ChevronLeft className="h-4 w-4" /> กลับไปเลือกชื่อ
             </button>
           )}
           <h1 className="text-2xl font-semibold text-[var(--color-on-surface)]">เข้าสู่ระบบ</h1>
+          {firstTimeName && (
+            <p role="status" className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              สวัสดี {firstTimeName} — ครั้งแรกเข้าด้วยอีเมลและรหัสผ่านที่ได้รับจากผู้ดูแลระบบ แล้วตั้ง PIN {PIN_LENGTH} หลักของคุณเอง ครั้งต่อไปแตะชื่อแล้วใส่ PIN ได้เลย
+            </p>
+          )}
           <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">จัดการสต็อกสินค้าและอุปกรณ์ของ ISSA Apparel</p>
 
           <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">

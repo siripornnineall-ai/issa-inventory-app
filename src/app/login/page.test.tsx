@@ -40,8 +40,8 @@ describe("หน้าเข้าสู่ระบบ: การ์ดชื�
     localStorage.clear();
     useStore.getState().actions.hydrate(emptyState());
     pinList.mockResolvedValue([
-      { id: "u1", name: "วิชัย ศรีสุข", role: "warehouse" },
-      { id: "u2", name: "นภา วงศ์ไทย", role: "manager" },
+      { id: "u1", name: "วิชัย ศรีสุข", role: "warehouse", hasPin: true },
+      { id: "u2", name: "นภา วงศ์ไทย", role: "manager", hasPin: true },
     ]);
     fetchAppState.mockResolvedValue(stateWith());
     setSession.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
@@ -56,7 +56,25 @@ describe("หน้าเข้าสู่ระบบ: การ์ดชื�
     expect(screen.getByRole("button", { name: "เข้าด้วยอีเมลและรหัสผ่าน" })).toBeTruthy();
   });
 
-  it("ยังไม่มีใครตั้ง PIN (หรือโหลดรายชื่อไม่ได้): ตกไปหน้าอีเมลและรหัสผ่านเหมือนเดิม", async () => {
+  it("คนที่ยังไม่ตั้ง PIN ก็มีการ์ด แตะแล้วพาไปเข้าด้วยอีเมลและรหัสผ่านครั้งแรก พร้อมคำทักทายชื่อ", async () => {
+    pinList.mockResolvedValue([
+      { id: "u1", name: "วิชัย ศรีสุข", role: "warehouse", hasPin: false },
+      { id: "u2", name: "นภา วงศ์ไทย", role: "manager", hasPin: true },
+    ]);
+    render(<LoginPage />);
+    expect(await screen.findByText("ยังไม่ตั้ง PIN")).toBeTruthy(); // ป้ายบนการ์ดของวิชัยเท่านั้น
+    fireEvent.click(screen.getByText("วิชัย ศรีสุข"));
+    expect(screen.getByRole("heading", { name: "เข้าสู่ระบบ" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("สวัสดี วิชัย ศรีสุข");
+    expect(pinLogin).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("กลับไปเลือกชื่อ"));
+    expect(screen.getByRole("heading", { name: "เลือกบัญชีของคุณ" })).toBeTruthy();
+    // แตะการ์ดที่ตั้ง PIN แล้ว ไปหน้ากรอก PIN ตามเดิม
+    fireEvent.click(screen.getByText("นภา วงศ์ไทย"));
+    expect(screen.getByRole("heading", { name: "นภา วงศ์ไทย" })).toBeTruthy();
+  });
+
+  it("ยังไม่มีรายชื่อเลย (หรือโหลดรายชื่อไม่ได้): ตกไปหน้าอีเมลและรหัสผ่านเหมือนเดิม", async () => {
     pinList.mockResolvedValue([]);
     render(<LoginPage />);
     expect(await screen.findByRole("heading", { name: "เข้าสู่ระบบ" })).toBeTruthy();
