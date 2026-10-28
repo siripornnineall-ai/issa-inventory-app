@@ -28,6 +28,23 @@ function avatarColor(name: string) {
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
+// จำอีเมลของแต่ละคนไว้บนเครื่องนี้หลังเข้าด้วยรหัสผ่านสำเร็จ ครั้งหน้าแตะการ์ดชื่อแล้วกรอกแค่รหัสผ่าน (อีเมลไม่ถูกส่งมาจากเซิร์ฟเวอร์ตอนแสดงการ์ด)
+const emailKey = (userId: string) => `issa-login-email:${userId}`;
+function rememberedEmail(userId: string): string {
+  try {
+    return localStorage.getItem(emailKey(userId)) ?? "";
+  } catch {
+    return "";
+  }
+}
+function rememberEmail(userId: string, email: string) {
+  try {
+    localStorage.setItem(emailKey(userId), email);
+  } catch {
+    // เก็บไม่ได้ก็แค่ต้องพิมพ์อีเมลใหม่รอบหน้า
+  }
+}
+
 // ชวนตั้ง PIN หลังเข้าด้วยรหัสผ่าน: ถ้ากด "ไว้ทีหลัง" ไม่ถามอีก 7 วันบนเครื่องนี้
 const PROMPT_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
 const snoozeKey = (userId: string) => `issa-pin-prompt-snooze:${userId}`;
@@ -67,7 +84,7 @@ export default function LoginPage() {
   const [pinLocked, setPinLocked] = useState(false);
   const [pinBusy, setPinBusy] = useState(false);
   // แตะการ์ดของคนที่ยังไม่ตั้ง PIN: พาไปเข้าด้วยอีเมลและรหัสผ่านครั้งแรก (เก็บชื่อไว้ทักทาย)
-  const [firstTimeName, setFirstTimeName] = useState<string | null>(null);
+  const [firstTimeName, setFirstTimeName] = useState<{ name: string; admin: boolean } | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -131,6 +148,7 @@ export default function LoginPage() {
         return;
       }
       const { state, profile } = loaded;
+      rememberEmail(profile.id, email.trim());
       // ชวนตั้ง PIN เฉพาะพนักงานที่ยังไม่มี PIN (ผู้ดูแลระบบใช้ PIN ไม่ได้ / บัญชีที่ต้องเปลี่ยนรหัสผ่านก่อนให้ทำให้เสร็จก่อน)
       if (profile.role !== "admin" && !profile.mustChangePassword && !snoozed(profile.id) && !(await hasPin())) {
         setPendingPin({ state, profile, password });
@@ -145,8 +163,11 @@ export default function LoginPage() {
   }
 
   function chooseCard(card: PinUser) {
-    if (!card.hasPin) {
-      setFirstTimeName(card.name);
+    // ผู้ดูแลระบบใช้ PIN ไม่ได้ และคนที่ยังไม่ตั้ง PIN: ไปใส่รหัสผ่าน (ถ้าเคยเข้าบนเครื่องนี้ มีอีเมลให้แล้ว)
+    if (!card.hasPin || card.role === "admin") {
+      setFirstTimeName({ name: card.name, admin: card.role === "admin" });
+      setEmail(rememberedEmail(card.id));
+      setPassword("");
       setError("");
       setMode("email");
       return;
@@ -221,7 +242,11 @@ export default function LoginPage() {
                         <span className="block truncate font-semibold text-[var(--color-on-surface)]">{c.name}</span>
                         <span className="block truncate text-xs text-[var(--color-on-surface-variant)]">
                           {ROLE_LABEL_TH[c.role] ?? c.role}
-                          {!c.hasPin && <span className="ml-2 rounded-full bg-[var(--color-surface-container)] px-2 py-0.5 text-[10px] font-medium">ยังไม่ตั้ง PIN</span>}
+                          {c.role === "admin" ? (
+                            <span className="ml-2 rounded-full bg-[var(--color-surface-container)] px-2 py-0.5 text-[10px] font-medium">เข้าด้วยรหัสผ่าน</span>
+                          ) : (
+                            !c.hasPin && <span className="ml-2 rounded-full bg-[var(--color-surface-container)] px-2 py-0.5 text-[10px] font-medium">ยังไม่ตั้ง PIN</span>
+                          )}
                         </span>
                       </span>
                       <ChevronRight className="h-5 w-5 shrink-0 text-[var(--color-on-surface-variant)]" />
@@ -229,7 +254,7 @@ export default function LoginPage() {
                   </li>
                 ))}
               </ul>
-              <p className="mt-5 text-center text-xs text-[var(--color-on-surface-variant)]">ไม่พบชื่อของคุณ? ผู้ดูแลระบบและบัญชีใหม่เข้าด้วยอีเมลและรหัสผ่านด้านล่าง</p>
+              <p className="mt-5 text-center text-xs text-[var(--color-on-surface-variant)]">ไม่พบชื่อของคุณ? เข้าด้วยอีเมลและรหัสผ่านด้านล่าง</p>
               <Button variant="secondary" className="mt-3 w-full" onClick={() => setMode("email")}>
                 เข้าด้วยอีเมลและรหัสผ่าน
               </Button>
@@ -318,7 +343,9 @@ export default function LoginPage() {
           <h1 className="text-2xl font-semibold text-[var(--color-on-surface)]">เข้าสู่ระบบ</h1>
           {firstTimeName && (
             <p role="status" className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              สวัสดี {firstTimeName} — ครั้งแรกเข้าด้วยอีเมลและรหัสผ่านที่ได้รับจากผู้ดูแลระบบ แล้วตั้ง PIN {PIN_LENGTH} หลักของคุณเอง ครั้งต่อไปแตะชื่อแล้วใส่ PIN ได้เลย
+              {firstTimeName.admin
+                ? `สวัสดี ${firstTimeName.name} — ผู้ดูแลระบบเข้าด้วยอีเมลและรหัสผ่านเสมอ (ไม่ใช้ PIN)`
+                : `สวัสดี ${firstTimeName.name} — ครั้งแรกเข้าด้วยอีเมลและรหัสผ่านที่ได้รับจากผู้ดูแลระบบ แล้วตั้ง PIN ${PIN_LENGTH} หลักของคุณเอง ครั้งต่อไปแตะชื่อแล้วใส่ PIN ได้เลย`}
             </p>
           )}
           <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">จัดการสต็อกสินค้าและอุปกรณ์ของ ISSA Apparel</p>

@@ -1,6 +1,6 @@
 // Edge Function: pin-auth
 // เข้าสู่ระบบด้วย PIN 6 หลัก (ช่องทางเสริมของอีเมล+รหัสผ่าน) ตรวจ PIN ฝั่งเซิร์ฟเวอร์เท่านั้น
-//   list  (ไม่ต้องเข้าสู่ระบบ) รายชื่อการ์ดบนหน้าเข้าสู่ระบบ: ผู้ใช้ที่เปิดใช้งานทุกคนที่ไม่ใช่ผู้ดูแลระบบ (ชื่อ+ตำแหน่ง+ตั้ง PIN แล้วหรือยัง ไม่มีอีเมล)
+//   list  (ไม่ต้องเข้าสู่ระบบ) รายชื่อการ์ดบนหน้าเข้าสู่ระบบ: ผู้ใช้ที่เปิดใช้งานทุกคน รวมผู้ดูแลระบบ (ชื่อ+ตำแหน่ง+ตั้ง PIN แล้วหรือยัง ไม่มีอีเมล) ผู้ดูแลระบบกดการ์ดแล้วไปใส่รหัสผ่านแทน เพราะใช้ PIN ไม่ได้
 //   login (ไม่ต้องเข้าสู่ระบบ) ตรวจ PIN แล้วออกเซสชัน: ผิดครบ 5 ครั้งล็อกบัญชี 15 นาที และจำกัดการลองผิดต่อ IP
 //   set   (ต้องเข้าสู่ระบบ)   ตั้ง/เปลี่ยน PIN ของตัวเอง ต้องยืนยันรหัสผ่านปัจจุบันด้วย
 //   clear (ต้องเข้าสู่ระบบ)   ลบ PIN ของตัวเอง
@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
   // ---------- รายชื่อการ์ด ----------
   if (action === "list") {
     const [{ data: profiles }, { data: pins }] = await Promise.all([
-      admin.from("profiles").select("id, name, role").eq("active", true).neq("role", "admin").order("name"),
+      admin.from("profiles").select("id, name, role").eq("active", true).order("name"),
       admin.from("user_pins").select("user_id"),
     ]);
     const withPin = new Set((pins ?? []).map((p) => p.user_id as string));

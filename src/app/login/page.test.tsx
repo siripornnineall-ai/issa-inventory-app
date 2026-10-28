@@ -74,6 +74,31 @@ describe("หน้าเข้าสู่ระบบ: การ์ดชื�
     expect(screen.getByRole("heading", { name: "นภา วงศ์ไทย" })).toBeTruthy();
   });
 
+  it("ผู้ดูแลระบบมีการ์ดของตัวเองด้วย แตะแล้วไปใส่รหัสผ่าน (ไม่ใช้ PIN) และจำอีเมลบนเครื่องไว้ให้ครั้งหน้า", async () => {
+    pinList.mockResolvedValue([{ id: "a1", name: "กาลอง", role: "admin", hasPin: false }]);
+    signIn.mockResolvedValue({ data: { user: { id: "a1" } }, error: null });
+    fetchAppState.mockResolvedValue(stateWith({ ...staff, id: "a1", name: "กาลอง", role: "admin", email: "kalong@x.com" }));
+    render(<LoginPage />);
+    expect(await screen.findByText("เข้าด้วยรหัสผ่าน")).toBeTruthy();
+    fireEvent.click(screen.getByText("กาลอง"));
+    expect(screen.getByRole("status").textContent).toContain("ผู้ดูแลระบบเข้าด้วยอีเมลและรหัสผ่านเสมอ");
+    expect(pinLogin).not.toHaveBeenCalled();
+    // เข้าครั้งแรกต้องพิมพ์อีเมลเอง
+    expect((screen.getByPlaceholderText("you@example.com") as HTMLInputElement).value).toBe("");
+    fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "kalong@x.com" } });
+    fireEvent.change(document.querySelector('input[autocomplete="current-password"]') as HTMLInputElement, { target: { value: "รหัสผ่านยาว1" } });
+    fireEvent.click(screen.getByRole("button", { name: "เข้าสู่ระบบ" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+    expect(localStorage.getItem("issa-login-email:a1")).toBe("kalong@x.com");
+
+    // กลับมาหน้าเข้าสู่ระบบอีกครั้ง: แตะการ์ดเดิม อีเมลถูกกรอกให้แล้ว
+    cleanup();
+    useStore.getState().actions.hydrate(emptyState());
+    render(<LoginPage />);
+    fireEvent.click(await screen.findByText("กาลอง"));
+    expect((screen.getByPlaceholderText("you@example.com") as HTMLInputElement).value).toBe("kalong@x.com");
+  });
+
   it("ยังไม่มีรายชื่อเลย (หรือโหลดรายชื่อไม่ได้): ตกไปหน้าอีเมลและรหัสผ่านเหมือนเดิม", async () => {
     pinList.mockResolvedValue([]);
     render(<LoginPage />);
