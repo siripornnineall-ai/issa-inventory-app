@@ -35,7 +35,7 @@ function seed() {
     variantStock: { "v1::w1": { itemId: "v1", warehouseId: "w1", qtyOnHand: 7, qtyReserved: 0 } },
     orders: { o1: { id: "o1", orderNo: "o1", date: at, channel: "online", warehouseId: "w1", lines: [{ id: "l", productId: "p1", variantId: "v1", qty: 3, unitPrice: 1, discount: 0 }], status: "completed", restocked: false, createdAt: at } },
     movements: {
-      m1: { id: "m1", createdAt: at, refNo: "ADJ-1", itemType: "product", itemId: "v1", variantId: "v1", itemName: "x", sku: "a", movementType: "adjustment", qtyChange: -2, qtyBefore: 12, qtyAfter: 10, warehouseToId: "w1", reason: "นับสต็อก — Billie Slim", actorId: "u", actorName: "u" },
+      m1: { id: "m1", createdAt: new Date().toISOString(), refNo: "ADJ-1", itemType: "product", itemId: "v1", variantId: "v1", itemName: "x", sku: "a", movementType: "adjustment", qtyChange: -2, qtyBefore: 12, qtyAfter: 10, warehouseToId: "w1", reason: "นับสต็อก — Billie Slim", actorId: "u", actorName: "u" },
     },
   } as never);
 }
@@ -107,7 +107,7 @@ describe("สต็อกภาพรวม: แท็บสต็อกปั�
     window.history.replaceState(null, "", "/stock-overview?tab=recount");
     render(<StockOverviewPage />);
     fireEvent.click(screen.getByRole("button", { name: "เดือนก่อน" }));
-    expect(screen.getByText("เดือนนี้ยังไม่มีการนับสต็อก")).toBeTruthy();
+    expect(screen.getByText("ช่วงนี้ยังไม่มีการนับสต็อก")).toBeTruthy();
     expect(screen.getByRole("link", { name: "ไปหน้านับสต็อก" }).getAttribute("href")).toBe("/stock-count");
   });
   it("แท็บสต็อกนับใหม่: Excel ทุกเดือนย้อนหลัง ได้หนึ่งชีตต่อเดือนที่เคยนับ ตั้งแต่เดือนที่นับครั้งแรก", () => {
@@ -129,4 +129,40 @@ describe("สต็อกภาพรวม: แท็บสต็อกปั�
     expect(screen.getByText("อ่านตารางนี้ยังไง")).toBeTruthy();
     const header = within(screen.getAllByRole("table")[0]).getAllByRole("row")[0].textContent ?? "";
     for (const h of ["นับได้จริง", "ระบบเดิม", "ต่าง", "สต็อกตอนนี้"]) expect(header).toContain(h);
+  });  it("แท็บสต็อกนับใหม่: ซ่อนการนับช่วงตั้งต้นระบบ (ก่อน 28 ต.ค. 2569) ไว้ก่อน ติ๊กเพื่อดูย้อนหลังได้", () => {
+    const old = new Date("2026-10-12T10:00:00").toISOString();
+    useStore.getState().actions.hydrate({
+      ...emptyState(),
+      warehouses: { w1: { id: "w1", name: "คลัง", type: "main", active: true, createdAt: "" } },
+      products: { p1: { id: "p1", sellingName: "Billie Slim", createdAt: "" } },
+      variants: { v1: { id: "v1", productId: "p1", color: "ดำ", size: "M", sku: "a", active: true } },
+      variantStock: { "v1::w1": { itemId: "v1", warehouseId: "w1", qtyOnHand: 10, qtyReserved: 0 } },
+      movements: {
+        m1: { id: "m1", createdAt: old, refNo: "ADJ-1", itemType: "product", itemId: "v1", variantId: "v1", itemName: "x", sku: "a", movementType: "adjustment", qtyChange: -2, qtyBefore: 12, qtyAfter: 10, warehouseToId: "w1", reason: "นับสต็อก — Billie Slim", actorId: "u", actorName: "u" },
+      },
+    } as never);
+    window.history.replaceState(null, "", "/stock-overview?tab=recount");
+    render(<StockOverviewPage />);
+    fireEvent.change(screen.getByLabelText("ตั้งแต่วันที่"), { target: { value: "2026-10-01" } });
+    fireEvent.change(screen.getByLabelText("ถึงวันที่"), { target: { value: "2026-10-31" } });
+    expect(screen.getByText("ช่วงนี้ยังไม่มีการนับสต็อก")).toBeTruthy();
+    expect(screen.queryByText("Billie Slim")).toBeNull();
+    fireEvent.click(screen.getByLabelText(/รวมการนับช่วงตั้งต้นระบบ/));
+    expect(screen.getByText("Billie Slim")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("นับได้จริง 10 ชิ้น");
+  });
+
+  it("แท็บสต็อกนับใหม่: เลือกเป็นช่วงวันที่ได้ และส่งออก Excel เป็นช่วงนั้น", () => {
+    const download = vi.mocked(excel.downloadWorkbook);
+    download.mockClear();
+    window.history.replaceState(null, "", "/stock-overview?tab=recount");
+    render(<StockOverviewPage />);
+    const today = new Date();
+    const day = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    fireEvent.change(screen.getByLabelText("ตั้งแต่วันที่"), { target: { value: day } });
+    fireEvent.change(screen.getByLabelText("ถึงวันที่"), { target: { value: day } });
+    expect(screen.getByRole("status").textContent).toContain("วันที่");
+    expect(screen.getByRole("status").textContent).toContain("นับได้จริง 10 ชิ้น");
+    fireEvent.click(screen.getByRole("button", { name: /Excel ช่วงที่เลือก/ }));
+    expect(download.mock.calls[0][0]).toBe(`นับสต็อก-${day}_${day}.xlsx`);
   });});

@@ -96,9 +96,12 @@ export interface ProductSales {
 
 // ยอดขายสุทธิรายเดือนแยกตามรุ่น (แถว = สี, คอลัมน์ = ไซซ์) เรียงรุ่นและสีจากขายมากไปน้อย
 export function monthlySales(state: AppState, year: number, month0: number, opts: { includeEmptyColors?: boolean } = {}): ProductSales[] {
-  const cur = monthRange(year, month0);
   const prevM = shiftMonth(year, month0, -1);
-  const prevR = monthRange(prevM.year, prevM.month0);
+  return salesBetween(state, monthRange(year, month0), monthRange(prevM.year, prevM.month0), opts);
+}
+
+// ยอดขายสุทธิในช่วงเวลาใดก็ได้ [from, to) เทียบกับช่วงก่อนหน้า (prev) ที่กำหนด
+export function salesBetween(state: AppState, cur: { from: number; to: number }, prevR: { from: number; to: number }, opts: { includeEmptyColors?: boolean } = {}): ProductSales[] {
   const now = tally(state, cur.from, cur.to);
   const before = tally(state, prevR.from, prevR.to);
 

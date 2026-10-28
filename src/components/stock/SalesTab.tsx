@@ -7,115 +7,120 @@ import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useStore } from "@/lib/store";
-import { REAL_DATA_START, changePct, firstSaleMs, monthRange, monthlySales, monthsSince, salesSheetRows, type ProductSales } from "@/lib/utils/salesMatrix";
+import { REAL_DATA_START, changePct, firstSaleMs, monthsSince, salesBetween, salesSheetRows, type ProductSales } from "@/lib/utils/salesMatrix";
 import { downloadWorkbook, monthSheets } from "@/lib/utils/excelMonths";
+import { fullMonthOf, monthPeriod, periodFileKey, periodLabel, periodRange, previousRange, type Period } from "@/lib/utils/period";
 import { formatNumber } from "@/lib/utils/money";
-import { MonthPicker, monthLabel, type YearMonth } from "./MonthPicker";
+import { PeriodPicker } from "./PeriodPicker";
 
-function rangeLabel(year: number, month0: number) {
-  const last = new Date(year, month0 + 1, 0).getDate();
-  const m = new Date(year, month0, 1).toLocaleDateString("th-TH", { month: "short" });
-  return `1–${last} ${m}`;
-}
+const realDataStartMs = () => new Date(REAL_DATA_START).getTime();
 
 export function SalesTab({ brandId, setBrandId }: { brandId: string; setBrandId: (id: string) => void }) {
   const state = useStore();
-  const [ym, setYm] = useState<YearMonth>(() => {
+  const [period, setPeriod] = useState<Period>(() => {
     const d = new Date();
-    return { year: d.getFullYear(), month0: d.getMonth() };
+    return monthPeriod(d.getFullYear(), d.getMonth());
   });
   const [search, setSearch] = useState("");
   const [showEmpty, setShowEmpty] = useState(false);
 
-  const label = monthLabel(ym.year, ym.month0);
-  const beforeRealData = monthRange(ym.year, ym.month0).from < new Date(REAL_DATA_START).getTime();
+  const label = periodLabel(period);
+  const isMonth = fullMonthOf(period) !== null;
+  const beforeRealData = periodRange(period).from < realDataStartMs();
 
-  const all = useMemo(() => monthlySales(state, ym.year, ym.month0, { includeEmptyColors: showEmpty }), [state, ym, showEmpty]);
+  const salesFor = (p: Period) => salesBetween(state, periodRange(p), previousRange(p), { includeEmptyColors: showEmpty });
+  const filterProducts = (list: ProductSales[]) => {
+    const q = search.trim().toLowerCase();
+    return list.filter((p) => (!brandId || p.brandId === brandId) && (!q || p.name.toLowerCase().includes(q)));
+  };
+
+  const all = useMemo(() => salesBetween(state, periodRange(period), previousRange(period), { includeEmptyColors: showEmpty }), [state, period, showEmpty]);
   const brands = useMemo(() => Object.values(state.brands).sort((a, b) => a.name.localeCompare(b.name, "th")), [state.brands]);
   const products = useMemo(() => {
     const q = search.trim().toLowerCase();
     return all.filter((p) => (!brandId || p.brandId === brandId) && (!q || p.name.toLowerCase().includes(q)));
   }, [all, search, brandId]);
   const totalNet = products.reduce((s, p) => s + p.net, 0);
-
-  const filterProducts = (list: ProductSales[]) => {
-    const q = search.trim().toLowerCase();
-    return list.filter((p) => (!brandId || p.brandId === brandId) && (!q || p.name.toLowerCase().includes(q)));
-  };
   const firstSale = useMemo(() => firstSaleMs(state), [state]);
 
-  // ส่งออกเดือนที่เลือก หรือทุกเดือนย้อนหลัง (หนึ่งชีตต่อเดือน) ใช้ตัวกรองรุ่น/แบรนด์/สีที่ตั้งไว้เหมือนกัน
+  const sheetTitle = (p: Period) => {
+    const early = periodRange(p).from < realDataStartMs();
+    return `ยอดขายสุทธิ ${periodLabel(p)}${early ? " (ช่วงก่อน 12 ต.ค. 2569 อาจไม่ครบ)" : ""}`;
+  };
+
+  // ส่งออกช่วงที่เลือก หรือทุกเดือนย้อนหลัง (หนึ่งชีตต่อเดือน) ใช้ตัวกรองรุ่น/แบรนด์/สีที่ตั้งไว้เหมือนกัน
   function exportExcel(allMonths: boolean) {
-    const months = allMonths ? monthsSince(firstSale) : [ym];
-    const sheets = monthSheets(months, (m) => {
-      const list = filterProducts(monthlySales(state, m.year, m.month0, { includeEmptyColors: showEmpty }));
-      if (list.length === 0) return null;
-      const early = monthRange(m.year, m.month0).from < new Date(REAL_DATA_START).getTime();
-      return salesSheetRows(`ยอดขายสุทธิ ${monthLabel(m.year, m.month0)}${early ? " (ช่วงก่อน 12 ต.ค. 2569 อาจไม่ครบ)" : ""}`, list);
+    if (!allMonths) {
+      const list = filterProducts(salesFor(period));
+      if (list.length === 0) return;
+      downloadWorkbook(`ยอดขาย-${periodFileKey(period)}.xlsx`, [{ name: periodFileKey(period), rows: salesSheetRows(sheetTitle(period), list) }]);
+      return;
+    }
+    const sheets = monthSheets(monthsSince(firstSale), (m) => {
+      const p = monthPeriod(m.year, m.month0);
+      const list = filterProducts(salesFor(p));
+      return list.length === 0 ? null : salesSheetRows(sheetTitle(p), list);
     });
-    downloadWorkbook(allMonths ? "ยอดขาย-ทุกเดือน.xlsx" : `ยอดขาย-${ym.year}-${String(ym.month0 + 1).padStart(2, "0")}.xlsx`, sheets);
+    downloadWorkbook("ยอดขาย-ทุกเดือน.xlsx", sheets);
   }
+
   return (
     <>
-        <div className="flex flex-wrap items-center gap-3">
-          <MonthPicker value={ym} onChange={setYm} />
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-on-surface-variant)]" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหารุ่น" aria-label="ค้นหารุ่น" className="w-56 pl-9" />
-          </div>
-          <Select value={brandId} onChange={(e) => setBrandId(e.target.value)} aria-label="แบรนด์" className="w-44">
-            <option value="">ทุกแบรนด์</option>
-            {brands.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </Select>
-          <label htmlFor="so-empty" className="flex cursor-pointer items-center gap-2 text-sm">
-            <input id="so-empty" type="checkbox" checked={showEmpty} onChange={(e) => setShowEmpty(e.target.checked)} className="h-4 w-4" />
-            แสดงสีที่ไม่มียอด
-          </label>
-          <div className="ml-auto flex flex-wrap gap-2">
-            <Button variant="ghost" onClick={() => exportExcel(false)} disabled={products.length === 0}>
-              <Download className="h-4 w-4" /> Excel เดือนที่เลือก
-            </Button>
-            <Button variant="ghost" onClick={() => exportExcel(true)} disabled={firstSale === null} title="ไฟล์เดียว หนึ่งชีตต่อเดือน ย้อนหลังตั้งแต่เดือนที่มียอดขายครั้งแรก">
-              <Download className="h-4 w-4" /> Excel ทุกเดือนย้อนหลัง
-            </Button>
-          </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <PeriodPicker value={period} onChange={setPeriod} />
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-on-surface-variant)]" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหารุ่น" aria-label="ค้นหารุ่น" className="w-56 pl-9" />
         </div>
+        <Select value={brandId} onChange={(e) => setBrandId(e.target.value)} aria-label="แบรนด์" className="w-44">
+          <option value="">ทุกแบรนด์</option>
+          {brands.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </Select>
+        <label htmlFor="so-empty" className="flex cursor-pointer items-center gap-2 text-sm">
+          <input id="so-empty" type="checkbox" checked={showEmpty} onChange={(e) => setShowEmpty(e.target.checked)} className="h-4 w-4" />
+          แสดงสีที่ไม่มียอด
+        </label>
+        <div className="ml-auto flex flex-wrap gap-2">
+          <Button variant="ghost" onClick={() => exportExcel(false)} disabled={products.length === 0}>
+            <Download className="h-4 w-4" /> Excel ช่วงที่เลือก
+          </Button>
+          <Button variant="ghost" onClick={() => exportExcel(true)} disabled={firstSale === null} title="ไฟล์เดียว หนึ่งชีตต่อเดือน ย้อนหลังตั้งแต่เดือนที่มียอดขายครั้งแรก">
+            <Download className="h-4 w-4" /> Excel ทุกเดือนย้อนหลัง
+          </Button>
+        </div>
+      </div>
 
-        <p role="status" className="px-1 text-sm text-[var(--color-on-surface-variant)]">
-          <span className="font-semibold text-[var(--color-on-surface)]">
-            ยอดขายสุทธิเดือน {label} ({rangeLabel(ym.year, ym.month0)}):
-          </span>{" "}
-          {formatNumber(totalNet)} ชิ้น จาก {products.length} รุ่น · นับออเดอร์ที่ไม่ถูกยกเลิกตามวันที่ขาย และหักของคืน (ตีกลับ / คืน / เปลี่ยน) ตามวันที่รับคืนเข้าคลัง
+      <p role="status" className="px-1 text-sm text-[var(--color-on-surface-variant)]">
+        <span className="font-semibold text-[var(--color-on-surface)]">ยอดขายสุทธิ{label}:</span> {formatNumber(totalNet)} ชิ้น จาก {products.length} รุ่น · นับออเดอร์ที่ไม่ถูกยกเลิกตามวันที่ขาย และหักของคืน (ตีกลับ / คืน / เปลี่ยน) ตามวันที่รับคืนเข้าคลัง
+      </p>
+
+      {beforeRealData && (
+        <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          ช่วงที่เลือกมีวันก่อนที่ระบบเริ่มบันทึกการขายจริง (12 ต.ค. 2569) ข้อมูลช่วงนั้นเป็นข้อมูลทดสอบหรือยังบันทึกไม่ครบ ตัวเลขอาจไม่ตรงกับยอดขายจริง
         </p>
+      )}
 
-        {beforeRealData && (
-          <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            เดือนนี้มีช่วงก่อนวันที่ระบบเริ่มบันทึกการขายจริง (12 ต.ค. 2569) ข้อมูลช่วงนั้นเป็นข้อมูลทดสอบหรือยังบันทึกไม่ครบ ตัวเลขอาจไม่ตรงกับยอดขายจริง
-          </p>
-        )}
-
-        {products.length === 0 ? (
-          <Card className="p-8">
-            <EmptyState title="ไม่มียอดขายในเดือนนี้" description="ลองเลือกเดือนอื่น หรือล้างตัวกรองรุ่น/แบรนด์" />
-          </Card>
-        ) : (
-          products.map((p, i) => <ProductBlock key={p.productId} product={p} defaultOpen={i < 3} />)
-        )}
+      {products.length === 0 ? (
+        <Card className="p-8">
+          <EmptyState title="ไม่มียอดขายในช่วงนี้" description="ลองเลือกช่วงเวลาอื่น หรือล้างตัวกรองรุ่น/แบรนด์" />
+        </Card>
+      ) : (
+        products.map((p, i) => <ProductBlock key={p.productId} product={p} defaultOpen={i < 3} prevLabel={isMonth ? "เดือนก่อน" : "ช่วงก่อนหน้า"} />)
+      )}
     </>
   );
 }
-
 function cellStyle(value: number, max: number): React.CSSProperties | undefined {
   if (value <= 0 || max <= 0) return undefined;
   const pct = Math.round(8 + 32 * Math.min(1, value / max));
   return { backgroundColor: `color-mix(in srgb, var(--color-primary-container) ${pct}%, transparent)` };
 }
 
-function ProductBlock({ product: p, defaultOpen }: { product: ProductSales; defaultOpen: boolean }) {
+function ProductBlock({ product: p, defaultOpen, prevLabel }: { product: ProductSales; defaultOpen: boolean; prevLabel: string }) {
   const change = changePct(p.net, p.prevNet);
   return (
     <Card className="overflow-hidden">
@@ -127,7 +132,7 @@ function ProductBlock({ product: p, defaultOpen }: { product: ProductSales; defa
             {p.prevNet > 0 && (
               <>
                 {" "}
-                · เดือนก่อน {formatNumber(p.prevNet)}
+                · {prevLabel} {formatNumber(p.prevNet)}
                 {change !== null && <span className={change >= 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}> ({change >= 0 ? "▲" : "▼"} {Math.abs(change)}%)</span>}
               </>
             )}

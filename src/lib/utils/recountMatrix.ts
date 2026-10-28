@@ -7,15 +7,19 @@ import { qtyByVariant } from "./stockMatrix";
 // จึงอ่านประวัติการนับย้อนหลังได้จาก stock_movements โดยไม่ต้องมีตารางเพิ่ม: ยอดก่อนนับ = qtyBefore, ยอดที่นับได้ = qtyAfter
 export const COUNT_REASON_PREFIX = "นับสต็อก";
 
+// ระบบเพิ่งเริ่มใช้ การนับก่อนวันนี้เป็นการตั้งยอดตั้งต้น/ลองใช้ ไม่ใช่การนับสต็อกจริงประจำเดือน แท็บ "สต็อกนับใหม่" จึงเริ่มแสดงผลตั้งแต่วันนี้เป็นต้นไป (เปิดดูรอบก่อนหน้าได้ด้วยตัวเลือกในหน้า) ปรับวันที่ตรงนี้ที่เดียว
+export const RECOUNT_REAL_START = "2026-10-28";
+export const recountRealStartMs = () => new Date(RECOUNT_REAL_START + "T00:00:00").getTime();
+
 const isCountMovement = (m: AppState["movements"][string]) => m.itemType === "product" && !!m.variantId && m.movementType === "adjustment" && !!m.reason?.startsWith(COUNT_REASON_PREFIX);
 
 // วันที่บันทึกผลนับครั้งแรกสุด (null = ยังไม่เคยนับ)
-export function firstCountMs(state: AppState): number | null {
+export function firstCountMs(state: AppState, sinceMs = 0): number | null {
   let min: number | null = null;
   for (const m of Object.values(state.movements)) {
     if (!isCountMovement(m)) continue;
     const t = new Date(m.createdAt).getTime();
-    if (Number.isFinite(t) && (min === null || t < min)) min = t;
+    if (Number.isFinite(t) && t >= sinceMs && (min === null || t < min)) min = t;
   }
   return min;
 }
@@ -55,9 +59,16 @@ export interface ProductRecount {
   diffCells: number;
 }
 
-// ผลนับสต็อกในเดือนปฏิทินที่ระบุ แยกตามรุ่น/สี/ไซซ์ ถ้านับตัวเลือกเดียวกันหลายครั้งในเดือน (หรือหลายคลัง) ใช้ครั้งล่าสุดของแต่ละคลัง
-export function monthlyRecount(state: AppState, year: number, month0: number, opts: { warehouseId?: string } = {}): ProductRecount[] {
-  const { from, to } = monthRange(year, month0);
+// ผลนับสต็อกในเดือนปฏิทินที่ระบุ
+export function monthlyRecount(state: AppState, year: number, month0: number, opts: { warehouseId?: string; sinceMs?: number } = {}): ProductRecount[] {
+  return recountBetween(state, monthRange(year, month0), opts);
+}
+
+// ผลนับสต็อกในช่วงเวลา [from, to) แยกตามรุ่น/สี/ไซซ์ ถ้านับตัวเลือกเดียวกันหลายครั้งในช่วง (หรือหลายคลัง) ใช้ครั้งล่าสุดของแต่ละคลัง
+// sinceMs = ไม่นับการนับที่ก่อนเวลานี้ (ใช้ซ่อนการนับช่วงตั้งต้นระบบ)
+export function recountBetween(state: AppState, range: { from: number; to: number }, opts: { warehouseId?: string; sinceMs?: number } = {}): ProductRecount[] {
+  const from = Math.max(range.from, opts.sinceMs ?? 0);
+  const to = range.to;
   const latest = new Map<string, { at: number; whId: string; before: number; after: number }>();
   for (const m of Object.values(state.movements)) {
     if (!isCountMovement(m) || !m.variantId) continue;

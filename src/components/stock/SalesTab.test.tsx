@@ -70,7 +70,7 @@ describe("แท็บยอดขาย (สต็อกภาพรวม)", (
 
   it("เดือนที่เริ่มก่อน 12 ต.ค. 2569 มีคำเตือนว่าข้อมูลอาจไม่ครบ ส่วนเดือนหลังจากนั้นไม่มี", () => {
     render(<StockOutOverviewPage />);
-    expect(screen.getByRole("alert").textContent).toContain("ก่อนวันที่ระบบเริ่มบันทึกการขายจริง"); // ต.ค. เริ่มวันที่ 1
+    expect(screen.getByRole("alert").textContent).toContain("ก่อนที่ระบบเริ่มบันทึกการขายจริง"); // ต.ค. เริ่มวันที่ 1
     fireEvent.click(screen.getByRole("button", { name: "เดือนก่อน" }));
     expect(screen.getByRole("alert")).toBeTruthy();
   });
@@ -101,8 +101,8 @@ describe("แท็บยอดขาย (สต็อกภาพรวม)", (
     render(<StockOutOverviewPage />);
     fireEvent.click(screen.getByRole("button", { name: "เดือนก่อน" }));
     fireEvent.click(screen.getByRole("button", { name: "เดือนก่อน" }));
-    expect(screen.getByText("ไม่มียอดขายในเดือนนี้")).toBeTruthy();
-    expect((screen.getByRole("button", { name: /Excel เดือนที่เลือก/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("ไม่มียอดขายในช่วงนี้")).toBeTruthy();
+    expect((screen.getByRole("button", { name: /Excel ช่วงที่เลือก/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("Excel ทุกเดือนย้อนหลัง: ไฟล์เดียว หนึ่งชีตต่อเดือน เรียงใหม่ไปเก่า ใช้ตัวกรองแบรนด์เดียวกัน", () => {
@@ -121,13 +121,41 @@ describe("แท็บยอดขาย (สต็อกภาพรวม)", (
     expect(download.mock.calls[0][1].map((s) => s.name)).toEqual(["2026-10"]); // Fitty ขายแค่ ต.ค.
   });
 
-  it("Excel เดือนที่เลือก: ได้เฉพาะเดือนที่ดูอยู่", () => {
+  it("Excel ช่วงที่เลือก: ได้เฉพาะเดือนที่ดูอยู่", () => {
     const download = vi.mocked(excel.downloadWorkbook);
     download.mockClear();
     render(<StockOutOverviewPage />);
     fireEvent.click(screen.getByRole("button", { name: "เดือนก่อน" }));
-    fireEvent.click(screen.getByRole("button", { name: /Excel เดือนที่เลือก/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Excel ช่วงที่เลือก/ }));
     expect(download.mock.calls[0][0]).toBe("ยอดขาย-2026-09.xlsx");
     expect(download.mock.calls[0][1].map((s) => s.name)).toEqual(["2026-09"]);
   });
-});
+  it("เลือกเป็นช่วงวันที่ได้: นับเฉพาะวันในช่วง เทียบกับช่วงก่อนหน้าที่ยาวเท่ากัน และส่งออกเป็นช่วงนั้น", () => {
+    const download = vi.mocked(excel.downloadWorkbook);
+    download.mockClear();
+    render(<StockOutOverviewPage />);
+    fireEvent.change(screen.getByLabelText("ตั้งแต่วันที่"), { target: { value: "2026-10-10" } });
+    fireEvent.change(screen.getByLabelText("ถึงวันที่"), { target: { value: "2026-10-20" } });
+    expect(screen.getByRole("status").textContent).toContain("ช่วง"); // ไม่ใช่ทั้งเดือนแล้ว
+    expect(screen.getByRole("status").textContent).toContain("12 ชิ้น จาก 2 รุ่น"); // ออเดอร์ o1 วันที่ 15 อยู่ในช่วง
+    expect(screen.getByText("กำหนดช่วงเอง")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("ตั้งแต่วันที่"), { target: { value: "2026-10-16" } });
+    expect(screen.getByText("ไม่มียอดขายในช่วงนี้")).toBeTruthy(); // วันที่ 15 หลุดช่วงแล้ว
+
+    fireEvent.change(screen.getByLabelText("ตั้งแต่วันที่"), { target: { value: "2026-10-14" } });
+    fireEvent.click(screen.getByRole("button", { name: /Excel ช่วงที่เลือก/ }));
+    expect(download.mock.calls[0][0]).toBe("ยอดขาย-2026-10-14_2026-10-20.xlsx");
+    expect(download.mock.calls[0][1].map((s) => s.name)).toEqual(["2026-10-14_2026-10-20"]);
+  });
+
+  it("เลือกวันเริ่มเลยวันสิ้นสุด: วันสิ้นสุดตามมา และกด เดือนนี้ กลับเป็นทั้งเดือน", () => {
+    render(<StockOutOverviewPage />);
+    fireEvent.change(screen.getByLabelText("ตั้งแต่วันที่"), { target: { value: "2026-10-20" } });
+    fireEvent.change(screen.getByLabelText("ถึงวันที่"), { target: { value: "2026-10-21" } });
+    fireEvent.change(screen.getByLabelText("ตั้งแต่วันที่"), { target: { value: "2026-10-25" } });
+    expect((screen.getByLabelText("ถึงวันที่") as HTMLInputElement).value).toBe("2026-10-25");
+    fireEvent.click(screen.getByRole("button", { name: "เดือนนี้" }));
+    expect((screen.getByLabelText("ตั้งแต่วันที่") as HTMLInputElement).value).toBe("2026-10-01");
+    expect((screen.getByLabelText("ถึงวันที่") as HTMLInputElement).value).toBe("2026-10-31");
+  });});

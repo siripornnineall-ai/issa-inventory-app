@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { emptyState, type AppState } from "@/lib/store/state";
-import { monthlyRecount, recountSheetRows } from "./recountMatrix";
+import { firstCountMs, monthlyRecount, recountBetween, recountSheetRows } from "./recountMatrix";
 
 const mv = (id: string, createdAt: string, variantId: string, before: number, after: number, reason = "นับสต็อก — Billie Slim", warehouseToId = "w1", movementType = "adjustment") => ({
   id,
@@ -115,4 +115,22 @@ describe("monthlyRecount: ผลนับสต็อกรายเดือน
     expect(rows).toContainEqual(["สี", "M (นับได้)", "L (นับได้)", "นับได้", "ระบบก่อนนับ", "ผลต่าง", "ตอนนี้"]);
     expect(rows).toContainEqual(["ดำ", 10, "", 10, 12, -2, 7]);
   });
-});
+  it("sinceMs: ไม่นับการนับก่อนเวลาที่กำหนด (ซ่อนช่วงตั้งต้นระบบ) และ firstCountMs ข้ามด้วย", () => {
+    const state = build([mv("m1", "2026-10-12T10:00:00", "v-black-M", 12, 10), mv("m2", "2026-10-29T10:00:00", "v-black-L", 5, 6)]);
+    const since = new Date("2026-10-28T00:00:00").getTime();
+    const [p] = monthlyRecount(state, 2026, 9, { sinceMs: since });
+    expect(p.countedCells).toBe(1);
+    expect(p.rows.find((r) => r.color === "ดำ")!.cells.M).toBeNull();
+    expect(p.rows.find((r) => r.color === "ดำ")!.cells.L).toEqual({ counted: 6, system: 5, diff: 1 });
+    expect(monthlyRecount(state, 2026, 9)[0].countedCells).toBe(2);
+    expect(firstCountMs(state)).toBe(new Date("2026-10-12T10:00:00").getTime());
+    expect(firstCountMs(state, since)).toBe(new Date("2026-10-29T10:00:00").getTime());
+    expect(firstCountMs(state, new Date("2026-11-01T00:00:00").getTime())).toBeNull();
+  });
+
+  it("recountBetween: ช่วงวันที่ใดก็ได้ [from, to)", () => {
+    const state = build([mv("m1", "2026-10-12T10:00:00", "v-black-M", 12, 10), mv("m2", "2026-10-20T10:00:00", "v-black-L", 5, 6)]);
+    const r = recountBetween(state, { from: new Date("2026-10-15T00:00:00").getTime(), to: new Date("2026-10-21T00:00:00").getTime() });
+    expect(r[0].countedCells).toBe(1);
+    expect(r[0].rows.find((x) => x.color === "ดำ")!.cells.L).toEqual({ counted: 6, system: 5, diff: 1 });
+  });});

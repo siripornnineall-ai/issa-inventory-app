@@ -8,29 +8,38 @@ import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useStore } from "@/lib/store";
-import { firstCountMs, monthlyRecount, recountSheetRows, type ProductRecount } from "@/lib/utils/recountMatrix";
+import { RECOUNT_REAL_START, firstCountMs, recountBetween, recountRealStartMs, recountSheetRows, type ProductRecount } from "@/lib/utils/recountMatrix";
 import { monthsSince } from "@/lib/utils/salesMatrix";
 import { downloadWorkbook, monthSheets } from "@/lib/utils/excelMonths";
+import { monthPeriod, periodFileKey, periodLabel, periodRange, type Period } from "@/lib/utils/period";
 import { formatNumber } from "@/lib/utils/money";
-import { MonthPicker, monthLabel, type YearMonth } from "./MonthPicker";
-
+import { PeriodPicker } from "./PeriodPicker";
+const earlyLabel = new Date(RECOUNT_REAL_START + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
 const signed = (n: number) => (n > 0 ? `+${formatNumber(n)}` : formatNumber(n));
 const diffTone = (n: number) => (n === 0 ? "text-[var(--color-on-surface-variant)]" : n > 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]");
 
 export function RecountTab({ brandId, setBrandId }: { brandId: string; setBrandId: (id: string) => void }) {
   const state = useStore();
-  const [ym, setYm] = useState<YearMonth>(() => {
+  const [period, setPeriod] = useState<Period>(() => {
     const d = new Date();
-    return { year: d.getFullYear(), month0: d.getMonth() };
+    return monthPeriod(d.getFullYear(), d.getMonth());
   });
   const [search, setSearch] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
   const [onlyDiff, setOnlyDiff] = useState(false);
+  // ปกติซ่อนการนับก่อนวันที่เริ่มนับจริง (ช่วงตั้งต้นระบบ) เปิดเพื่อดูย้อนหลังได้
+  const [includeEarly, setIncludeEarly] = useState(false);
 
-  const label = monthLabel(ym.year, ym.month0);
+  const label = periodLabel(period);
+  const sinceMs = includeEarly ? 0 : recountRealStartMs();
   const brands = useMemo(() => Object.values(state.brands).sort((a, b) => a.name.localeCompare(b.name, "th")), [state.brands]);
   const warehouses = useMemo(() => Object.values(state.warehouses).sort((a, b) => a.name.localeCompare(b.name, "th")), [state.warehouses]);
-  const all = useMemo(() => monthlyRecount(state, ym.year, ym.month0, { warehouseId: warehouseId || undefined }), [state, ym, warehouseId]);
+  const recountFor = (p: Period) => recountBetween(state, periodRange(p), { warehouseId: warehouseId || undefined, sinceMs });
+  const keep = (p: ProductRecount) => {
+    const q = search.trim().toLowerCase();
+    return (!brandId || p.brandId === brandId) && (!q || p.name.toLowerCase().includes(q)) && (!onlyDiff || p.diffCells > 0);
+  };
+  const all = useMemo(() => recountBetween(state, periodRange(period), { warehouseId: warehouseId || undefined, sinceMs }), [state, period, warehouseId, sinceMs]);
   const products = useMemo(() => {
     const q = search.trim().toLowerCase();
     return all.filter((p) => (!brandId || p.brandId === brandId) && (!q || p.name.toLowerCase().includes(q)) && (!onlyDiff || p.diffCells > 0));
@@ -41,24 +50,27 @@ export function RecountTab({ brandId, setBrandId }: { brandId: string; setBrandI
   const cells = products.reduce((s, p) => s + p.countedCells, 0);
   const diffCells = products.reduce((s, p) => s + p.diffCells, 0);
 
-  const firstCount = useMemo(() => firstCountMs(state), [state]);
+  const firstCount = useMemo(() => firstCountMs(state, sinceMs), [state, sinceMs]);
 
-  // ส่งออกเดือนที่เลือก หรือทุกเดือนย้อนหลัง (หนึ่งชีตต่อเดือน) ใช้ตัวกรองรุ่น/แบรนด์/คลังที่ตั้งไว้เหมือนกัน
+  // ส่งออกช่วงที่เลือก หรือทุกเดือนย้อนหลัง (หนึ่งชีตต่อเดือน) ใช้ตัวกรองรุ่น/แบรนด์/คลังและตัวเลือกซ่อนช่วงตั้งต้นที่ตั้งไว้เหมือนกัน
   function exportExcel(allMonths: boolean) {
-    const months = allMonths ? monthsSince(firstCount) : [ym];
-    const q = search.trim().toLowerCase();
-    const sheets = monthSheets(months, (m) => {
-      const list = monthlyRecount(state, m.year, m.month0, { warehouseId: warehouseId || undefined }).filter(
-        (p) => (!brandId || p.brandId === brandId) && (!q || p.name.toLowerCase().includes(q)) && (!onlyDiff || p.diffCells > 0),
-      );
-      return list.length === 0 ? null : recountSheetRows(`ผลนับสต็อก ${monthLabel(m.year, m.month0)}`, list);
+    if (!allMonths) {
+      const list = recountFor(period).filter(keep);
+      if (list.length === 0) return;
+      downloadWorkbook(`นับสต็อก-${periodFileKey(period)}.xlsx`, [{ name: periodFileKey(period), rows: recountSheetRows(`ผลนับสต็อก ${label}`, list) }]);
+      return;
+    }
+    const sheets = monthSheets(monthsSince(firstCount), (m) => {
+      const p = monthPeriod(m.year, m.month0);
+      const list = recountFor(p).filter(keep);
+      return list.length === 0 ? null : recountSheetRows(`ผลนับสต็อก ${periodLabel(p)}`, list);
     });
-    downloadWorkbook(allMonths ? "นับสต็อก-ทุกเดือน.xlsx" : `นับสต็อก-${ym.year}-${String(ym.month0 + 1).padStart(2, "0")}.xlsx`, sheets);
+    downloadWorkbook("นับสต็อก-ทุกเดือน.xlsx", sheets);
   }
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">
-        <MonthPicker value={ym} onChange={setYm} />
+        <PeriodPicker value={period} onChange={setPeriod} />
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-on-surface-variant)]" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหารุ่น" aria-label="ค้นหารุ่น" className="w-56 pl-9" />
@@ -83,9 +95,13 @@ export function RecountTab({ brandId, setBrandId }: { brandId: string; setBrandI
           <input id="rc-only-diff" type="checkbox" checked={onlyDiff} onChange={(e) => setOnlyDiff(e.target.checked)} className="h-4 w-4" />
           เฉพาะรุ่นที่ไม่ตรงกับระบบ
         </label>
+        <label htmlFor="rc-early" className="flex cursor-pointer items-center gap-2 text-sm">
+          <input id="rc-early" type="checkbox" checked={includeEarly} onChange={(e) => setIncludeEarly(e.target.checked)} className="h-4 w-4" />
+          รวมการนับช่วงตั้งต้นระบบ (ก่อน {earlyLabel})
+        </label>
         <div className="ml-auto flex flex-wrap gap-2">
           <Button variant="ghost" onClick={() => exportExcel(false)} disabled={products.length === 0}>
-            <Download className="h-4 w-4" /> Excel เดือนที่เลือก
+            <Download className="h-4 w-4" /> Excel ช่วงที่เลือก
           </Button>
           <Button variant="ghost" onClick={() => exportExcel(true)} disabled={firstCount === null} title="ไฟล์เดียว หนึ่งชีตต่อเดือน ย้อนหลังตั้งแต่เดือนที่นับสต็อกครั้งแรก">
             <Download className="h-4 w-4" /> Excel ทุกเดือนย้อนหลัง
@@ -94,7 +110,7 @@ export function RecountTab({ brandId, setBrandId }: { brandId: string; setBrandI
       </div>
 
       <p role="status" className="px-1 text-sm text-[var(--color-on-surface-variant)]">
-        <span className="font-semibold text-[var(--color-on-surface)]">ผลนับสต็อกเดือน {label}:</span> นับแล้ว {formatNumber(products.length)} รุ่น {formatNumber(cells)} ตัวเลือก · นับได้จริง {formatNumber(counted)} ชิ้น · ระบบเดิม (ก่อนนับ){" "}
+        <span className="font-semibold text-[var(--color-on-surface)]">ผลนับสต็อก{label}:</span> นับแล้ว {formatNumber(products.length)} รุ่น {formatNumber(cells)} ตัวเลือก · นับได้จริง {formatNumber(counted)} ชิ้น · ระบบเดิม (ก่อนนับ){" "}
         {formatNumber(system)} ชิ้น · ต่าง <span className={`font-semibold ${diffTone(counted - system)}`}>{signed(counted - system)}</span> ชิ้น · นับแล้วไม่ตรงกับระบบ {formatNumber(diffCells)} ตัวเลือก
       </p>
       <details className="rounded-xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-on-surface-variant)]" open>
@@ -117,8 +133,14 @@ export function RecountTab({ brandId, setBrandId }: { brandId: string; setBrandI
       {products.length === 0 ? (
         <Card className="p-8">
           <EmptyState
-            title={all.length === 0 ? "เดือนนี้ยังไม่มีการนับสต็อก" : "ไม่พบรุ่นที่ตรงกับตัวกรอง"}
-            description={all.length === 0 ? "นับสต็อกแล้วบันทึกผล ตัวเลขจะมาขึ้นที่นี่ หรือเลือกเดือนอื่นที่เคยนับ" : "ลองล้างตัวกรองรุ่น/แบรนด์/คลัง"}
+            title={all.length === 0 ? "ช่วงนี้ยังไม่มีการนับสต็อก" : "ไม่พบรุ่นที่ตรงกับตัวกรอง"}
+            description={
+              all.length === 0
+                ? includeEarly
+                  ? "นับสต็อกแล้วบันทึกผล ตัวเลขจะมาขึ้นที่นี่ หรือเลือกช่วงเวลาอื่น"
+                  : `ตัวเลขจะขึ้นเมื่อมีการนับสต็อกจริงตั้งแต่ ${earlyLabel} เป็นต้นไป (นับที่หน้านับสต็อกแล้วบันทึกผล) หรือติ๊ก "รวมการนับช่วงตั้งต้นระบบ" เพื่อดูรอบก่อนหน้า`
+                : "ลองล้างตัวกรองรุ่น/แบรนด์/คลัง"
+            }
             action={
               all.length === 0 ? (
                 <Link href="/stock-count" className="text-sm font-medium text-[var(--color-primary-container)] underline">
