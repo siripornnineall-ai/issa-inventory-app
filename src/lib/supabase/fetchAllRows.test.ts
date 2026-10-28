@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAllRows } from "./fetch";
+import { fetchAllRows, fetchProductImages, IMAGE_PAGE_SIZE, IMAGE_SAFE_PAGE_SIZE } from "./fetch";
 
 // จำลอง PostgREST ที่ตัดผลลัพธ์สูงสุด 1,000 แถวต่อคำสั่ง (max-rows) และรองรับ order/range
 function fakeSupabase(total: number, opts: { maxRows?: number; failAtPage?: number } = {}) {
@@ -60,5 +60,69 @@ describe("fetchAllRows", () => {
     const { data, error } = await fetchAllRows(supabase, "product_variants", ["id"]);
     expect(error).toEqual({ message: "boom" });
     expect(data).toEqual([]);
+  });
+});
+
+describe("fetchAllRows: กรองแถวก่อนดึง", () => {
+  it("ใช้ filter กับคำสั่งก่อน order/range (เช่น ดึงเฉพาะป้ายที่เคยสแกน)", async () => {
+    const steps: string[] = [];
+    const supabase = {
+      from: () => {
+        const builder: Record<string, unknown> = {
+          select: () => builder,
+          not: (col: string, op: string, val: unknown) => {
+            steps.push(`not:${col}:${op}:${String(val)}`);
+            return builder;
+          },
+          order: (col: string) => {
+            steps.push("order:" + col);
+            return builder;
+          },
+          range: async () => ({ data: [{ id: "a" }], error: null }),
+        };
+        return builder;
+      },
+    } as unknown as SupabaseClient;
+    const { data } = await fetchAllRows(supabase, "unit_tokens", ["created_at", "id"], 1000, (q) => q.not("last_action_at", "is", null));
+    expect(data).toEqual([{ id: "a" }]);
+    expect(steps).toEqual(["not:last_action_at:is:null", "order:created_at", "order:id"]);
+  });
+});
+
+describe("fetchProductImages: เปิดแอปไม่ต้องดึงรูปทีละ 15 แถว", () => {
+  function imagesSupabase(total: number, failOnBigPage = false) {
+    const pageSizes: number[] = [];
+    const all = Array.from({ length: total }, (_, i) => ({ id: String(i).padStart(5, "0") }));
+    const supabase = {
+      from: () => {
+        const builder = {
+          select: () => builder,
+          order: () => builder,
+          range: async (from: number, to: number) => {
+            const size = to - from + 1;
+            pageSizes.push(size);
+            if (failOnBigPage && size === IMAGE_PAGE_SIZE) return { data: null, error: { message: "statement timeout" } };
+            return { data: all.slice(from, to + 1), error: null };
+          },
+        };
+        return builder;
+      },
+    } as unknown as SupabaseClient;
+    return { supabase, pageSizes };
+  }
+
+  it("785 รูปดึงด้วยหน้าใหญ่ แค่ 2 คำสั่ง (เดิม 53 คำสั่งต่อเนื่อง) และได้ครบ", async () => {
+    const { supabase, pageSizes } = imagesSupabase(785);
+    const rows = await fetchProductImages(supabase);
+    expect(rows).toHaveLength(785);
+    expect(pageSizes).toEqual([IMAGE_PAGE_SIZE, IMAGE_PAGE_SIZE]);
+  });
+
+  it("หน้าใหญ่ล้มเหลว (เช่น หมดเวลา) ถอยไปดึงหน้าเล็กแบบเดิมและยังได้ครบ", async () => {
+    const { supabase, pageSizes } = imagesSupabase(40, true);
+    const rows = await fetchProductImages(supabase);
+    expect(rows).toHaveLength(40);
+    expect(pageSizes[0]).toBe(IMAGE_PAGE_SIZE);
+    expect(pageSizes.slice(1).every((s) => s === IMAGE_SAFE_PAGE_SIZE)).toBe(true);
   });
 });

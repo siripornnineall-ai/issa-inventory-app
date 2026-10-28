@@ -51,11 +51,24 @@ function stockKey(itemId: string, warehouseId: string): string {
   return `${itemId}::${warehouseId}`;
 }
 
-// product_images เก็บรูปเป็น base64 data URL ในคอลัมน์ url (บางแถวหนักเป็น MB) การ select("*") รวดเดียว
-// ทำให้ Postgres ต้องรวม json_agg() บนข้อมูลหลายสิบ MB ในคำสั่งเดียว ซึ่งช้าพอจะชน statement_timeout ได้เมื่อข้อมูลเยอะขึ้น
-// จึงต้องแบ่งดึงเป็นหน้าเล็ก ๆ แทน เพื่อให้แต่ละคำสั่ง SQL เร็วพอ
+// product_images เคยเก็บรูปเป็น base64 data URL ในคอลัมน์ url (บางแถวหนักเป็น MB) การ select("*") รวดเดียว
+// ทำให้ Postgres ต้องรวม json_agg() บนข้อมูลหลายสิบ MB ในคำสั่งเดียว ซึ่งช้าพอจะชน statement_timeout ได้ จึงเคยแบ่งดึงทีละ 15 แถว
+// ตอนนี้รูปอยู่ใน Storage และ url เป็นลิงก์สั้น ๆ (785 แถวรวมไม่ถึง 100 KB) การดึงทีละ 15 แถวกลายเป็น 50+ รอบต่อเนื่องที่ทำให้เปิดแอปช้ามาก
+// จึงลองหน้าใหญ่ก่อน แล้วค่อยถอยไปหน้าเล็กเฉพาะเมื่อหน้าใหญ่ล้มเหลว (เผื่อมีรูป base64 ก้อนใหญ่หลงมา)
+export const IMAGE_PAGE_SIZE = 500;
+export const IMAGE_SAFE_PAGE_SIZE = 15;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchProductImagesPaginated(supabase: SupabaseClient, pageSize = 15): Promise<any[]> {
+export async function fetchProductImages(supabase: SupabaseClient): Promise<any[]> {
+  try {
+    return await fetchProductImagesPaginated(supabase, IMAGE_PAGE_SIZE);
+  } catch {
+    return fetchProductImagesPaginated(supabase, IMAGE_SAFE_PAGE_SIZE);
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchProductImagesPaginated(supabase: SupabaseClient, pageSize: number): Promise<any[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows: any[] = [];
   let from = 0;
@@ -118,13 +131,17 @@ export async function fetchAllRows(
   supabase: SupabaseClient,
   table: string,
   orderBy: string[],
-  pageSize = FETCH_PAGE_SIZE
+  pageSize = FETCH_PAGE_SIZE,
+  // กรองแถวฝั่งฐานข้อมูลก่อนดึง (เช่น .not("col", "is", null)) ไม่ใส่ = ดึงทุกแถว
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  filter?: (query: any) => any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<{ data: any[]; error: any }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows: any[] = [];
   for (let from = 0; ; from += pageSize) {
     let query = supabase.from(table).select("*");
+    if (filter) query = filter(query);
     for (const col of orderBy) query = query.order(col, { ascending: true });
     const { data, error } = await query.range(from, from + pageSize - 1);
     if (error) return { data: [], error };
@@ -135,7 +152,7 @@ export async function fetchAllRows(
 }
 
 export async function fetchAppState(supabase: SupabaseClient): Promise<AppState> {
-  const productImagesPromise = fetchProductImagesPaginated(supabase);
+  const productImagesPromise = fetchProductImages(supabase);
 
   const [
     profilesRes,
@@ -200,7 +217,10 @@ export async function fetchAppState(supabase: SupabaseClient): Promise<AppState>
     fetchAllRows(supabase, "storefront_settings", ["id"]),
     fetchAllRows(supabase, "po_signatories", ["created_at", "id"]),
     fetchAllRows(supabase, "invoices", ["created_at", "id"]),
-    fetchAllRows(supabase, "unit_tokens", ["created_at", "id"]),
+    // ป้ายรายชิ้นพิมพ์ไปแล้วเกือบ 3 หมื่นใบ (โตทุกครั้งที่พิมพ์) การดึงทั้งหมดเป็น 29 รอบต่อเนื่องตอนเปิดแอปจนช้ามาก
+    // โหลดเฉพาะป้ายที่เคยถูกสแกนเข้า/ออกแล้ว (ต้องใช้กันสแกนซ้ำ) ป้ายที่ยังไม่เคยสแกนไม่มีสถานะให้เช็ก
+    // และตอนสแกนครั้งแรกระบบถามฐานข้อมูลเฉพาะใบนั้นเองอยู่แล้ว (fetchUnitTokenByScan)
+    fetchAllRows(supabase, "unit_tokens", ["created_at", "id"], FETCH_PAGE_SIZE, (q) => q.not("last_action_at", "is", null)),
   ]);
   const productImagesRows = await productImagesPromise;
   // สิทธิ์ตามตำแหน่ง: ถ้าโหลดไม่ได้/ยังไม่มีข้อมูล ใช้ค่าเริ่มต้นของระบบ (ผู้ดูแลระบบมีสิทธิ์ทุกอย่างเสมอไม่ขึ้นกับตารางนี้)

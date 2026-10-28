@@ -37,13 +37,25 @@ export interface PinUser {
   role: UserRole;
 }
 
-// รายชื่อการ์ดบนหน้าเข้าสู่ระบบ: ผู้ใช้ที่ตั้ง PIN ไว้แล้ว (ไม่รวมผู้ดูแลระบบ) ล้มเหลวถือว่าไม่มีรายชื่อ ให้ตกไปใช้อีเมล+รหัสผ่าน
-export async function pinList(): Promise<PinUser[]> {
+// รายชื่อการ์ดบนหน้าเข้าสู่ระบบ: ผู้ใช้ที่ตั้ง PIN ไว้แล้ว (ไม่รวมผู้ดูแลระบบ) ล้มเหลวหรือช้าเกิน timeoutMs ถือว่าไม่มีรายชื่อ
+// ให้ตกไปใช้อีเมล+รหัสผ่านทันที (ฟังก์ชันฝั่งเซิร์ฟเวอร์ที่ไม่ได้ถูกเรียกนานอาจต้องปลุกก่อน ไม่ให้หน้าเข้าสู่ระบบค้างรอ)
+export async function pinList(timeoutMs = 2500): Promise<PinUser[]> {
+  const fetchList = async (): Promise<PinUser[]> => {
+    try {
+      const { users } = await invoke<{ users: PinUser[] }>({ action: "list" });
+      return Array.isArray(users) ? users : [];
+    } catch {
+      return [];
+    }
+  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<PinUser[]>((resolve) => {
+    timer = setTimeout(() => resolve([]), timeoutMs);
+  });
   try {
-    const { users } = await invoke<{ users: PinUser[] }>({ action: "list" });
-    return Array.isArray(users) ? users : [];
-  } catch {
-    return [];
+    return await Promise.race([fetchList(), timeout]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
