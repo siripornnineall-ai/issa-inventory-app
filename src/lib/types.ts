@@ -242,6 +242,8 @@ export type MovementType =
 // สต็อกคืนสินค้า: 4 ประเภทที่รับเข้าคลัง (แยกจากการรับสินค้าเข้าใหม่)
 export type StockReturnType = "return_rts" | "return_customer" | "return_defective" | "return_exchange";
 export const STOCK_RETURN_TYPES: StockReturnType[] = ["return_rts", "return_customer", "return_defective", "return_exchange"];
+// ของคืนที่หักจากยอดขายสุทธิ (ตีกลับ / คืน / เปลี่ยน) ไม่รวมสินค้าตำหนิ
+export const NET_SALES_RETURN_TYPES: StockReturnType[] = ["return_rts", "return_customer", "return_exchange"];
 export const STOCK_RETURN_LABEL_TH: Record<StockReturnType, string> = {
   return_rts: "สินค้าตีกลับ",
   return_customer: "สินค้าคืน",

@@ -6,6 +6,7 @@ const ROUTE_VIEW_PERMS: [string, Permission][] = [
   ["/dashboard", "view.dashboard"],
   ["/products", "view.products"],
   ["/stock-overview", "view.products"],
+  ["/stock-out-overview", "view.products"],
   ["/low-stock", "view.products"],
   ["/stock-count", "view.products"],
   ["/equipment", "view.equipment"],
