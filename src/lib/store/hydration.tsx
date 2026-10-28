@@ -5,6 +5,7 @@ import { useStore } from "./index";
 import { createClient } from "@/lib/supabase/client";
 import { fetchAppState } from "@/lib/supabase/fetch";
 import { markRefreshed, msSinceLastRefresh, refreshAppData } from "./refresh";
+import { countStateRows, recordLoadStats } from "./loadStats";
 
 const AUTO_REFRESH_AFTER_MS = 2 * 60 * 1000;
 
@@ -26,7 +27,9 @@ export function AppHydration({ children }: { children: React.ReactNode }) {
       }
 
       try {
+        const startedAt = performance.now();
         const state = await fetchAppState(supabase);
+        recordLoadStats({ kind: "เปิดแอป", fetchMs: Math.round(performance.now() - startedAt), rows: countStateRows(state), at: Date.now() });
         state.currentUserId = state.users[session.user.id] ? session.user.id : null;
         if (!cancelled) {
           useStore.getState().actions.hydrate(state);

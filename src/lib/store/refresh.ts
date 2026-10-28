@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { fetchAppState } from "@/lib/supabase/fetch";
 import { useStore, pendingSyncCount } from "./index";
+import { countStateRows, recordLoadStats } from "./loadStats";
 
 export type RefreshResult = "ok" | "busy" | "no-session" | "error";
 
@@ -19,7 +20,9 @@ export function refreshAppData(): Promise<RefreshResult> {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) return "no-session";
+      const startedAt = performance.now();
       const state = await fetchAppState(supabase);
+      recordLoadStats({ kind: "รีเฟรช", fetchMs: Math.round(performance.now() - startedAt), rows: countStateRows(state), at: Date.now() });
       // ระหว่างที่ดึงข้อมูล ผู้ใช้อาจทำรายการใหม่ ถ้ามีรายการค้างส่งตอนนี้ อย่าเอาข้อมูลที่ดึงมาทับ
       if (pendingSyncCount() > 0) return "busy";
       state.currentUserId = state.users[session.user.id] ? session.user.id : null;

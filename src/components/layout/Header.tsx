@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { ArrowLeft, HelpCircle, KeyRound, LogOut, ChevronDown, Menu, Grid3x3 } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/account/ChangePassword";
 import { PinSetupDialog } from "@/components/account/PinSetup";
@@ -13,6 +13,7 @@ import { emptyState } from "@/lib/store/state";
 import { NotificationBell } from "./NotificationBell";
 import { RefreshButton } from "./RefreshButton";
 import { useMobileNav } from "./MobileNavContext";
+import { getLoadStats, subscribeLoadStats } from "@/lib/store/loadStats";
 
 export function Header({
   title,
@@ -29,6 +30,7 @@ export function Header({
   const [menuOpen, setMenuOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
+  const loadStats = useSyncExternalStore(subscribeLoadStats, getLoadStats, () => null);
   const { setOpen: setMobileNavOpen } = useMobileNav();
 
   return (
@@ -112,6 +114,11 @@ export function Header({
                   >
                     <LogOut className="h-4 w-4" /> ออกจากระบบ
                   </button>
+                  {loadStats && (
+                    <p className="border-t border-[var(--color-border)] px-4 py-2 text-[11px] leading-snug text-[var(--color-on-surface-variant)]">
+                      {loadStats.kind}ล่าสุด: ดึงข้อมูล {(loadStats.fetchMs / 1000).toFixed(1)} วินาที ({loadStats.rows.toLocaleString("th-TH")} รายการ)
+                    </p>
+                  )}
                 </div>
               )}
             </div>
