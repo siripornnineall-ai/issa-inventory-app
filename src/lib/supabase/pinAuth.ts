@@ -66,7 +66,8 @@ export async function pinAdminClear(userId: string): Promise<void> {
   await invoke({ action: "admin_clear", userId });
 }
 
+// ถามไม่สำเร็จ (เน็ตหลุด ฯลฯ) ถือว่ามี PIN แล้ว จะได้ไม่เตือน/ชวนตั้งซ้ำโดยไม่จำเป็น
 export async function hasPin(): Promise<boolean> {
   const { data, error } = await createClient().rpc("has_pin");
-  return !error && data === true;
+  return error ? true : data === true;
 }
