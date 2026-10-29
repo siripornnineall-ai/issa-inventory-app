@@ -6,6 +6,7 @@ import { Boxes, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { BrandTag } from "@/components/ui/BrandTag";
+import { brandBarStyle } from "@/lib/utils/brandColor";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input, Select } from "@/components/ui/Field";
@@ -32,14 +33,14 @@ function MatrixTable({ matrix }: { matrix: StockMatrix }) {
   return (
     <Table className="min-w-max">
       <Thead>
-        <Tr className="bg-[var(--color-primary-container)] hover:bg-[var(--color-primary-container)]">
-          <Th className="sticky left-0 z-10 bg-[var(--color-primary-container)] px-3 py-2 text-white">สี</Th>
+        <Tr className="bg-[var(--bar,var(--color-primary-container))] hover:bg-[var(--bar,var(--color-primary-container))]">
+          <Th className="sticky left-0 z-10 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-[color:var(--bar-fg,#fff)]">สี</Th>
           {matrix.sizes.map((s) => (
-            <Th key={s} className="px-3 py-2 text-center normal-case text-white">
+            <Th key={s} className="px-3 py-2 text-center normal-case text-[color:var(--bar-fg,#fff)]">
               {s}
             </Th>
           ))}
-          <Th className="bg-[var(--color-primary)] px-3 py-2 text-center normal-case text-white">รวมต่อสี</Th>
+          <Th className="bg-[var(--bar-strong,var(--color-primary))] px-3 py-2 text-center normal-case text-[color:var(--bar-strong-fg,#fff)]">รวมต่อสี</Th>
         </Tr>
       </Thead>
       <Tbody>
@@ -68,7 +69,7 @@ function MatrixTable({ matrix }: { matrix: StockMatrix }) {
               {formatNumber(matrix.colTotals[s])}
             </Td>
           ))}
-          <Td className="bg-[var(--color-primary)] px-3 py-2 text-center font-bold tabular-nums text-white">{formatNumber(matrix.grandTotal)}</Td>
+          <Td className="bg-[var(--bar-strong,var(--color-primary))] px-3 py-2 text-center font-bold tabular-nums text-[color:var(--bar-strong-fg,#fff)]">{formatNumber(matrix.grandTotal)}</Td>
         </Tr>
       </Tbody>
     </Table>
@@ -257,7 +258,9 @@ export function CurrentStockTab({ brandId, setBrandId }: { brandId: string; setB
                     รวม <span className="font-bold text-[var(--color-on-surface)]">{formatNumber(matrix.grandTotal)}</span> ชิ้น
                   </p>
                 </div>
-                <MatrixTable matrix={matrix} />
+                <div style={brandBarStyle(product.brandId ? state.brands[product.brandId] : undefined)}>
+                  <MatrixTable matrix={matrix} />
+                </div>
               </CardContent>
             </Card>
           ))

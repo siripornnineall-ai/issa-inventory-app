@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useStore } from "@/lib/store";
+import { brandBarStyle } from "@/lib/utils/brandColor";
 import { REAL_DATA_START, changePct, firstSaleMs, monthsSince, salesBetween, salesSheetRows, type ProductSales } from "@/lib/utils/salesMatrix";
 import { downloadWorkbook, monthSheets } from "@/lib/utils/excelMonths";
 import { fullMonthOf, monthPeriod, periodFileKey, periodLabel, periodRange, previousRange, type Period } from "@/lib/utils/period";
@@ -117,13 +118,14 @@ export function SalesTab({ brandId, setBrandId }: { brandId: string; setBrandId:
 function cellStyle(value: number, max: number): React.CSSProperties | undefined {
   if (value <= 0 || max <= 0) return undefined;
   const pct = Math.round(8 + 32 * Math.min(1, value / max));
-  return { backgroundColor: `color-mix(in srgb, var(--color-primary-container) ${pct}%, transparent)` };
+  return { backgroundColor: `color-mix(in srgb, var(--bar, var(--color-primary-container)) ${pct}%, transparent)` };
 }
 
 function ProductBlock({ product: p, defaultOpen, prevLabel }: { product: ProductSales; defaultOpen: boolean; prevLabel: string }) {
   const change = changePct(p.net, p.prevNet);
+  const brand = useStore((s) => (p.brandId ? s.brands[p.brandId] : undefined));
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden" style={brandBarStyle(brand)}>
       <details open={defaultOpen}>
         <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-5 py-4">
           <span className="text-base font-semibold text-[var(--color-on-surface)]">{p.name}</span>
@@ -141,15 +143,15 @@ function ProductBlock({ product: p, defaultOpen, prevLabel }: { product: Product
         <div className="overflow-x-auto px-5 pb-5">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="bg-[var(--color-primary-container)] text-white">
-                <th className="sticky left-0 z-10 bg-[var(--color-primary-container)] px-3 py-2 text-left font-medium">สี</th>
+              <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
+                <th className="sticky left-0 z-10 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-left font-medium">สี</th>
                 {p.sizes.map((s) => (
                   <th key={s} className="px-3 py-2 text-center font-medium">
                     {s}
                   </th>
                 ))}
-                <th className="bg-[var(--color-primary)] px-3 py-2 text-center font-medium">รวมต่อสี</th>
-                <th className="bg-[var(--color-primary)] px-3 py-2 text-center font-medium">%</th>
+                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-3 py-2 text-center font-medium">รวมต่อสี</th>
+                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-3 py-2 text-center font-medium">%</th>
               </tr>
             </thead>
             <tbody>

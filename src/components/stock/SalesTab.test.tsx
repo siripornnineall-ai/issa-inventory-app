@@ -75,6 +75,16 @@ describe("แท็บยอดขาย (สต็อกภาพรวม)", (
     expect(screen.getByRole("alert")).toBeTruthy();
   });
 
+  it("แถบหัวตารางเปลี่ยนสีตามแบรนด์ของรุ่น: แบรนด์ที่ตั้งสีไว้ได้สีของตัวเอง แบรนด์ที่ไม่มีสียังเป็นสีเดิม", () => {
+    useStore.setState((st) => ({ brands: { ...st.brands, b2: { ...st.brands.b2, color: "#5DADC6" } } }));
+    const { container } = render(<StockOutOverviewPage />);
+    const card = (name: string) => screen.getByText(name).closest("details")!.parentElement as HTMLElement;
+    expect(card("Fitty Leggings").style.getPropertyValue("--bar")).toBe("#5DADC6");
+    expect(card("Fitty Leggings").style.getPropertyValue("--bar-fg")).toBe("#0c1e20"); // ฟ้าอ่อน ใช้ตัวอักษรเข้ม
+    expect(card("Billie Slim").style.getPropertyValue("--bar")).toBe(""); // แบรนด์ไม่มีสี
+    expect(container).toBeTruthy();
+  });
+
   it("กรองด้วยแบรนด์และค้นหาชื่อรุ่น", () => {
     render(<StockOutOverviewPage />);
     fireEvent.change(screen.getByLabelText("แบรนด์"), { target: { value: "b2" } });
