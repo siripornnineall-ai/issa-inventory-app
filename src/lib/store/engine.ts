@@ -1270,12 +1270,14 @@ export function upsertBrand(draft: Draft<AppState>, input: Partial<Brand> & { id
   const code = (input.code ?? existing?.code ?? "").toUpperCase();
   const dup = Object.values(draft.brands).find((b) => b.id !== id && b.code === code);
   if (dup) throw new BusinessRuleError(`รหัสแบรนด์ "${code}" ถูกใช้งานแล้ว`);
+  if (input.color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(input.color)) throw new BusinessRuleError("สีแบรนด์ต้องเป็นรหัสสี เช่น #5DADC6");
   draft.brands[id] = {
     id,
     name: input.name ?? existing?.name ?? "",
     code,
     active: input.active ?? existing?.active ?? true,
     logoUrl: input.logoUrl ?? existing?.logoUrl,
+    color: "color" in input ? input.color : existing?.color,
     createdAt: existing?.createdAt ?? nowISO(),
   };
   return id;

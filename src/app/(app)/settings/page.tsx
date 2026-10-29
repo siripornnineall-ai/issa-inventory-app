@@ -21,6 +21,7 @@ import { BannerEditor } from "@/components/settings/BannerEditor";
 import { BrandBannersCard } from "@/components/settings/BrandBannersCard";
 import { BrandSlidesCard } from "@/components/settings/BrandSlidesCard";
 import { StockAuditCard } from "@/components/settings/StockAuditCard";
+import { BrandColorsCard } from "@/components/settings/BrandColorsCard";
 import { useStore, useActions } from "@/lib/store";
 import { toastError, toastSuccess } from "@/lib/toast";
 import type { Warehouse } from "@/lib/types";
@@ -168,6 +169,10 @@ export default function SettingsPage() {
               ))}
             </CardContent>
           </Card>
+        </RequireAccess>
+
+        <RequireAccess perm="master.write">
+          <BrandColorsCard />
         </RequireAccess>
 
         <RequireAccess perm="settings.write">

@@ -34,6 +34,7 @@ import {
   recentMovements,
 } from "@/lib/store/selectors";
 import { formatNumber } from "@/lib/utils/money";
+import { brandColor } from "@/lib/utils/brandColor";
 import { formatThaiDateTime } from "@/lib/utils/date";
 import { MOVEMENT_TYPE_LABEL_TH, STOCK_RETURN_LABEL_TH, STOCK_RETURN_TYPES, type StockReturnType } from "@/lib/types";
 
@@ -106,6 +107,7 @@ export default function DashboardPage() {
                   <KpiCard
                     key={b.brandId ?? "none"}
                     label={b.name}
+                    accent={b.brandId ? brandColor(state.brands[b.brandId]) : undefined}
                     value={formatNumber(b.qty)}
                     unit={b.unit}
                     onClick={() => setDrill({ kind: g.kind, brandId: b.brandId })}

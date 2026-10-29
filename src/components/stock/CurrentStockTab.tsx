@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Boxes, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { BrandTag } from "@/components/ui/BrandTag";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input, Select } from "@/components/ui/Field";
@@ -249,7 +250,7 @@ export function CurrentStockTab({ brandId, setBrandId }: { brandId: string; setB
                     <Link href={"/products/" + product.id} className="text-base font-semibold hover:text-[var(--color-primary-container)]">
                       {product.sellingName}
                     </Link>
-                    {product.brandId && state.brands[product.brandId] && <Badge tone="primary">{state.brands[product.brandId].name}</Badge>}
+                    {product.brandId && state.brands[product.brandId] && <BrandTag brandId={product.brandId} variant="chip" />}
                     {matrix.negativeCells > 0 && <Badge tone="danger">ติดลบ {matrix.negativeCells} ช่อง</Badge>}
                   </div>
                   <p className="text-sm text-[var(--color-on-surface-variant)]">

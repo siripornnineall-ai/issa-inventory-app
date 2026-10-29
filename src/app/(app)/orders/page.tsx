@@ -11,6 +11,7 @@ import { Input, Select, Textarea, FormField } from "@/components/ui/Field";
 import { Table, Thead, Tbody, Tr, Th, Td, Pagination } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { OrderStatusBadge } from "@/components/ui/Badge";
+import { BrandTag } from "@/components/ui/BrandTag";
 import { Dialog } from "@/components/ui/Dialog";
 import { DateRangePicker, useDateRange } from "@/components/ui/DateRangePicker";
 import { useStore, useActions } from "@/lib/store";
@@ -262,7 +263,7 @@ export default function OrdersPage() {
                             <p className="truncate text-sm font-medium">{o.orderNo}</p>
                             <p className="text-xs text-[var(--color-on-surface-variant)]">{formatThaiDateTime(o.date)}</p>
                             <p className="truncate text-xs text-[var(--color-on-surface-variant)]">
-                              {o.brandId ? state.brands[o.brandId]?.name ?? "-" : "-"} · {SALES_CHANNEL_LABEL_TH[o.channel]}
+                              <BrandTag brandId={o.brandId} /> · {SALES_CHANNEL_LABEL_TH[o.channel]}
                             </p>
                           </div>
                         </div>
@@ -353,7 +354,7 @@ export default function OrdersPage() {
                         <Td>{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</Td>
                         <Td className="font-medium">{o.orderNo}</Td>
                         <Td className="text-xs text-[var(--color-on-surface-variant)]">{formatThaiDateTime(o.date)}</Td>
-                        <Td>{o.brandId ? state.brands[o.brandId]?.name ?? "-" : "-"}</Td>
+                        <Td><BrandTag brandId={o.brandId} /></Td>
                         <Td>{SALES_CHANNEL_LABEL_TH[o.channel]}</Td>
                         <Td>{formatNumber(orderQty(o))}</Td>
                         <Td className="font-semibold">{formatTHB(orderNetTotal(o))}</Td>

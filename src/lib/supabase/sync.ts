@@ -84,7 +84,7 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
 
   const brand = diffRecords(prev.brands, next.brands);
   for (const b of [...brand.added, ...brand.changed]) {
-    jobs.push(check(supabase.from("brands").upsert({ id: b.id, name: b.name, code: b.code, active: b.active, logo_url: b.logoUrl ?? null, created_at: b.createdAt })));
+    jobs.push(check(supabase.from("brands").upsert({ id: b.id, name: b.name, code: b.code, active: b.active, logo_url: b.logoUrl ?? null, color: b.color ?? null, created_at: b.createdAt })));
   }
 
   const colorCode = diffRecords(prev.colorCodes, next.colorCodes);

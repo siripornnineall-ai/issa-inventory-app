@@ -8,6 +8,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/Table";
 import { useStore } from "@/lib/store";
+import { brandColor } from "@/lib/utils/brandColor";
 import { SLOW_STOCK_RULES, groupSlowMovers, slowMovers, slowMoversByBrand, type SlowBrand, type SlowVariant } from "@/lib/store/selectors";
 import { compareSizes } from "@/lib/utils/sizes";
 import { formatNumber } from "@/lib/utils/money";
@@ -46,7 +47,7 @@ function BrandBox({ brand, items, onOpen }: { brand: SlowBrand; items: SlowVaria
   const state = useStore();
   const top = useMemo(() => groupSlowMovers(state, items, "product").slice(0, 4), [state, items]);
   return (
-    <Card>
+    <Card style={brand.brandId ? { borderTop: `4px solid ${brandColor(state.brands[brand.brandId])}` } : undefined}>
       <CardHeader>
         <CardTitle>{brand.name}</CardTitle>
         <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">

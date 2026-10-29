@@ -37,6 +37,7 @@ export function KpiCard({
   trend,
   className,
   onClick,
+  accent,
 }: {
   icon?: React.ReactNode;
   label: string;
@@ -45,11 +46,13 @@ export function KpiCard({
   trend?: { value: string; positive: boolean };
   className?: string;
   onClick?: () => void;
+  accent?: string; // สีประจำแบรนด์: ขีดสีบนขอบบนการ์ด
 }) {
   const clickable = Boolean(onClick);
   return (
     <Card
       className={cn("p-4 sm:p-5", clickable && "cursor-pointer text-left transition-shadow hover:shadow-[var(--shadow-micro)]", className)}
+      style={accent ? { borderTop: `4px solid ${accent}` } : undefined}
       {...(clickable ? { role: "button", tabIndex: 0, onClick, onKeyDown: (e: React.KeyboardEvent) => e.key === "Enter" && onClick?.() } : {})}
     >
       <div className="flex items-start justify-between">

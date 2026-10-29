@@ -355,7 +355,7 @@ export async function fetchAppState(supabase: SupabaseClient, onProgress?: (p: L
 
   const brands: Record<string, Brand> = {};
   for (const row of brandsRes.data ?? []) {
-    brands[row.id] = { id: row.id, name: row.name, code: row.code, active: row.active, logoUrl: row.logo_url ?? undefined, createdAt: row.created_at };
+    brands[row.id] = { id: row.id, name: row.name, code: row.code, active: row.active, logoUrl: row.logo_url ?? undefined, color: row.color ?? undefined, createdAt: row.created_at };
   }
 
   const colorCodes: Record<string, ColorCode> = {};

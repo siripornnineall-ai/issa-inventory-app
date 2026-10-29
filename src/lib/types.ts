@@ -67,6 +67,7 @@ export interface Brand {
   code: string; // รหัสแบรนด์สำหรับ SKU เช่น IS, FS, IA
   active: boolean;
   logoUrl?: string; // โลโก้แบรนด์ ใช้แสดงบนป้าย QR/บาร์โค้ด
+  color?: string; // สีประจำแบรนด์ #RRGGBB (ป้ายชื่อแบรนด์/แถบสีบนการ์ด) ไม่ตั้ง = สีกลาง
   createdAt: string;
 }
 

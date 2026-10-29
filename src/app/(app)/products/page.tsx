@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Card } from "@/components/ui/Card";
 import { useStore } from "@/lib/store";
+import { brandColor } from "@/lib/utils/brandColor";
 
 export default function ProductsHubPage() {
   const state = useStore();
@@ -13,8 +14,8 @@ export default function ProductsHubPage() {
     .filter((b) => b.active)
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const tiles: { key: string; label: string; href: string; logoUrl?: string; icon?: React.ReactNode }[] = [
-    ...brands.map((b) => ({ key: b.id, label: b.name, href: `/products/all?brand=${b.id}`, logoUrl: b.logoUrl })),
+  const tiles: { key: string; label: string; href: string; logoUrl?: string; color?: string; icon?: React.ReactNode }[] = [
+    ...brands.map((b) => ({ key: b.id, label: b.name, href: `/products/all?brand=${b.id}`, logoUrl: b.logoUrl, color: brandColor(b) })),
     { key: "all", label: "รายการสินค้าทั้งหมด", href: "/products/all", icon: <LayoutGrid className="h-5 w-5" /> },
     { key: "categories", label: "หมวดหมู่", href: "/products/categories", icon: <Layers className="h-5 w-5" /> },
   ];
@@ -40,6 +41,7 @@ export default function ProductsHubPage() {
                   )}
                 </div>
                 <span className="line-clamp-2 text-[11px] font-medium leading-tight text-[var(--color-on-surface)]">{t.label}</span>
+                {t.color && <span aria-hidden className="h-1 w-8 rounded-full" style={{ background: t.color }} />}
               </Link>
             ))}
           </div>
