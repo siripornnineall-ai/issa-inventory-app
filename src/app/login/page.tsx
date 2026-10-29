@@ -14,7 +14,7 @@ import { PinPad } from "@/components/account/PinPad";
 import { PinSetupDialog } from "@/components/account/PinSetup";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { createClient } from "@/lib/supabase/client";
-import { fetchAppState } from "@/lib/supabase/fetch";
+import { fetchAppState, type LoadProgress } from "@/lib/supabase/fetch";
 import { PIN_LENGTH, PinError, hasPin, pinList, pinLogin, type PinUser } from "@/lib/supabase/pinAuth";
 import { ROLE_LABEL_TH, type AppUser } from "@/lib/types";
 
@@ -83,6 +83,8 @@ export default function LoginPage() {
   const [pinError, setPinError] = useState("");
   const [pinLocked, setPinLocked] = useState(false);
   const [pinBusy, setPinBusy] = useState(false);
+  // ความคืบหน้าตอนโหลดข้อมูลหลังเข้าสู่ระบบ (ไว้ดูว่าค้างที่ตารางไหนถ้าช้า)
+  const [loadText, setLoadText] = useState("");
   // แตะการ์ดของคนที่ยังไม่ตั้ง PIN: พาไปเข้าด้วยอีเมลและรหัสผ่านครั้งแรก (เก็บชื่อไว้ทักทาย)
   const [firstTimeName, setFirstTimeName] = useState<{ name: string; admin: boolean } | null>(null);
 
@@ -118,7 +120,11 @@ export default function LoginPage() {
 
   // หลังได้เซสชัน (ไม่ว่าทางรหัสผ่านหรือ PIN): โหลดข้อมูล ตรวจว่ามีบัญชีและเปิดใช้งานอยู่ แล้วคืนข้อมูลให้ผู้เรียกเข้าระบบต่อ
   async function loadProfile(supabase: SupabaseClient, authUserId: string): Promise<{ state: AppState; profile: AppUser } | { error: string }> {
-    const state = await fetchAppState(supabase);
+    const started = performance.now();
+    const state = await fetchAppState(supabase, (p: LoadProgress) => {
+      const sec = Math.floor((performance.now() - started) / 1000);
+      setLoadText(`กำลังโหลดข้อมูล ${p.done}/${p.total}${sec >= 3 && p.pending.length > 0 ? ` · รอ ${p.pending.slice(0, 3).join(", ")}` : ""}`);
+    });
     const profile = state.users[authUserId];
     if (!profile) {
       await supabase.auth.signOut();
@@ -284,7 +290,7 @@ export default function LoginPage() {
                 </div>
                 <div className="mt-4 min-h-[2.5rem] text-center">
                   {pinBusy ? (
-                    <p className="text-sm text-[var(--color-on-surface-variant)]">กำลังเข้าสู่ระบบ…</p>
+                    <p className="text-sm text-[var(--color-on-surface-variant)]">{loadText || "กำลังเข้าสู่ระบบ…"}</p>
                   ) : (
                     pinError && (
                       <p role="alert" className="text-sm font-medium text-[var(--color-danger)]">
@@ -363,6 +369,7 @@ export default function LoginPage() {
             <Button type="submit" size="lg" className="mt-2 w-full" loading={loading}>
               เข้าสู่ระบบ
             </Button>
+            {loading && loadText && <p className="text-center text-xs text-[var(--color-on-surface-variant)]">{loadText}</p>}
           </form>
 
           <p className="mt-6 text-xs text-[var(--color-on-surface-variant)]">ลืมรหัสผ่าน? ติดต่อผู้ดูแลระบบเพื่อตั้งรหัสผ่านใหม่</p>

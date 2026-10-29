@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAllRows, fetchProductImages, IMAGE_PAGE_SIZE, IMAGE_SAFE_PAGE_SIZE } from "./fetch";
+import { fetchAllRows, fetchAppState, fetchProductImages, IMAGE_PAGE_SIZE, IMAGE_SAFE_PAGE_SIZE, type LoadProgress } from "./fetch";
+import { currentSlowest } from "@/lib/store/loadStats";
 
 // จำลอง PostgREST ที่ตัดผลลัพธ์สูงสุด 1,000 แถวต่อคำสั่ง (max-rows) และรองรับ order/range
 function fakeSupabase(total: number, opts: { maxRows?: number; failAtPage?: number } = {}) {
@@ -124,5 +125,31 @@ describe("fetchProductImages: เปิดแอปไม่ต้องดึ�
     expect(rows).toHaveLength(40);
     expect(pageSizes[0]).toBe(IMAGE_PAGE_SIZE);
     expect(pageSizes.slice(1).every((s) => s === IMAGE_SAFE_PAGE_SIZE)).toBe(true);
+  });
+});
+describe("fetchAppState: รายงานความคืบหน้าและตารางที่ช้าสุด", () => {
+  it("แจ้งความคืบหน้าทุกตาราง จบที่ครบทุกตารางและไม่มีตารางค้าง และเก็บตารางที่ช้าสุดไว้", async () => {
+    const tablesSeen: string[] = [];
+    const supabase = {
+      from: (table: string) => {
+        tablesSeen.push(table);
+        const builder: Record<string, unknown> = {
+          select: () => builder,
+          not: () => builder,
+          order: () => builder,
+          range: async () => ({ data: [], error: null }),
+        };
+        return builder;
+      },
+    } as unknown as SupabaseClient;
+    const events: LoadProgress[] = [];
+    await fetchAppState(supabase, (p) => events.push({ ...p, pending: [...p.pending] }));
+    const last = events[events.length - 1];
+    expect(last.done).toBe(last.total);
+    expect(last.pending).toEqual([]);
+    expect(Math.max(...events.map((e) => e.pending.length))).toBeGreaterThan(5); // เห็นว่ารอหลายตารางพร้อมกัน
+    expect(new Set(tablesSeen).size).toBe(last.total); // ทุกตารางถูกนับครบ ไม่ซ้ำไม่ตก
+    expect(currentSlowest().length).toBeGreaterThan(0);
+    expect(currentSlowest().length).toBeLessThanOrEqual(3);
   });
 });

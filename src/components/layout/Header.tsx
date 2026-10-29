@@ -117,6 +117,7 @@ export function Header({
                   {loadStats && (
                     <p className="border-t border-[var(--color-border)] px-4 py-2 text-[11px] leading-snug text-[var(--color-on-surface-variant)]">
                       {loadStats.kind}ล่าสุด: ดึงข้อมูล {(loadStats.fetchMs / 1000).toFixed(1)} วินาที ({loadStats.rows.toLocaleString("th-TH")} รายการ)
+                      {loadStats.slowest.length > 0 && ` · ช้าสุด ${loadStats.slowest.map((s) => `${s.table} ${(s.ms / 1000).toFixed(1)}วิ`).join(", ")}`}
                     </p>
                   )}
                 </div>

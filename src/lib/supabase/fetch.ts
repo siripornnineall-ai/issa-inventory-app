@@ -42,6 +42,7 @@ import type {
   Warehouse,
 } from "@/lib/types";
 import { DEFAULT_STOREFRONT_SETTINGS } from "@/lib/store/state";
+import { setTableTimings } from "@/lib/store/loadStats";
 import { normalizeUnitCode, UNIT_CODE_PATTERN } from "@/lib/store/engine";
 import { ALL_PERMISSIONS, ROLES, cloneRolePermissions, type Permission } from "@/lib/auth/permissions";
 
@@ -151,8 +152,31 @@ export async function fetchAllRows(
   return { data: rows, error: null };
 }
 
-export async function fetchAppState(supabase: SupabaseClient): Promise<AppState> {
-  const productImagesPromise = fetchProductImages(supabase);
+export interface LoadProgress {
+  done: number;
+  total: number;
+  // ตารางที่ยังโหลดไม่เสร็จ (รู้ว่ารออะไรอยู่)
+  pending: string[];
+}
+
+export async function fetchAppState(supabase: SupabaseClient, onProgress?: (p: LoadProgress) => void): Promise<AppState> {
+  // จับเวลาแต่ละตาราง: ใช้โชว์ความคืบหน้าตอนโหลด และบอกว่าตารางไหนช้าสุด (ดู loadStats) เพื่อไล่ปัญหาความช้าบนเครื่องผู้ใช้จริง
+  const pending = new Set<string>();
+  const timings: { table: string; ms: number }[] = [];
+  let done = 0;
+  const TOTAL_TABLES = 33;
+  const tracked = <T,>(table: string, work: Promise<T>): Promise<T> => {
+    const started = performance.now();
+    pending.add(table);
+    onProgress?.({ done, total: TOTAL_TABLES, pending: [...pending] });
+    return work.finally(() => {
+      pending.delete(table);
+      done += 1;
+      timings.push({ table, ms: Math.round(performance.now() - started) });
+      onProgress?.({ done, total: TOTAL_TABLES, pending: [...pending] });
+    });
+  };
+  const productImagesPromise = tracked("product_images", fetchProductImages(supabase));
 
   const [
     profilesRes,
@@ -187,44 +211,45 @@ export async function fetchAppState(supabase: SupabaseClient): Promise<AppState>
     invoicesRes,
     unitTokensRes,
   ] = await Promise.all([
-    fetchAllRows(supabase, "profiles", ["created_at", "id"]),
-    fetchAllRows(supabase, "warehouses", ["created_at", "id"]),
-    fetchAllRows(supabase, "suppliers", ["created_at", "id"]),
-    fetchAllRows(supabase, "supplier_images", ["sort_order", "id"]),
-    fetchAllRows(supabase, "brands", ["created_at", "id"]),
-    fetchAllRows(supabase, "color_codes", ["created_at", "code"]),
-    fetchAllRows(supabase, "custom_sizes", ["sort_order", "id"]),
-    fetchAllRows(supabase, "product_shape_options", ["sort_order", "id"]),
-    fetchAllRows(supabase, "products", ["created_at", "id"]),
-    fetchAllRows(supabase, "product_variants", ["created_at", "id"]),
-    fetchAllRows(supabase, "variant_stock", ["variant_id", "warehouse_id"]),
-    fetchAllRows(supabase, "equipment", ["created_at", "id"]),
-    fetchAllRows(supabase, "equipment_images", ["sort_order", "id"]),
-    fetchAllRows(supabase, "equipment_stock", ["equipment_id", "warehouse_id"]),
-    fetchAllRows(supabase, "equipment_type_options", ["sort_order", "code"]),
-    fetchAllRows(supabase, "equipment_requisitions", ["created_at", "id"]),
-    fetchAllRows(supabase, "notifications", ["created_at", "id"]),
-    fetchAllRows(supabase, "stock_movements", ["created_at", "id"]),
-    fetchAllRows(supabase, "stock_in_docs", ["created_at", "id"]),
-    fetchAllRows(supabase, "stock_in_lines", ["created_at", "id"]),
-    fetchAllRows(supabase, "stock_out_docs", ["created_at", "id"]),
-    fetchAllRows(supabase, "stock_out_lines", ["created_at", "id"]),
-    fetchAllRows(supabase, "transfers", ["created_at", "id"]),
-    fetchAllRows(supabase, "transfer_lines", ["created_at", "id"]),
-    fetchAllRows(supabase, "orders", ["created_at", "id"]),
-    fetchAllRows(supabase, "order_lines", ["created_at", "id"]),
-    fetchAllRows(supabase, "company_info", ["id"]),
-    fetchAllRows(supabase, "storefront_settings", ["id"]),
-    fetchAllRows(supabase, "po_signatories", ["created_at", "id"]),
-    fetchAllRows(supabase, "invoices", ["created_at", "id"]),
+    tracked("profiles", fetchAllRows(supabase, "profiles", ["created_at", "id"])),
+    tracked("warehouses", fetchAllRows(supabase, "warehouses", ["created_at", "id"])),
+    tracked("suppliers", fetchAllRows(supabase, "suppliers", ["created_at", "id"])),
+    tracked("supplier_images", fetchAllRows(supabase, "supplier_images", ["sort_order", "id"])),
+    tracked("brands", fetchAllRows(supabase, "brands", ["created_at", "id"])),
+    tracked("color_codes", fetchAllRows(supabase, "color_codes", ["created_at", "code"])),
+    tracked("custom_sizes", fetchAllRows(supabase, "custom_sizes", ["sort_order", "id"])),
+    tracked("product_shape_options", fetchAllRows(supabase, "product_shape_options", ["sort_order", "id"])),
+    tracked("products", fetchAllRows(supabase, "products", ["created_at", "id"])),
+    tracked("product_variants", fetchAllRows(supabase, "product_variants", ["created_at", "id"])),
+    tracked("variant_stock", fetchAllRows(supabase, "variant_stock", ["variant_id", "warehouse_id"])),
+    tracked("equipment", fetchAllRows(supabase, "equipment", ["created_at", "id"])),
+    tracked("equipment_images", fetchAllRows(supabase, "equipment_images", ["sort_order", "id"])),
+    tracked("equipment_stock", fetchAllRows(supabase, "equipment_stock", ["equipment_id", "warehouse_id"])),
+    tracked("equipment_type_options", fetchAllRows(supabase, "equipment_type_options", ["sort_order", "code"])),
+    tracked("equipment_requisitions", fetchAllRows(supabase, "equipment_requisitions", ["created_at", "id"])),
+    tracked("notifications", fetchAllRows(supabase, "notifications", ["created_at", "id"])),
+    tracked("stock_movements", fetchAllRows(supabase, "stock_movements", ["created_at", "id"])),
+    tracked("stock_in_docs", fetchAllRows(supabase, "stock_in_docs", ["created_at", "id"])),
+    tracked("stock_in_lines", fetchAllRows(supabase, "stock_in_lines", ["created_at", "id"])),
+    tracked("stock_out_docs", fetchAllRows(supabase, "stock_out_docs", ["created_at", "id"])),
+    tracked("stock_out_lines", fetchAllRows(supabase, "stock_out_lines", ["created_at", "id"])),
+    tracked("transfers", fetchAllRows(supabase, "transfers", ["created_at", "id"])),
+    tracked("transfer_lines", fetchAllRows(supabase, "transfer_lines", ["created_at", "id"])),
+    tracked("orders", fetchAllRows(supabase, "orders", ["created_at", "id"])),
+    tracked("order_lines", fetchAllRows(supabase, "order_lines", ["created_at", "id"])),
+    tracked("company_info", fetchAllRows(supabase, "company_info", ["id"])),
+    tracked("storefront_settings", fetchAllRows(supabase, "storefront_settings", ["id"])),
+    tracked("po_signatories", fetchAllRows(supabase, "po_signatories", ["created_at", "id"])),
+    tracked("invoices", fetchAllRows(supabase, "invoices", ["created_at", "id"])),
     // ป้ายรายชิ้นพิมพ์ไปแล้วเกือบ 3 หมื่นใบ (โตทุกครั้งที่พิมพ์) การดึงทั้งหมดเป็น 29 รอบต่อเนื่องตอนเปิดแอปจนช้ามาก
     // โหลดเฉพาะป้ายที่เคยถูกสแกนเข้า/ออกแล้ว (ต้องใช้กันสแกนซ้ำ) ป้ายที่ยังไม่เคยสแกนไม่มีสถานะให้เช็ก
     // และตอนสแกนครั้งแรกระบบถามฐานข้อมูลเฉพาะใบนั้นเองอยู่แล้ว (fetchUnitTokenByScan)
-    fetchAllRows(supabase, "unit_tokens", ["created_at", "id"], FETCH_PAGE_SIZE, (q) => q.not("last_action_at", "is", null)),
+    tracked("unit_tokens", fetchAllRows(supabase, "unit_tokens", ["created_at", "id"], FETCH_PAGE_SIZE, (q) => q.not("last_action_at", "is", null))),
   ]);
   const productImagesRows = await productImagesPromise;
   // สิทธิ์ตามตำแหน่ง: ถ้าโหลดไม่ได้/ยังไม่มีข้อมูล ใช้ค่าเริ่มต้นของระบบ (ผู้ดูแลระบบมีสิทธิ์ทุกอย่างเสมอไม่ขึ้นกับตารางนี้)
-  const rolePermsRes = await fetchAllRows(supabase, "role_permissions", ["role", "permission"]);
+  const rolePermsRes = await tracked("role_permissions", fetchAllRows(supabase, "role_permissions", ["role", "permission"]));
+  setTableTimings(timings);
   const rolePermissions = cloneRolePermissions();
   if (!rolePermsRes.error && rolePermsRes.data.length > 0) {
     for (const role of ROLES) if (role !== "admin") rolePermissions[role] = [];

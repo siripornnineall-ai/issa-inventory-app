@@ -5,6 +5,18 @@ export interface LoadStats {
   fetchMs: number; // เวลาดึงข้อมูลทุกตารางจากฐานข้อมูล
   rows: number; // จำนวนแถวที่ได้มา (รวมทุกตาราง)
   at: number; // เวลาที่วัด (ms)
+  // ตารางที่โหลดช้าสุด (จากรอบโหลดล่าสุด) ไว้ไล่ว่าช้าที่ตารางไหน
+  slowest: { table: string; ms: number }[];
+}
+
+let tableTimings: { table: string; ms: number }[] = [];
+
+export function setTableTimings(timings: { table: string; ms: number }[]) {
+  tableTimings = [...timings].sort((a, b) => b.ms - a.ms).slice(0, 3);
+}
+
+export function currentSlowest(): { table: string; ms: number }[] {
+  return tableTimings;
 }
 
 let last: LoadStats | null = null;
