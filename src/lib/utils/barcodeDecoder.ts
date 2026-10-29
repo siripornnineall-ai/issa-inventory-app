@@ -56,6 +56,7 @@ interface NativeBarcodeDetectorCtor {
 }
 
 let nativeDetector: Promise<NativeBarcodeDetector | null> | null = null;
+let nativeQr = false;
 
 function getNativeDetector(): Promise<NativeBarcodeDetector | null> {
   if (!nativeDetector) {
@@ -63,9 +64,12 @@ function getNativeDetector(): Promise<NativeBarcodeDetector | null> {
       const Ctor = (globalThis as unknown as { BarcodeDetector?: NativeBarcodeDetectorCtor }).BarcodeDetector;
       if (!Ctor) return null;
       try {
-        const formats = Ctor.getSupportedFormats ? await Ctor.getSupportedFormats() : ["code_128"];
-        if (!formats.includes("code_128")) return null;
-        return new Ctor({ formats: ["code_128"] });
+        const supported = Ctor.getSupportedFormats ? await Ctor.getSupportedFormats() : ["code_128"];
+        if (!supported.includes("code_128")) return null;
+        // อ่าน QR ด้วยตัวอ่านของเครื่องไปพร้อมกัน (ทำงานนอกเธรดหลัก เบากว่า jsQR มากบน Android)
+        const formats = ["code_128", "qr_code"].filter((f) => supported.includes(f));
+        nativeQr = formats.includes("qr_code");
+        return new Ctor({ formats });
       } catch {
         return null;
       }
@@ -78,9 +82,15 @@ export function nativeBarcodeSupported(): Promise<boolean> {
   return getNativeDetector().then((d) => d !== null);
 }
 
+// ตัวอ่านของเครื่องอ่าน QR ได้ด้วยหรือไม่ (ถ้าได้ jsQR เหลือเป็นแค่ตัวสำรองที่รันห่าง ๆ)
+export function nativeReadsQr(): Promise<boolean> {
+  return getNativeDetector().then((d) => d !== null && nativeQr);
+}
+
 // ใช้ในเทสต์เท่านั้น: ล้างตัวจำว่าเครื่องมี BarcodeDetector หรือไม่
 export function resetNativeDetectorForTests() {
   nativeDetector = null;
+  nativeQr = false;
 }
 
 // อ่านบาร์โค้ด Code 128 จากภาพ/วิดีโอด้วยตัวอ่านของเบราว์เซอร์ (null = เครื่องไม่รองรับหรืออ่านไม่เจอ)

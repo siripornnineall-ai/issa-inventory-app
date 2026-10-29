@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, beforeEach } from "vitest";
-import { decodeBarcodeNative, nativeBarcodeSupported, resetNativeDetectorForTests } from "./barcodeDecoder";
+import { decodeBarcodeNative, nativeBarcodeSupported, nativeReadsQr, resetNativeDetectorForTests } from "./barcodeDecoder";
 
 type G = { BarcodeDetector?: unknown };
 const g = globalThis as unknown as G;
@@ -29,7 +29,24 @@ describe("ตัวอ่านบาร์โค้ดของเบราว�
     };
     expect(await nativeBarcodeSupported()).toBe(true);
     expect(await decodeBarcodeNative({} as CanvasImageSource)).toBe("K7PX2MQ9");
+    expect(used).toEqual(["code_128", "qr_code"]);
+    expect(await nativeReadsQr()).toBe(true);
+  });
+
+  it("รองรับ code_128 แต่ไม่รองรับ qr_code → อ่านเฉพาะบาร์โค้ด และบอกว่าอ่าน QR ไม่ได้ (ให้ jsQR ทำงานเต็มตามเดิม)", async () => {
+    let used: string[] | undefined;
+    g.BarcodeDetector = class {
+      static getSupportedFormats = async () => ["code_128"];
+      constructor(opts?: { formats?: string[] }) {
+        used = opts?.formats;
+      }
+      async detect() {
+        return [];
+      }
+    };
+    expect(await nativeBarcodeSupported()).toBe(true);
     expect(used).toEqual(["code_128"]);
+    expect(await nativeReadsQr()).toBe(false);
   });
 
   it("เครื่องมีตัวอ่านแต่ไม่รองรับ code_128 → ไม่ใช้ ตกไป ZXing", async () => {

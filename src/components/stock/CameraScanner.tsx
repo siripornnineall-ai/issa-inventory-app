@@ -3,14 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import { X, Camera } from "lucide-react";
 import jsQR from "jsqr";
-import { decodeBarcodeFrame, decodeBarcodeNative, nativeBarcodeSupported, preloadBarcodeDecoder } from "@/lib/utils/barcodeDecoder";
+import { decodeBarcodeFrame, decodeBarcodeNative, nativeBarcodeSupported, nativeReadsQr, preloadBarcodeDecoder } from "@/lib/utils/barcodeDecoder";
 import { guideRegionInVideo } from "@/lib/utils/scanRegion";
+import { nextQrPacing, type QrPacing } from "@/lib/utils/scanPacing";
 
 const RESCAN_COOLDOWN_MS = 1500;
 // QR และบาร์โค้ดลองสลับกันเป็นรอบ ๆ ไม่ทุกเฟรม (เฟรม 1080p ถอดรหัสทุกเฟรมหนักเกินมือถือ ทำให้กล้องกระตุกและสแกนไม่เสถียร)
 const QR_INTERVAL_MS = 100;
 const QR_MAX_WIDTH = 1280; // QR ใหญ่พอ ย่อภาพได้ ช่วยให้เร็ว
 const BARCODE_INTERVAL_MS = 120;
+// เครื่องที่มีตัวอ่านของเบราว์เซอร์ (Android) อ่าน QR+บาร์โค้ดด้วยตัวนั้นเป็นหลัก jsQR เหลือเป็นตัวสำรองที่รันห่างและภาพเล็ก
+// และ ZXing (WebAssembly หนักมาก) รันเป็นครั้งคราวเท่านั้น ไม่ใช่ทุกรอบที่อ่านไม่เจอ
+const QR_FALLBACK_INTERVAL_MS = 400;
+const QR_FALLBACK_WIDTH = 640;
+const ZXING_FALLBACK_MS = 1500;
 
 // ล็อกไม่ให้หน้าเว็บเบื้องหลังเลื่อน/ขยับตอนเปิดกล้อง — กัน iOS Safari ขยับ viewport ตามแถบ URL
 // ที่ยุบ/ขยายเวลากล้องทำงาน ซึ่งทำให้ overlay แบบ fixed เดิมสั่น/ไม่เต็มจอ
@@ -47,6 +53,10 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
   const barcodeBusyRef = useRef(false);
   const lastBarcodeAtRef = useRef(0);
   const lastQrAtRef = useRef(0);
+  const lastZxingAtRef = useRef(0);
+  const nativeRef = useRef(false);
+  const qrBaseIntervalRef = useRef(QR_INTERVAL_MS);
+  const qrPacingRef = useRef<QrPacing>({ width: QR_MAX_WIDTH, intervalMs: QR_INTERVAL_MS });
   const onDetectRef = useRef(onDetect);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState(false);
@@ -94,6 +104,11 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
             barcodeBusyRef.current = false;
             return;
           }
+          if (nativeRef.current && Date.now() - lastZxingAtRef.current < ZXING_FALLBACK_MS) {
+            barcodeBusyRef.current = false;
+            return;
+          }
+          lastZxingAtRef.current = Date.now();
           runZxing(video);
         })
         .catch(() => runZxing(video));
@@ -138,9 +153,10 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
       const canvas = canvasRef.current;
       if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
         const now = Date.now();
-        if (now - lastQrAtRef.current >= QR_INTERVAL_MS) {
+        if (now - lastQrAtRef.current >= qrPacingRef.current.intervalMs) {
           lastQrAtRef.current = now;
-          const scale = Math.min(1, QR_MAX_WIDTH / video.videoWidth);
+          const startedAt = performance.now();
+          const scale = Math.min(1, qrPacingRef.current.width / video.videoWidth);
           canvas.width = Math.round(video.videoWidth * scale);
           canvas.height = Math.round(video.videoHeight * scale);
           const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -150,6 +166,8 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
             const result = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
             if (result?.data) emit(result.data);
           }
+          // เครื่องช้าจะย่อภาพและห่างรอบขึ้นเอง ไม่ให้กินเธรดหลักจนกล้องและทั้งหน้ากระตุก
+          qrPacingRef.current = nextQrPacing(qrPacingRef.current, performance.now() - startedAt, qrBaseIntervalRef.current);
         } else {
           tryBarcode(video, now);
         }
@@ -186,8 +204,19 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
 
     // เริ่มโหลดตัวถอดรหัสบาร์โค้ดไว้ล่วงหน้า ระหว่างกล้องกำลังเปิด ถ้าโหลดไม่สำเร็จและเครื่องก็ไม่มีตัวอ่านของเบราว์เซอร์
     // ต้องบอกผู้ใช้ ไม่งั้นจะเห็นแค่ว่ากล้องเปิดแต่อ่านบาร์โค้ดเงียบ ๆ ไม่ได้ (QR ยังอ่านได้ตามปกติ)
+    nativeReadsQr()
+      .then((reads) => {
+        if (reads && !cancelled) {
+          qrBaseIntervalRef.current = QR_FALLBACK_INTERVAL_MS;
+          qrPacingRef.current = { width: QR_FALLBACK_WIDTH, intervalMs: QR_FALLBACK_INTERVAL_MS };
+        }
+      })
+      .catch(() => {});
     nativeBarcodeSupported()
-      .then((native) => (native ? null : preloadBarcodeDecoder()))
+      .then((native) => {
+        nativeRef.current = native;
+        return native ? null : preloadBarcodeDecoder();
+      })
       .catch(() => {
         if (!cancelled) setDecoderError(true);
       });
