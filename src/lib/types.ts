@@ -435,6 +435,8 @@ export interface Order {
   cancelReason?: string;
   cancelledAt?: string;
   restocked: boolean;
+  // เลขที่ใบเบิกออก (SOUT-...) ที่ตัดสต็อกให้ออเดอร์นี้ ใช้ตอนยกเลิกแบบไม่คืนสต็อก (ยกเลิกแล้ว restocked=false) เพื่อข้ามรายการเคลื่อนไหวของใบนั้นในตัวเลขสรุป
+  stockOutDocNo?: string;
   createdAt: string;
 }
 

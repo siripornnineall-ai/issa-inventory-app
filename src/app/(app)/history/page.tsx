@@ -15,7 +15,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { DateRangePicker, useDateRange } from "@/components/ui/DateRangePicker";
 import { Dialog } from "@/components/ui/Dialog";
 import { useStore, useActions } from "@/lib/store";
-import { cancelledStockInDocNos, isVoidedMovement } from "@/lib/utils/voidedMovements";
+import { voidedDocNos, isVoidedMovement } from "@/lib/utils/voidedMovements";
 import { movementsInRange } from "@/lib/store/selectors";
 import { formatNumber } from "@/lib/utils/money";
 import { formatThaiDateTime } from "@/lib/utils/date";
@@ -36,7 +36,7 @@ function qtyText(qty: number) {
 
 export default function HistoryPage() {
   const state = useStore();
-  const cancelledDocs = cancelledStockInDocNos(state);
+  const cancelledDocs = voidedDocNos(state);
   const { addEditedNote } = useActions();
   const canEditNote = useCan("settings.write");
 

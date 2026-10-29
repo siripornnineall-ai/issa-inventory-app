@@ -26,9 +26,11 @@ const PAGE_SIZE = 15;
 
 export default function OrdersPage() {
   const state = useStore();
-  const { cancelOrder } = useActions();
+  const { cancelOrder, cancelOrderNoRestock } = useActions();
   const user = useCurrentUser();
   const canCancel = useCan("order.cancel");
+  // ผู้ดูแลระบบเท่านั้น: ยกเลิกแบบไม่คืนสต็อก ใช้กับ "ขายหลอก" ที่บันทึกเพื่อลบของที่รับเข้าผิด
+  const canVoid = useCan("settings.write");
 
   const { value: range, setValue: setRange } = useDateRange("30d");
   const [search, setSearch] = useState("");
@@ -41,6 +43,7 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [noRestock, setNoRestock] = useState(false);
   const [busy, setBusy] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -109,6 +112,7 @@ export default function OrdersPage() {
   function openCancel(order: Order) {
     setCancelTarget(order);
     setCancelReason("");
+    setNoRestock(false);
   }
 
   function handleCancel() {
@@ -119,8 +123,13 @@ export default function OrdersPage() {
     }
     setBusy(true);
     try {
-      cancelOrder(cancelTarget.id, cancelReason.trim(), user.id, user.name);
-      toastSuccess("ยกเลิกคำสั่งซื้อและคืนสต็อกเรียบร้อยแล้ว");
+      if (noRestock) {
+        cancelOrderNoRestock(cancelTarget.id, cancelReason.trim(), user.id, user.name);
+        toastSuccess("ยกเลิกคำสั่งซื้อเรียบร้อยแล้ว (ไม่คืนสต็อก)");
+      } else {
+        cancelOrder(cancelTarget.id, cancelReason.trim(), user.id, user.name);
+        toastSuccess("ยกเลิกคำสั่งซื้อและคืนสต็อกเรียบร้อยแล้ว");
+      }
       setCancelTarget(null);
     } catch (e) {
       toastError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
@@ -435,7 +444,7 @@ export default function OrdersPage() {
         open={Boolean(cancelTarget)}
         onClose={() => setCancelTarget(null)}
         title="ยกเลิกคำสั่งซื้อ"
-        description={cancelTarget ? `ออเดอร์ ${cancelTarget.orderNo} — สต็อกสินค้าในออเดอร์นี้จะถูกคืนกลับเข้าคลังทันที` : undefined}
+        description={cancelTarget ? (noRestock ? `ออเดอร์ ${cancelTarget.orderNo} — ยกเลิกยอดขายโดยไม่แตะสต็อก` : `ออเดอร์ ${cancelTarget.orderNo} — สต็อกสินค้าในออเดอร์นี้จะถูกคืนกลับเข้าคลังทันที`) : undefined}
         size="sm"
         footer={
           <>
@@ -448,9 +457,22 @@ export default function OrdersPage() {
           </>
         }
       >
-        <FormField label="เหตุผลการยกเลิก" required>
-          <Textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={3} />
-        </FormField>
+        <div className="flex flex-col gap-3">
+          <FormField label="เหตุผลการยกเลิก" required>
+            <Textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={3} />
+          </FormField>
+          {canVoid && (
+            <label className="flex items-start gap-2 rounded-xl border border-[var(--color-border)] p-3 text-sm">
+              <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={noRestock} onChange={(e) => setNoRestock(e.target.checked)} />
+              <span>
+                <span className="font-medium">ไม่คืนสต็อก (สต็อกถูกต้องอยู่แล้ว)</span>
+                <span className="block text-xs text-[var(--color-on-surface-variant)]">
+                  ใช้กับการ &quot;ขายหลอก&quot; ที่บันทึกเพื่อลบของที่รับเข้าผิด ยอดขายจะหายไปจากรายงานและสต็อกออกบนแดชบอร์ด แต่สต็อกคงเหลือไม่เปลี่ยน ย้อนกลับผ่านแอปไม่ได้
+                </span>
+              </span>
+            </label>
+          )}
+        </div>
       </Dialog>
     </>
   );

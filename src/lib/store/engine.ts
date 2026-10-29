@@ -940,6 +940,7 @@ export function stockOut(draft: Draft<AppState>, input: StockOutInput): { doc: S
       status: "completed",
       note: input.note,
       restocked: false,
+      stockOutDocNo: docNo,
       brandId: input.brandId,
       createdAt: nowISO(),
     };
@@ -1105,13 +1106,16 @@ export function cancelTransfer(draft: Draft<AppState>, transferId: string, reaso
 }
 
 // ===================== ยกเลิกออเดอร์ / คืนสต็อก =====================
-export function cancelOrder(draft: Draft<AppState>, orderId: string, reason: string, actorId: string, actorName: string) {
+// restock = false: ยกเลิกแบบไม่คืนสต็อก ใช้กับ "ขายหลอก" ที่บันทึกเพื่อลบของที่รับเข้าผิด (สต็อกถูกต้องอยู่แล้ว ไม่ต้องเพิ่มกลับ)
+// ออเดอร์เปลี่ยนเป็นยกเลิกแต่ restocked ยังเป็น false ตัวเลขสรุปจะข้ามรายการเคลื่อนไหวของใบเบิกออกนั้นด้วย (ดู voidedMovements.ts)
+export function cancelOrder(draft: Draft<AppState>, orderId: string, reason: string, actorId: string, actorName: string, opts: { restock?: boolean } = {}) {
   const order = draft.orders[orderId];
   if (!order) throw new BusinessRuleError("ไม่พบคำสั่งซื้อนี้");
   if (order.status === "cancelled") throw new BusinessRuleError("คำสั่งซื้อนี้ถูกยกเลิกไปแล้ว");
+  if (opts.restock === false && !reason.trim()) throw new BusinessRuleError("กรุณาระบุเหตุผลที่ยกเลิก");
   if (order.restocked) throw new BusinessRuleError("คำสั่งซื้อนี้ถูกคืนสต็อกไปแล้ว ป้องกันการคืนสต็อกซ้ำ");
 
-  for (const line of order.lines) {
+  for (const line of opts.restock === false ? [] : order.lines) {
     const current = getStockLevel(draft.variantStock, line.variantId, order.warehouseId);
     const after = current.qtyOnHand + line.qty;
     writeStockLevel(draft, draft.variantStock, line.variantId, order.warehouseId, { ...current, qtyOnHand: after });
@@ -1137,9 +1141,9 @@ export function cancelOrder(draft: Draft<AppState>, orderId: string, reason: str
     } as StockMovement);
   }
   order.status = "cancelled";
-  order.cancelReason = reason;
+  order.cancelReason = reason.trim() || reason;
   order.cancelledAt = nowISO();
-  order.restocked = true;
+  order.restocked = opts.restock !== false;
 }
 
 export interface CreateInvoiceInput {

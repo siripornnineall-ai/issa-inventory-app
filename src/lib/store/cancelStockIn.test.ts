@@ -4,7 +4,7 @@ import { emptyState } from "./state";
 import * as engine from "./engine";
 import { dashboardStats, returnStats, slowMovers } from "./selectors";
 import { salesBetween } from "@/lib/utils/salesMatrix";
-import { cancelledStockInDocNos, isVoidedMovement } from "@/lib/utils/voidedMovements";
+import { voidedDocNos, isVoidedMovement } from "@/lib/utils/voidedMovements";
 
 const FROM = "2000-01-01T00:00:00.000Z";
 const TO = "2100-01-01T00:00:00.000Z";
@@ -134,7 +134,7 @@ describe("ยกเลิกใบรับเข้า", () => {
     expect(dashboardStats(cancelled, FROM, TO).stockIn.qty).toBe(8);
     expect(dashboardStats(cancelled, FROM, TO).stockOut.qty).toBe(0);
 
-    const set = cancelledStockInDocNos(cancelled);
+    const set = voidedDocNos(cancelled);
     const docNo = cancelled.stockInDocs[docId].docNo;
     expect(set.has(docNo)).toBe(true);
     const movs = Object.values(cancelled.movements);

@@ -62,4 +62,33 @@ describe("ซิงก์การยกเลิกใบรับเข้า 
     const stockWrite = calls.find((c) => c.table === "variant_stock");
     expect(JSON.stringify(stockWrite?.payload)).toContain("\"qty_on_hand\":0");
   });
+
+  it("ออเดอร์ใหม่เก็บเลขที่ใบเบิกออก และยกเลิกแบบไม่คืนสต็อก: update สถานะยกเลิก restocked=false โดยไม่มีรายการคืนสต็อกหรือแก้สต็อก", async () => {
+    let orderId = "";
+    let docNo = "";
+    const sold = produce(emptyState(), (d) => {
+      const wh = engine.upsertWarehouse(d, { name: "คลังหลัก", type: "main" });
+      const p = engine.createProduct(d, { sellingName: "Wendy Mid", sellingPrice: 1000, category: "กางเกงขายาว", status: "active", images: [] });
+      const v = engine.addVariant(d, p, { color: "ขาว", size: "M", purchasePrice: 400, sellingPrice: 1000 });
+      engine.stockIn(d, { itemType: "product", date: new Date().toISOString(), warehouseId: wh, receivedBy: "u1", receivedByName: "รับ", lines: [{ itemId: v, qty: 10 }] });
+      const res = engine.stockOut(d, { itemType: "product", date: new Date().toISOString(), warehouseId: wh, reasonType: "sale", actorId: "u1", actorName: "ขาย", channel: "shopee", lines: [{ itemId: v, qty: 4 }] });
+      orderId = res.order!.id;
+      docNo = res.doc.docNo;
+    });
+    const created = fakeSupabase();
+    await syncStateDiff(created.supabase, emptyState(), sold);
+    const orderInsert = created.calls.find((c) => c.table === "orders" && c.op === "insert");
+    expect((orderInsert?.payload as { stock_out_doc_no: string }).stock_out_doc_no).toBe(docNo);
+
+    const voided = produce(sold, (d) => {
+      engine.cancelOrder(d, orderId, "ลงผิดรุ่น", "u9", "แอดมิน", { restock: false });
+    });
+    const { supabase, calls } = fakeSupabase();
+    await syncStateDiff(supabase, sold, voided);
+    const upd = calls.find((c) => c.table === "orders" && c.op === "update");
+    expect(upd?.eq).toEqual(["id", orderId]);
+    expect(upd?.payload).toMatchObject({ status: "cancelled", cancel_reason: "ลงผิดรุ่น", restocked: false });
+    expect(calls.some((c) => c.table === "stock_movements")).toBe(false);
+    expect(calls.some((c) => c.table === "variant_stock")).toBe(false);
+  });
 });

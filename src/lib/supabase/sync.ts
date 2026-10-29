@@ -409,6 +409,7 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
           cancel_reason: o.cancelReason ?? null,
           cancelled_at: o.cancelledAt ?? null,
           restocked: o.restocked,
+          stock_out_doc_no: o.stockOutDocNo ?? null,
           created_at: o.createdAt,
         })
       ).then(() =>

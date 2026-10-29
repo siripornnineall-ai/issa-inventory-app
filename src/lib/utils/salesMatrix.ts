@@ -1,7 +1,7 @@
 import type { AppState } from "@/lib/store/state";
 import { NET_SALES_RETURN_TYPES } from "@/lib/types";
 import { compareSizes } from "./sizes";
-import { cancelledStockInDocNos, isVoidedMovement } from "./voidedMovements";
+import { voidedDocNos, isVoidedMovement } from "./voidedMovements";
 
 // วันแรกที่ระบบบันทึกการขายจริง (ก่อนหน้านี้เป็นข้อมูลทดสอบ/ยังไม่ครบ) ใช้เตือนในหน้ายอดขายรายเดือน
 export const REAL_DATA_START = "2026-10-12";
@@ -65,7 +65,7 @@ function tally(state: AppState, from: number, to: number): Map<string, Tally> {
     for (const l of o.lines) if (l.variantId) get(l.variantId).sold += l.qty;
   }
   const returnTypes: string[] = NET_SALES_RETURN_TYPES;
-  const cancelledDocs = cancelledStockInDocNos(state);
+  const cancelledDocs = voidedDocNos(state);
   for (const m of Object.values(state.movements)) {
     if (m.itemType !== "product" || !m.variantId || !returnTypes.includes(m.movementType) || isVoidedMovement(m, cancelledDocs)) continue;
     const t = new Date(m.createdAt).getTime();
