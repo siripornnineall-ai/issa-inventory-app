@@ -129,4 +129,50 @@ describe("หน้าประวัติการเคลื่อนไห�
     fireEvent.click(tabBtn(/สินค้าเข้า/));
     expect(screen.getAllByText("รับเข้า-A").length).toBeGreaterThan(0);
   });
+
+  it("ตัวกรองผู้ทำรายการ: เลือกชื่อแล้วเห็นเฉพาะรายการของคนนั้น และรายชื่อมีทุกคนที่เคยทำรายการ", () => {
+    const a = { ...mv("ของนัท-1", "stock_in", 5, 0), actorId: "u1", actorName: "นัท" } as StockMovement;
+    const b = { ...mv("ของนัท-2", "sale", -1, 5), actorId: "u1", actorName: "นัท" } as StockMovement;
+    const c = { ...mv("ของน้ำ-1", "stock_in", 7, 0), actorId: "u2", actorName: "น้ำ" } as StockMovement;
+    useStore.getState().actions.hydrate({
+      ...emptyState(),
+      users: {
+        u1: { id: "u1", name: "นัท", email: "n@x.com", role: "admin", active: true, createdAt: "2026-10-05T00:00:00.000Z" },
+        u2: { id: "u2", name: "น้ำ", email: "w@x.com", role: "warehouse", active: true, createdAt: "2026-10-05T00:00:00.000Z" },
+      },
+      currentUserId: "u1",
+      movements: Object.fromEntries([a, b, c].map((m) => [m.id, m])),
+    } as never);
+    render(<HistoryPage />);
+    const select = screen.getByLabelText("ผู้ทำรายการ") as HTMLSelectElement;
+    expect([...select.options].map((o) => o.text)).toEqual(["ทุกคน (ผู้ทำรายการ)", "นัท", "น้ำ"]);
+    expect(screen.getAllByText("ของนัท-1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ของน้ำ-1").length).toBeGreaterThan(0);
+
+    fireEvent.change(select, { target: { value: "u2" } });
+    expect(screen.queryByText("ของนัท-1")).toBeNull();
+    expect(screen.queryByText("ของนัท-2")).toBeNull();
+    expect(screen.getAllByText("ของน้ำ-1").length).toBeGreaterThan(0);
+    // แท็บและยอดสรุปตามตัวกรองด้วย
+    fireEvent.click(tabBtn(/สินค้าออก/));
+    expect(screen.getByRole("status").textContent).toContain("รวมออก 0 ชิ้น จาก 0 รายการ");
+  });
+
+  it("ใบที่ถูกยกเลิกเพราะลงผิดยังแสดงในประวัติครบ พร้อมข้อความกำกับ (ประวัติต้องครบเสมอ แม้ตัวเลขสรุปจะข้ามใบนั้น)", () => {
+    const fake = { ...mv("ขายหลอก-X", "sale", -5, 5), refNo: "SOUT-FAKE-1" } as StockMovement;
+    const real = { ...mv("ขายจริง-Y", "sale", -1, 5), refNo: "SOUT-REAL-1" } as StockMovement;
+    useStore.getState().actions.hydrate({
+      ...emptyState(),
+      users: { u1: { id: "u1", name: "นับ", email: "c@x.com", role: "admin", active: true, createdAt: "2026-10-05T00:00:00.000Z" } },
+      currentUserId: "u1",
+      movements: { [fake.id]: fake, [real.id]: real },
+      orders: {
+        o1: { id: "o1", orderNo: "ORD-1", date: new Date().toISOString(), channel: "shopee", warehouseId: "w1", lines: [], status: "cancelled", restocked: false, stockOutDocNo: "SOUT-FAKE-1", createdAt: new Date().toISOString() },
+      },
+    } as never);
+    render(<HistoryPage />);
+    expect(screen.getAllByText("ขายหลอก-X").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ขายจริง-Y").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ใบนี้ถูกยกเลิก").length).toBeGreaterThan(0);
+  });
 });

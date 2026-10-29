@@ -16,7 +16,7 @@ import { DateRangePicker, useDateRange } from "@/components/ui/DateRangePicker";
 import { Dialog } from "@/components/ui/Dialog";
 import { useStore, useActions } from "@/lib/store";
 import { voidedDocNos, isVoidedMovement } from "@/lib/utils/voidedMovements";
-import { movementsInRange } from "@/lib/store/selectors";
+import { allMovementsInRange } from "@/lib/store/selectors";
 import { formatNumber } from "@/lib/utils/money";
 import { formatThaiDateTime } from "@/lib/utils/date";
 import { HISTORY_TAB_LABEL, isVerificationOnly, movementDirection, movementTypesForTab, summarizeMovements, type HistoryTab } from "@/lib/utils/movementTabs";
@@ -46,13 +46,25 @@ export default function HistoryPage() {
   const [itemType, setItemType] = useState<MovementItemType | "all">("all");
   const [movementType, setMovementType] = useState<MovementType | "all">("all");
   const [warehouseId, setWarehouseId] = useState("all");
+  // ผู้ทำรายการ: ดูว่าใครรับเข้า/เบิกออกบ้าง ("all" = ทุกคน)
+  const [actorId, setActorId] = useState("all");
   // นับสต็อกที่ตรงกับระบบถูกบันทึกเป็นปรับยอด 0 ชิ้น (ยืนยันยอด) ซ่อนไว้ก่อน ไม่ให้กลบรายการเข้า/ออกที่สำคัญกว่า
   const [showVerified, setShowVerified] = useState(false);
   const [page, setPage] = useState(1);
   const [noteMovementId, setNoteMovementId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
 
-  const movements = useMemo(() => movementsInRange(state, range.from, range.to), [state, range]);
+  const movements = useMemo(() => allMovementsInRange(state, range.from, range.to), [state, range]);
+
+  // รายชื่อผู้ทำรายการจากประวัติทั้งหมด (ชื่อล่าสุดในระบบ ถ้าไม่มีใช้ชื่อที่บันทึกไว้ตอนทำรายการ)
+  const actorOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const m of Object.values(state.movements)) {
+      if (!m.actorId || byId.has(m.actorId)) continue;
+      byId.set(m.actorId, state.users[m.actorId]?.name ?? m.actorName ?? m.actorId);
+    }
+    return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "th"));
+  }, [state.movements, state.users]);
 
   // ตัวกรองทั่วไป (ยังไม่แยกแท็บ) ใช้นับจำนวนบนแท็บแต่ละอัน
   const pre = useMemo(() => {
@@ -60,9 +72,10 @@ export default function HistoryPage() {
     return movements
       .filter((m) => itemType === "all" || m.itemType === itemType)
       .filter((m) => warehouseId === "all" || m.warehouseFromId === warehouseId || m.warehouseToId === warehouseId)
+      .filter((m) => actorId === "all" || m.actorId === actorId)
       .filter((m) => !q || m.itemName.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q) || m.refNo.toLowerCase().includes(q))
       .filter((m) => showVerified || !isVerificationOnly(m));
-  }, [movements, search, itemType, warehouseId, showVerified]);
+  }, [movements, search, itemType, warehouseId, actorId, showVerified]);
 
   const tabCounts = useMemo(() => {
     const counts: Record<HistoryTab, number> = { all: pre.length, in: 0, out: 0, adjust: 0, return: 0, convert: 0 };
@@ -76,10 +89,11 @@ export default function HistoryPage() {
     return movements
       .filter((m) => itemType === "all" || m.itemType === itemType)
       .filter((m) => warehouseId === "all" || m.warehouseFromId === warehouseId || m.warehouseToId === warehouseId)
+      .filter((m) => actorId === "all" || m.actorId === actorId)
       .filter((m) => !q || m.itemName.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q) || m.refNo.toLowerCase().includes(q))
       .filter((m) => tab === "all" || movementDirection(m) === tab)
       .filter((m) => movementType === "all" || m.movementType === movementType);
-  }, [movements, search, itemType, warehouseId, tab, movementType]);
+  }, [movements, search, itemType, warehouseId, actorId, tab, movementType]);
 
   const filtered = useMemo(
     () => tabbedAll.filter((m) => showVerified || !isVerificationOnly(m)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -223,7 +237,7 @@ export default function HistoryPage() {
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[var(--color-on-surface)]">
             <SlidersHorizontal className="h-4 w-4" /> ตัวกรองละเอียด
           </div>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-5">
             <Select
               value={itemType}
               onChange={(e) => {
@@ -261,6 +275,21 @@ export default function HistoryPage() {
               {Object.values(state.warehouses).map((w) => (
                 <option key={w.id} value={w.id}>
                   {w.name}
+                </option>
+              ))}
+            </Select>
+            <Select
+              value={actorId}
+              onChange={(e) => {
+                setActorId(e.target.value);
+                setPage(1);
+              }}
+              aria-label="ผู้ทำรายการ"
+            >
+              <option value="all">ทุกคน (ผู้ทำรายการ)</option>
+              {actorOptions.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
                 </option>
               ))}
             </Select>

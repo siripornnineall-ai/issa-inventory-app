@@ -62,14 +62,20 @@ export function totalProductQtyNow(state: AppState): number {
   return Object.values(state.variants).reduce((sum, v) => sum + variantStockAcrossWarehouses(state, v.id).onHand, 0);
 }
 
-export function movementsInRange(state: AppState, fromISO: string, toISO: string): StockMovement[] {
+// ทุกรายการเคลื่อนไหวในช่วงเวลา รวมของใบที่ถูกยกเลิกเพราะลงผิด ใช้แสดงในหน้าประวัติ (ประวัติต้องครบเสมอ)
+export function allMovementsInRange(state: AppState, fromISO: string, toISO: string): StockMovement[] {
   const from = new Date(fromISO).getTime();
   const to = new Date(toISO).getTime();
-  const cancelled = voidedDocNos(state);
   return Object.values(state.movements).filter((m) => {
     const t = new Date(m.createdAt).getTime();
-    return t >= from && t <= to && !isVoidedMovement(m, cancelled);
+    return t >= from && t <= to;
   });
+}
+
+// สำหรับตัวเลขสรุป: ข้ามรายการของใบที่ยกเลิกเพราะลงผิด (ดู voidedMovements.ts)
+export function movementsInRange(state: AppState, fromISO: string, toISO: string): StockMovement[] {
+  const voided = voidedDocNos(state);
+  return allMovementsInRange(state, fromISO, toISO).filter((m) => !isVoidedMovement(m, voided));
 }
 
 export function ordersInRange(state: AppState, fromISO: string, toISO: string): Order[] {
