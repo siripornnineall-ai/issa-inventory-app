@@ -573,6 +573,9 @@ export async function fetchAppState(supabase: SupabaseClient, onProgress?: (p: L
       receivedBy: row.received_by ?? "",
       note: row.note ?? undefined,
       status: row.status as StockInDoc["status"],
+      cancelReason: row.cancel_reason ?? undefined,
+      cancelledAt: row.cancelled_at ?? undefined,
+      cancelledByName: row.cancelled_by_name ?? undefined,
       createdAt: row.created_at,
     };
   }

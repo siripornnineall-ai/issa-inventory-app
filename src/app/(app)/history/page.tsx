@@ -15,6 +15,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { DateRangePicker, useDateRange } from "@/components/ui/DateRangePicker";
 import { Dialog } from "@/components/ui/Dialog";
 import { useStore, useActions } from "@/lib/store";
+import { cancelledStockInDocNos, isVoidedMovement } from "@/lib/utils/voidedMovements";
 import { movementsInRange } from "@/lib/store/selectors";
 import { formatNumber } from "@/lib/utils/money";
 import { formatThaiDateTime } from "@/lib/utils/date";
@@ -35,6 +36,7 @@ function qtyText(qty: number) {
 
 export default function HistoryPage() {
   const state = useStore();
+  const cancelledDocs = cancelledStockInDocNos(state);
   const { addEditedNote } = useActions();
   const canEditNote = useCan("settings.write");
 
@@ -306,6 +308,7 @@ export default function HistoryPage() {
                       </div>
                       <div className="shrink-0 text-right">
                         <MovementTypeBadge type={m.movementType} />
+                        {isVoidedMovement(m, cancelledDocs) && <p className="mt-0.5 text-[11px] font-medium text-[var(--color-danger)]">ใบนี้ถูกยกเลิก</p>}
                         <p className={`mt-1 text-sm font-semibold ${qtyClass(m.qtyChange)}`}>{qtyText(m.qtyChange)}</p>
                         <p className="text-xs text-[var(--color-on-surface-variant)]">
                           {tab === "adjust" ? `${formatNumber(m.qtyBefore)} → ${formatNumber(m.qtyAfter)}` : `คงเหลือ ${formatNumber(m.qtyAfter)}`}
@@ -353,7 +356,10 @@ export default function HistoryPage() {
                     {paged.map((m) => (
                       <Tr key={m.id}>
                         <Td className="whitespace-nowrap text-xs text-[var(--color-on-surface-variant)]">{formatThaiDateTime(m.createdAt)}</Td>
-                        <Td className="font-mono text-xs">{m.refNo}</Td>
+                        <Td className="font-mono text-xs">
+                          {m.refNo}
+                          {isVoidedMovement(m, cancelledDocs) && <span className="mt-0.5 block font-sans text-[11px] font-medium text-[var(--color-danger)]">ใบนี้ถูกยกเลิก</span>}
+                        </Td>
                         <Td>
                           <p className="font-medium">{m.itemName}</p>
                           <p className="text-xs text-[var(--color-on-surface-variant)]">

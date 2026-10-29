@@ -24,6 +24,7 @@ import { useUnsavedChangesGuard } from "@/lib/utils/useUnsavedChangesGuard";
 import { useDraft } from "@/lib/utils/useDraft";
 import { pruneRestoredTokens } from "@/lib/utils/draftRestore";
 import { DraftBanner } from "@/components/stock/DraftBanner";
+import { CancelStockInLink } from "@/components/stock/CancelStockInLink";
 import { PendingSaveBar } from "@/components/stock/PendingSaveBar";
 import { DuplicateSaveDialog } from "@/components/stock/DuplicateSaveDialog";
 import { SaveSuccessCard, type SavedInfo } from "@/components/stock/SaveSuccessCard";
@@ -470,7 +471,7 @@ export default function StockInPage() {
   const [round, setRound] = useState(0);
   return (
     <>
-      <Header title="รับสินค้าเข้า" description="บันทึกการรับสินค้าเข้าคลัง พร้อมอ้างอิงผู้ผลิตและเอกสาร" />
+      <Header title="รับสินค้าเข้า" description="บันทึกการรับสินค้าเข้าคลัง พร้อมอ้างอิงผู้ผลิตและเอกสาร" actions={<CancelStockInLink />} />
       <PageContainer className="max-w-5xl">
         <RequireAccess perm="stock.in">
           <StockInForm key={round} onAgain={() => setRound((n) => n + 1)} />

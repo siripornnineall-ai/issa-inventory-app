@@ -326,6 +326,18 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
     );
   }
 
+  // ใบรับเข้าที่เปลี่ยน = ถูกยกเลิก (ใบเดิมไม่ถูกลบ แค่เปลี่ยนสถานะ)
+  for (const d of sinDocs.changed as StockInDoc[]) {
+    jobs.push(
+      check(
+        supabase
+          .from("stock_in_docs")
+          .update({ status: d.status, cancel_reason: d.cancelReason ?? null, cancelled_at: d.cancelledAt ?? null, cancelled_by_name: d.cancelledByName ?? null })
+          .eq("id", d.id)
+      )
+    );
+  }
+
   const soutDocs = diffRecords(prev.stockOutDocs, next.stockOutDocs);
   for (const d of soutDocs.added as StockOutDoc[]) {
     jobs.push(

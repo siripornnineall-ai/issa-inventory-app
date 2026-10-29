@@ -7,6 +7,7 @@ import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useStore } from "@/lib/store";
 import { isStockOutMovement } from "@/lib/store/selectors";
+import { cancelledStockInDocNos, isVoidedMovement } from "@/lib/utils/voidedMovements";
 import { formatNumber, formatTHB } from "@/lib/utils/money";
 import { formatThaiDateTime } from "@/lib/utils/date";
 import { MOVEMENT_TYPE_LABEL_TH, SALES_CHANNEL_LABEL_TH, ORDER_STATUS_LABEL_TH, STOCK_RETURN_LABEL_TH, isStockReturnType, type StockReturnType } from "@/lib/types";
@@ -124,8 +125,9 @@ function buildRows(state: AppState, kind: DrillKind, fromISO: string, toISO: str
 
   // stockIn / stockOut
   const rows: Row[] = [];
+  const cancelledDocs = cancelledStockInDocNos(state);
   for (const m of Object.values(state.movements)) {
-    if (m.itemType !== "product") continue;
+    if (m.itemType !== "product" || isVoidedMovement(m, cancelledDocs)) continue;
     const t = new Date(m.createdAt).getTime();
     if (t < from || t > to) continue;
     if (kind === "stockIn" && m.movementType !== "stock_in") continue;

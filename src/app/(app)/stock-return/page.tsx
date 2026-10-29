@@ -17,6 +17,7 @@ import { PendingSaveBar } from "@/components/stock/PendingSaveBar";
 import { DuplicateSaveDialog } from "@/components/stock/DuplicateSaveDialog";
 import { SaveSuccessCard, type SavedInfo } from "@/components/stock/SaveSuccessCard";
 import { useStore, useActions } from "@/lib/store";
+import { CancelStockInLink } from "@/components/stock/CancelStockInLink";
 import { checkScannedToken } from "@/lib/store/engine";
 import { useCurrentUser } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -409,7 +410,7 @@ export default function StockReturnPage() {
   const [round, setRound] = useState(0);
   return (
     <>
-      <Header title="สต็อกคืนสินค้า" description="รับสินค้าที่กลับมาเข้าคลัง: ตีกลับ คืน ตำหนิ หรือเปลี่ยน (แยกจากการรับสินค้าเข้าใหม่)" />
+      <Header title="สต็อกคืนสินค้า" description="รับสินค้าที่กลับมาเข้าคลัง: ตีกลับ คืน ตำหนิ หรือเปลี่ยน (แยกจากการรับสินค้าเข้าใหม่)" actions={<CancelStockInLink />} />
       <PageContainer className="max-w-5xl">
         <RequireAccess perm="stock.in">
           <StockReturnForm key={round} onAgain={() => setRound((n) => n + 1)} />

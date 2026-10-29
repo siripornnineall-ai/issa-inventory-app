@@ -3,6 +3,7 @@ import { getStockLevel, normalizeUnitCode, UNIT_CODE_PATTERN } from "./engine";
 import { STOCK_RETURN_TYPES, isStockReturnType } from "@/lib/types";
 import type { Invoice, MovementType, Order, Product, StockInDoc, StockMovement, StockReturnType } from "@/lib/types";
 import { sumBaht } from "@/lib/utils/money";
+import { cancelledStockInDocNos, isVoidedMovement } from "@/lib/utils/voidedMovements";
 
 // หาป้ายรายชิ้นจากสิ่งที่สแกนได้: id เต็ม (QR) หรือรหัสสั้น 8 ตัว (บาร์โค้ด) พิมพ์ตัวเล็กตัวใหญ่หรือมีช่องว่าง/ขีดก็ได้
 export function resolveUnitToken(state: AppState, input: string) {
@@ -64,9 +65,10 @@ export function totalProductQtyNow(state: AppState): number {
 export function movementsInRange(state: AppState, fromISO: string, toISO: string): StockMovement[] {
   const from = new Date(fromISO).getTime();
   const to = new Date(toISO).getTime();
+  const cancelled = cancelledStockInDocNos(state);
   return Object.values(state.movements).filter((m) => {
     const t = new Date(m.createdAt).getTime();
-    return t >= from && t <= to;
+    return t >= from && t <= to && !isVoidedMovement(m, cancelled);
   });
 }
 
@@ -377,8 +379,9 @@ export function slowMovers(state: AppState, now = Date.now(), rules: { windowDay
   const sold = new Map<string, number>();
   const lastIn = new Map<string, number>();
   const lastAdjustUp = new Map<string, number>();
+  const cancelledDocs = cancelledStockInDocNos(state);
   for (const m of Object.values(state.movements)) {
-    if (m.itemType !== "product" || !m.variantId) continue;
+    if (m.itemType !== "product" || !m.variantId || isVoidedMovement(m, cancelledDocs)) continue;
     const t = new Date(m.createdAt).getTime();
     if (m.movementType === "sale") {
       if (t >= since && t <= now) sold.set(m.variantId, (sold.get(m.variantId) ?? 0) + Math.abs(m.qtyChange));

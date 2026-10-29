@@ -232,6 +232,7 @@ export type MovementType =
   | "color_change"
   | "send_to_store"
   | "cancel_restock"
+  | "cancel_stock_in" // หักคืนจากการยกเลิกใบรับเข้า/ใบรับคืน (ใบเดิมไม่ถูกลบ)
   | "return_rts"
   | "return_customer"
   | "return_defective"
@@ -276,6 +277,7 @@ export const MOVEMENT_TYPE_LABEL_TH: Record<MovementType, string> = {
   color_change: "เปลี่ยนสี",
   send_to_store: "ส่งหน้าร้าน",
   cancel_restock: "คืนสต็อก (ยกเลิกออเดอร์)",
+  cancel_stock_in: "ยกเลิกใบรับเข้า",
   return_rts: STOCK_RETURN_LABEL_TH.return_rts,
   return_customer: STOCK_RETURN_LABEL_TH.return_customer,
   return_defective: STOCK_RETURN_LABEL_TH.return_defective,
@@ -351,7 +353,11 @@ export interface StockInDoc {
   lines: StockDocLine[];
   receivedBy: string;
   note?: string;
-  status: "draft" | "confirmed";
+  status: "draft" | "confirmed" | "cancelled";
+  // ยกเลิกใบ (รับเข้าผิด): สต็อกถูกหักคืนด้วยรายการ cancel_stock_in ใบเดิมและรายการเดิมยังอยู่ในประวัติ
+  cancelReason?: string;
+  cancelledAt?: string;
+  cancelledByName?: string;
   createdAt: string;
 }
 

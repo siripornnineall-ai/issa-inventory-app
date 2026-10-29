@@ -1,0 +1,65 @@
+import { describe, it, expect } from "vitest";
+import { produce } from "immer";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { syncStateDiff } from "./sync";
+import { emptyState } from "@/lib/store/state";
+import * as engine from "@/lib/store/engine";
+
+type Call = { table: string; op: string; payload: unknown; eq?: [string, unknown] };
+
+// supabase จำลอง: จดว่าเขียนตารางไหนด้วยอะไร และตอบสำเร็จเสมอ
+function fakeSupabase() {
+  const calls: Call[] = [];
+  const supabase = {
+    from(table: string) {
+      const make = (op: string) => (payload: unknown) => {
+        const call: Call = { table, op, payload };
+        calls.push(call);
+        const res = { data: null, error: null, status: 200, statusText: "OK", count: null };
+        const chain = {
+          eq(col: string, val: unknown) {
+            call.eq = [col, val];
+            return chain;
+          },
+          select: () => chain,
+          then: (resolve: (r: typeof res) => unknown) => Promise.resolve(resolve(res)),
+        };
+        return chain;
+      };
+      return { insert: make("insert"), update: make("update"), upsert: make("upsert"), delete: make("delete") };
+    },
+  } as unknown as SupabaseClient;
+  return { supabase, calls };
+}
+
+describe("ซิงก์การยกเลิกใบรับเข้า ลงฐานข้อมูล", () => {
+  it("ใบที่ยกเลิกถูก update สถานะ+เหตุผล, รายการหักคืนถูก insert, และสต็อกถูกเขียนเป็นค่าใหม่", async () => {
+    let wh = "";
+    let item = "";
+    let docId = "";
+    const received = produce(emptyState(), (d) => {
+      wh = engine.upsertWarehouse(d, { name: "คลังหลัก", type: "main" });
+      const p = engine.createProduct(d, { sellingName: "Wendy Mid", sellingPrice: 1090, category: "กางเกงขายาว", status: "active", images: [] });
+      item = engine.addVariant(d, p, { color: "ขาว", size: "M", purchasePrice: 400, sellingPrice: 1090 });
+      docId = engine.stockIn(d, { itemType: "product", date: new Date().toISOString(), warehouseId: wh, receivedBy: "u1", receivedByName: "รับ", lines: [{ itemId: item, qty: 15 }] }).id;
+    });
+    const cancelled = produce(received, (d) => {
+      engine.cancelStockIns(d, [docId], "รับเข้าผิดรุ่น", "u2", "Su");
+    });
+
+    const { supabase, calls } = fakeSupabase();
+    await syncStateDiff(supabase, received, cancelled);
+
+    const docUpdate = calls.find((c) => c.table === "stock_in_docs" && c.op === "update");
+    expect(docUpdate?.eq).toEqual(["id", docId]);
+    expect(docUpdate?.payload).toMatchObject({ status: "cancelled", cancel_reason: "รับเข้าผิดรุ่น", cancelled_by_name: "Su" });
+    expect((docUpdate?.payload as { cancelled_at: string }).cancelled_at).toBeTruthy();
+
+    const reversal = calls.find((c) => c.table === "stock_movements" && c.op === "insert");
+    expect(JSON.stringify(reversal?.payload)).toContain("cancel_stock_in");
+    expect(JSON.stringify(reversal?.payload)).toContain("-15");
+
+    const stockWrite = calls.find((c) => c.table === "variant_stock");
+    expect(JSON.stringify(stockWrite?.payload)).toContain("\"qty_on_hand\":0");
+  });
+});

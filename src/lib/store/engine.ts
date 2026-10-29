@@ -539,6 +539,93 @@ export function stockIn(draft: Draft<AppState>, input: StockInInput): StockInDoc
   return doc;
 }
 
+// ===================== ยกเลิกใบรับเข้า / ใบรับคืน =====================
+// รับเข้าผิดรุ่น/ผิดจำนวน: หักสต็อกคืนด้วยรายการ cancel_stock_in (ติดลบ) แล้วทำเครื่องหมายใบว่ายกเลิก
+// ใบเดิมและรายการเดิมไม่ถูกลบ (ประวัติห้ามแก้) ตัวเลขสรุป (สต็อกเข้า สินค้าคืน ยอดขายสุทธิ) ข้ามใบที่ยกเลิกแล้วเอง
+// ยกเลิกไม่ได้ถ้าของจากใบนี้ถูกขาย/เบิกออกไปแล้วจนสต็อกคงเหลือไม่พอหักคืน (ไม่ปล่อยให้ติดลบ)
+export function stockInCancelProblems(state: AppState, docIds: string[], reason?: string): string[] {
+  const problems: string[] = [];
+  if (reason !== undefined && !reason.trim()) problems.push("กรุณาระบุเหตุผลที่ยกเลิก");
+  if (docIds.length === 0) problems.push("กรุณาเลือกใบที่ต้องการยกเลิก");
+  const need = new Map<string, { itemType: MovementItemType; itemId: string; warehouseId: string; qty: number; docNos: Set<string> }>();
+  for (const id of new Set(docIds)) {
+    const doc = state.stockInDocs[id];
+    if (!doc) {
+      problems.push("ไม่พบใบที่ต้องการยกเลิก");
+      continue;
+    }
+    if (doc.status === "cancelled") {
+      problems.push(`ใบ ${doc.docNo} ถูกยกเลิกไปแล้ว`);
+      continue;
+    }
+    if (doc.status !== "confirmed") {
+      problems.push(`ใบ ${doc.docNo} ยังไม่ได้ยืนยัน ยกเลิกไม่ได้`);
+      continue;
+    }
+    for (const line of doc.lines) {
+      const key = `${doc.itemType}|${line.itemId}|${doc.warehouseId}`;
+      const cur = need.get(key) ?? { itemType: doc.itemType, itemId: line.itemId, warehouseId: doc.warehouseId, qty: 0, docNos: new Set<string>() };
+      cur.qty += line.qty;
+      cur.docNos.add(doc.docNo);
+      need.set(key, cur);
+    }
+  }
+  for (const n of need.values()) {
+    const map = n.itemType === "product" ? state.variantStock : state.equipmentStock;
+    const onHand = getStockLevel(map, n.itemId, n.warehouseId).qtyOnHand;
+    if (onHand < n.qty) {
+      const info = describeItem(state as Draft<AppState>, n.itemType, n.itemId);
+      problems.push(
+        `ยกเลิกไม่ได้: "${info.name}" (SKU: ${info.sku}) ใบ ${[...n.docNos].join(", ")} รับเข้า ${n.qty} ชิ้น แต่ตอนนี้คงเหลือ ${onHand} ชิ้น (มีการขายหรือเบิกออกไปแล้ว)`
+      );
+    }
+  }
+  return problems;
+}
+
+export function cancelStockIns(draft: Draft<AppState>, docIds: string[], reason: string, actorId: string, actorName: string): { docs: number; pieces: number } {
+  const ids = [...new Set(docIds)];
+  const problems = stockInCancelProblems(draft as AppState, ids, reason);
+  if (problems.length > 0) throw new BusinessRuleError(problems.join(" / "));
+  const why = reason.trim();
+  let pieces = 0;
+  for (const id of ids) {
+    const doc = draft.stockInDocs[id];
+    const map = getStockMap(draft, doc.itemType);
+    for (const line of doc.lines) {
+      const current = getStockLevel(map, line.itemId, doc.warehouseId);
+      const after = current.qtyOnHand - line.qty;
+      writeStockLevel(draft, map, line.itemId, doc.warehouseId, { ...current, qtyOnHand: after });
+      const info = describeItem(draft, doc.itemType, line.itemId);
+      pushMovement(draft, {
+        refNo: doc.docNo,
+        itemType: doc.itemType,
+        itemId: line.itemId,
+        variantId: doc.itemType === "product" ? line.itemId : undefined,
+        itemName: info.name,
+        sku: info.sku,
+        color: info.color,
+        size: info.size,
+        movementType: "cancel_stock_in",
+        qtyChange: -line.qty,
+        qtyBefore: current.qtyOnHand,
+        qtyAfter: after,
+        warehouseFromId: doc.warehouseId,
+        actorId,
+        actorName,
+        reason: `ยกเลิกใบ ${doc.docNo}: ${why}`,
+        relatedDocNo: doc.docNo,
+      } as StockMovement);
+      pieces += line.qty;
+    }
+    doc.status = "cancelled";
+    doc.cancelReason = why;
+    doc.cancelledAt = nowISO();
+    doc.cancelledByName = actorName;
+  }
+  return { docs: ids.length, pieces };
+}
+
 // ===================== สต็อกคืนสินค้า (Stock Return) =====================
 // รับสินค้าที่กลับมาเข้าคลัง แยกจากการรับสินค้าเข้าใหม่: ตีกลับ / คืน / ตำหนิ / เปลี่ยน
 // ใช้ใบรับเข้า (StockInDoc) เดิมแต่ใส่ returnType เลขที่ใบขึ้นต้น SRT และ movement ใช้ชนิดของแต่ละประเภทคืน

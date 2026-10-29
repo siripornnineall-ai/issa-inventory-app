@@ -75,7 +75,7 @@ export function MovementTypeBadge({ type }: { type: MovementType }) {
     ? "success"
     : type === "sale" || type === "return_rts" || type === "return_customer" || type === "return_exchange"
       ? "warning"
-      : type === "damaged" || type === "lost" || type === "return_defective"
+      : type === "damaged" || type === "lost" || type === "return_defective" || type === "cancel_stock_in"
         ? "danger"
         : "info";
   return <Badge tone={tone}>{MOVEMENT_TYPE_LABEL_TH[type]}</Badge>;

@@ -72,6 +72,7 @@ interface Actions {
   receiveTransfer: (transferId: string, receiverId: string, receiverName: string) => void;
   cancelTransfer: (transferId: string, reason: string | undefined, actorId: string, actorName: string) => void;
   cancelOrder: (orderId: string, reason: string, actorId: string, actorName: string) => void;
+  cancelStockIns: (docIds: string[], reason: string, actorId: string, actorName: string) => { docs: number; pieces: number };
   adjustStock: (input: Parameters<typeof engine.adjustStock>[1]) => void;
   mintUnitTokens: (variantId: string, qty: number) => ReturnType<typeof engine.mintUnitTokens>;
   recordUnitScanIn: (tokenId: string) => ReturnType<typeof engine.recordUnitScan>;
@@ -226,6 +227,8 @@ export const useStore = create<Store>()((set, get) => ({
       runChecked(set, get, "stock.transfer", (draft) => engine.receiveTransfer(draft as never, transferId, receiverId, receiverName)),
     cancelTransfer: (transferId, reason, actorId, actorName) =>
       runChecked(set, get, "stock.transfer", (draft) => engine.cancelTransfer(draft as never, transferId, reason, actorId, actorName)),
+    cancelStockIns: (docIds, reason, actorId, actorName) =>
+      runChecked(set, get, "stock.adjust", (draft) => engine.cancelStockIns(draft as never, docIds, reason, actorId, actorName)),
     cancelOrder: (orderId, reason, actorId, actorName) =>
       runChecked(set, get, "order.cancel", (draft) => engine.cancelOrder(draft as never, orderId, reason, actorId, actorName)),
     adjustStock: (input) => runChecked(set, get, "stock.adjust", (draft) => engine.adjustStock(draft as never, input)),
