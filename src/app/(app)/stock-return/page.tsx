@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, Textarea, FormField } from "@/components/ui/Field";
 import { Dialog } from "@/components/ui/Dialog";
+import { SegmentedChoice } from "@/components/ui/SegmentedChoice";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { VariantPicker } from "@/components/stock/VariantPicker";
 import { DraftBanner } from "@/components/stock/DraftBanner";
@@ -287,30 +288,13 @@ function StockReturnForm({ onAgain }: { onAgain: () => void }) {
           <CardTitle>1. ลูกค้าส่งอะไรกลับมา</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4" role="group" aria-label="ประเภทสินค้าที่คืน">
-            {STOCK_RETURN_TYPES.map((t) => {
-              const active = returnType === t;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setReturnType(t)}
-                  className={`flex flex-col items-start rounded-xl border px-4 py-3 text-left ${
-                    active
-                      ? "border-[var(--color-primary-container)] bg-[var(--color-primary-container)]/10 text-[var(--color-primary-container)]"
-                      : "border-[var(--color-border)] text-[var(--color-on-surface)] hover:border-[var(--color-primary-container)] hover:bg-[var(--color-surface-container)]"
-                  }`}
-                >
-                  <span className="text-sm font-medium">
-                    {active ? "✓ " : ""}
-                    {STOCK_RETURN_LABEL_TH[t]}
-                  </span>
-                  <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">{STOCK_RETURN_HINT_TH[t]}</span>
-                </button>
-              );
-            })}
-          </div>
+          <SegmentedChoice
+            ariaLabel="ประเภทสินค้าที่คืน"
+            value={returnType}
+            onChange={setReturnType}
+            columns="grid-cols-2 lg:grid-cols-4"
+            options={STOCK_RETURN_TYPES.map((t) => ({ value: t, label: STOCK_RETURN_LABEL_TH[t], hint: STOCK_RETURN_HINT_TH[t] }))}
+          />
           {!returnType && <p className="text-xs text-[var(--color-warning)]">เลือกประเภทก่อนบันทึก</p>}
           {returnType === "return_defective" && activeWarehouses.length > 1 && (
             <p className="text-xs text-[var(--color-on-surface-variant)]">สินค้าตำหนิ แนะนำให้รับเข้าคลังแยก เพื่อไม่ให้ปนกับของพร้อมขาย (เลือกคลังด้านล่าง)</p>
@@ -378,11 +362,13 @@ function StockReturnForm({ onAgain }: { onAgain: () => void }) {
                 <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container)]/50 p-3">
                   <p className="mb-2 text-xs font-medium">เหตุผลเดียวกันทุกรายการ? กดอันเดียวตั้งให้ทุกบรรทัดได้เลย</p>
                   <div className="flex flex-wrap gap-2">
-                    {RETURN_REASONS.map((r) => (
-                      <Chip key={r.code} active={lines.every((l) => l.reason === r.code)} onClick={() => applyReasonToAll(r.code)}>
-                        {r.label}
-                      </Chip>
-                    ))}
+                    <SegmentedChoice
+                      ariaLabel="เหตุผลเดียวกันทุกรายการ"
+                      value={RETURN_REASONS.find((r) => lines.every((l) => l.reason === r.code))?.code ?? ""}
+                      onChange={applyReasonToAll}
+                      columns="grid-cols-2 sm:grid-cols-4"
+                      options={RETURN_REASONS.map((r) => ({ value: r.code, label: r.label }))}
+                    />
                   </div>
                 </div>
               )}
@@ -425,13 +411,13 @@ function StockReturnForm({ onAgain }: { onAgain: () => void }) {
                       <p className="mb-1.5 text-xs font-medium">
                         เหตุผลที่ลูกค้าคืน <span className="text-[var(--color-danger)]">*</span> <span className="font-normal text-[var(--color-on-surface-variant)]">(เลือก 1 ข้อ)</span>
                       </p>
-                      <div className="flex flex-wrap gap-2" role="group" aria-label={`เหตุผลรายการที่ ${i + 1}`}>
-                        {RETURN_REASONS.map((r) => (
-                          <Chip key={r.code} active={l.reason === r.code} onClick={() => patchLine(l.key, { reason: r.code })}>
-                            {r.label}
-                          </Chip>
-                        ))}
-                      </div>
+                      <SegmentedChoice
+                        ariaLabel={`เหตุผลรายการที่ ${i + 1}`}
+                        value={l.reason}
+                        onChange={(reason) => patchLine(l.key, { reason })}
+                        columns="grid-cols-2 sm:grid-cols-4"
+                        options={RETURN_REASONS.map((r) => ({ value: r.code, label: r.label }))}
+                      />
                       {noReason && <p className="mt-1 text-xs text-[var(--color-danger)]">กรุณาเลือกเหตุผล</p>}
                     </div>
 
