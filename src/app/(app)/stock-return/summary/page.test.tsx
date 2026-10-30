@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup, within, fireEvent } from "@testing-library/react";
 import ReturnSummaryPage from "./page";
 import { useStore } from "@/lib/store";
 import { emptyState } from "@/lib/store/state";
@@ -63,5 +63,20 @@ describe("หน้าสรุปสินค้าคืน/เปลี่ย
     useStore.getState().actions.hydrate({ ...emptyState(), users: { u1: { id: "u1", name: "x", email: "a@x.com", role: "viewer", active: true, createdAt: now } }, currentUserId: "u1" } as never);
     render(<ReturnSummaryPage />);
     expect(screen.queryByText("ไม่มีสิทธิ์เข้าถึงหน้านี้")).toBeNull();
+  });
+
+  it("ตัวกรองประเภทและแบรนด์เป็นกล่องเลือก: กดแล้วตัวเลขเปลี่ยนตาม และกล่องที่เลือกอยู่ aria-pressed", () => {
+    seed();
+    render(<ReturnSummaryPage />);
+    const types = screen.getByRole("group", { name: "ประเภท" });
+    expect(within(types).getByRole("button", { name: "ทั้งหมด" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("มูลค่าที่ถูกคืน").parentElement?.textContent).toContain("3,090");
+
+    fireEvent.click(within(types).getByRole("button", { name: "สินค้าเปลี่ยน" }));
+    expect(within(types).getByRole("button", { name: "สินค้าเปลี่ยน" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("มูลค่าที่ถูกคืน").parentElement?.textContent).toContain("2,000"); // เฉพาะใบเปลี่ยน 2 x 1000
+
+    const brands = screen.getByRole("group", { name: "แบรนด์" });
+    expect(within(brands).getByRole("button", { name: "ทุกแบรนด์" }).getAttribute("aria-pressed")).toBe("true");
   });
 });

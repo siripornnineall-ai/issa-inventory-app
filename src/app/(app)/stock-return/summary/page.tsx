@@ -9,7 +9,7 @@ import { RequireAccess } from "@/components/layout/RequireAccess";
 import { Card, CardContent, CardHeader, CardTitle, KpiCard } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Select } from "@/components/ui/Field";
+import { SegmentedChoice } from "@/components/ui/SegmentedChoice";
 import { DateRangePicker, useDateRange } from "@/components/ui/DateRangePicker";
 import { useStore } from "@/lib/store";
 import { STOCK_RETURN_LABEL_TH, STOCK_RETURN_TYPES, type StockReturnType } from "@/lib/types";
@@ -91,11 +91,12 @@ function exportExcel(s: ReturnSummary, rangeLabel: string) {
 function SummaryContent() {
   const state = useStore();
   const { value: range, setValue: setRange } = useDateRange("30d");
-  const [brandId, setBrandId] = useState("");
-  const [type, setType] = useState<StockReturnType | "">("");
+  // กล่องเลือก: "all" = ทั้งหมด
+  const [brandId, setBrandId] = useState("all");
+  const [type, setType] = useState<StockReturnType | "all">("all");
 
   const summary = useMemo(
-    () => returnSummary(state, { from: new Date(range.from).getTime(), to: new Date(range.to).getTime(), brandId, returnType: type }),
+    () => returnSummary(state, { from: new Date(range.from).getTime(), to: new Date(range.to).getTime(), brandId: brandId === "all" ? "" : brandId, returnType: type === "all" ? "" : type }),
     [state, range, brandId, type]
   );
   const brands = useMemo(() => Object.values(state.brands).sort((a, b) => a.name.localeCompare(b.name, "th")), [state.brands]);
@@ -111,26 +112,32 @@ function SummaryContent() {
         <DateRangePicker value={range} onChange={setRange} />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Select value={brandId} onChange={(e) => setBrandId(e.target.value)} aria-label="แบรนด์">
-          <option value="">ทุกแบรนด์</option>
-          {brands.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </Select>
-        <Select value={type} onChange={(e) => setType(e.target.value as StockReturnType | "")} aria-label="ประเภท">
-          <option value="">ทุกประเภท (ตีกลับ คืน ตำหนิ เปลี่ยน)</option>
-          {STOCK_RETURN_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {STOCK_RETURN_LABEL_TH[t]}
-            </option>
-          ))}
-        </Select>
-        <Button variant="secondary" onClick={() => exportExcel(summary, rangeLabel)} disabled={summary.rows.length === 0}>
-          <Download className="h-4 w-4" /> ดาวน์โหลด Excel
-        </Button>
+      <div className="flex flex-col gap-3">
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-[var(--color-on-surface-variant)]">ประเภท</p>
+          <SegmentedChoice
+            ariaLabel="ประเภท"
+            value={type}
+            onChange={setType}
+            columns="grid-cols-2 sm:grid-cols-5"
+            options={[{ value: "all" as const, label: "ทั้งหมด" }, ...STOCK_RETURN_TYPES.map((t) => ({ value: t, label: STOCK_RETURN_LABEL_TH[t] }))]}
+          />
+        </div>
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-[var(--color-on-surface-variant)]">แบรนด์</p>
+          <SegmentedChoice
+            ariaLabel="แบรนด์"
+            value={brandId}
+            onChange={setBrandId}
+            columns="grid-cols-2 sm:grid-cols-4"
+            options={[{ value: "all", label: "ทุกแบรนด์" }, ...brands.map((b) => ({ value: b.id, label: b.name }))]}
+          />
+        </div>
+        <div>
+          <Button variant="secondary" onClick={() => exportExcel(summary, rangeLabel)} disabled={summary.rows.length === 0}>
+            <Download className="h-4 w-4" /> ดาวน์โหลด Excel
+          </Button>
+        </div>
       </div>
 
       {summary.rows.length === 0 ? (
