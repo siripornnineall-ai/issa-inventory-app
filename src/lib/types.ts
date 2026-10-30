@@ -334,6 +334,10 @@ export interface StockDocLine {
   qty: number;
   unitCost?: number;
   unitPrice?: number;
+  // ใบรับคืน (SRT): เหตุผลที่ลูกค้าคืน (รหัสจาก returnReasons.ts) / สิ่งที่ลูกค้าพูด / เปลี่ยนเป็นตัวเลือกไหน (ข้อมูลอย่างเดียว ไม่ตัดสต็อก)
+  returnReason?: string;
+  returnTags?: string[];
+  exchangeToId?: string;
 }
 
 export interface StockInDoc {

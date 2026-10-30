@@ -35,6 +35,7 @@ import { SALES_CHANNEL_LABEL_TH, STOCK_RETURN_LABEL_TH, STOCK_RETURN_TYPES } fro
 import { ADMIN_ONLY_PERMISSIONS, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, type Permission } from "@/lib/auth/permissions";
 import { AppState, stockKey } from "./state";
 import { NO_TAX_INVOICE_BUYER_LABEL } from "@/lib/types";
+import { RETURN_TAGS, isReturnReason } from "@/lib/utils/returnReasons";
 import { newId, genDocNo, genSku, genSkuV2, suggestColorCode } from "@/lib/utils/ids";
 import { nowISO, todayInputValue, formatThaiDateTime } from "@/lib/utils/date";
 
@@ -637,7 +638,9 @@ export interface StockReturnInput {
   receivedBy: string;
   receivedByName: string;
   note?: string;
-  lines: { itemId: string; qty: number }[];
+  // reason บังคับทุกบรรทัด (รหัสจาก returnReasons.ts) tags = สิ่งที่ลูกค้าพูด exchangeToId = ตัวเลือกใหม่ที่ส่งให้ลูกค้า (บังคับเฉพาะใบ "เปลี่ยน") เป็นข้อมูลอย่างเดียว ไม่ตัดสต็อก
+  // unitPrice = ราคาต่อชิ้นของที่ถูกคืน (ตั้งต้นจากราคาขาย แก้ได้) ใช้รวมเป็นมูลค่าของที่ถูกคืน ไม่กระทบสต็อกหรือยอดขาย
+  lines: { itemId: string; qty: number; unitPrice?: number; reason?: string; tags?: string[]; exchangeToId?: string }[];
 }
 
 export function stockReturn(draft: Draft<AppState>, input: StockReturnInput): StockInDoc {
@@ -646,6 +649,17 @@ export function stockReturn(draft: Draft<AppState>, input: StockReturnInput): St
   for (const line of input.lines) {
     if (!(line.qty > 0)) throw new BusinessRuleError("จำนวนที่รับคืนต้องมากกว่า 0");
   }
+  input.lines.forEach((line, i) => {
+    const label = describeItem(draft, "product", line.itemId);
+    const where = `รายการที่ ${i + 1} (${label.name} ${label.color ?? ""} ${label.size ?? ""})`.replace(/s+/g, " ").replace(" )", ")");
+    if (!isReturnReason(line.reason)) throw new BusinessRuleError(`${where} ยังไม่ได้เลือกเหตุผลที่ลูกค้าคืน`);
+    if (line.unitPrice !== undefined && !(line.unitPrice >= 0)) throw new BusinessRuleError(`${where} ราคาต่อชิ้นต้องไม่ติดลบ`);
+    if (input.returnType === "return_exchange") {
+      if (!line.exchangeToId) throw new BusinessRuleError(`${where} ยังไม่ได้เลือกว่าเปลี่ยนเป็นสินค้าอะไร`);
+      if (!draft.variants[line.exchangeToId]) throw new BusinessRuleError(`${where} ไม่พบสินค้าที่เปลี่ยนเป็น`);
+    }
+    for (const tag of line.tags ?? []) if (!(RETURN_TAGS as readonly string[]).includes(tag)) throw new BusinessRuleError(`${where} มีคำที่ลูกค้าพูดที่ไม่รู้จัก: ${tag}`);
+  });
   const docId = newId();
   const docNo = genDocNo("SRT", nextSeq(draft, "SRT"));
   const channelLabel = input.channel ? (SALES_CHANNEL_LABEL_TH as Record<string, string>)[input.channel] ?? input.channel : undefined;
@@ -678,7 +692,15 @@ export function stockReturn(draft: Draft<AppState>, input: StockReturnInput): St
       relatedDocNo: docNo,
       createdAt: input.date,
     } as StockMovement);
-    lines.push({ id: newId(), itemId: line.itemId, qty: line.qty });
+    lines.push({
+      id: newId(),
+      itemId: line.itemId,
+      qty: line.qty,
+      unitPrice: line.unitPrice,
+      returnReason: line.reason,
+      returnTags: line.tags && line.tags.length > 0 ? [...new Set(line.tags)] : undefined,
+      exchangeToId: input.returnType === "return_exchange" ? line.exchangeToId : undefined,
+    });
   }
 
   const doc: StockInDoc = {

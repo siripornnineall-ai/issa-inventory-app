@@ -550,7 +550,17 @@ export async function fetchAppState(supabase: SupabaseClient, onProgress?: (p: L
   const linesByStockInDoc = new Map<string, StockDocLine[]>();
   for (const row of stockInLinesRes.data ?? []) {
     const list = linesByStockInDoc.get(row.doc_id) ?? [];
-    list.push({ id: row.id, itemId: row.item_id, variantId: row.variant_id ?? undefined, qty: row.qty, unitCost: row.unit_cost ?? undefined });
+    list.push({
+      id: row.id,
+      itemId: row.item_id,
+      variantId: row.variant_id ?? undefined,
+      qty: row.qty,
+      unitCost: row.unit_cost ?? undefined,
+      unitPrice: row.unit_price ?? undefined,
+      returnReason: row.return_reason ?? undefined,
+      returnTags: row.return_tags ?? undefined,
+      exchangeToId: row.exchange_to_variant_id ?? undefined,
+    });
     linesByStockInDoc.set(row.doc_id, list);
   }
   const stockInDocs: Record<string, StockInDoc> = {};

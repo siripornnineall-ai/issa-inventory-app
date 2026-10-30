@@ -34,6 +34,7 @@ function addBlackM() {
   fireEvent.keyDown(input, { key: "Enter" });
 }
 
+const pickReason = (label = "ไซซ์ไม่พอดี") => fireEvent.click(screen.getByRole("button", { name: label }));
 const saveButtons = () => screen.getAllByRole("button", { name: "บันทึกการรับคืน" });
 const pickType = (label: string) => fireEvent.click(screen.getByRole("button", { name: new RegExp(label) }));
 const docs = () => Object.values(useStore.getState().stockInDocs);
@@ -64,6 +65,7 @@ describe("หน้าสต็อกคืนสินค้า", () => {
     render(<StockReturnPage />);
     pickType("สินค้าตำหนิ");
     addBlackM();
+    pickReason();
     fireEvent.click(saveButtons()[0]);
 
     expect(qty()).toBe(6);
@@ -80,6 +82,7 @@ describe("หน้าสต็อกคืนสินค้า", () => {
     render(<StockReturnPage />);
     pickType("สินค้าคืน");
     addBlackM();
+    pickReason();
     const btn = saveButtons()[0];
     act(() => {
       btn.click();
@@ -93,11 +96,13 @@ describe("หน้าสต็อกคืนสินค้า", () => {
     render(<StockReturnPage />);
     pickType("สินค้าคืน");
     addBlackM();
+    pickReason();
     fireEvent.click(saveButtons()[0]);
     fireEvent.click(screen.getByRole("button", { name: "รับคืนสินค้าต่อ" }));
 
     pickType("สินค้าคืน");
     addBlackM();
+    pickReason();
     fireEvent.click(saveButtons()[0]);
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText(/เพิ่งบันทึกรายการเหมือนกันนี้ไปแล้ว/)).toBeTruthy();
@@ -110,14 +115,71 @@ describe("หน้าสต็อกคืนสินค้า", () => {
     render(<StockReturnPage />);
     pickType("สินค้าคืน");
     addBlackM();
+    pickReason();
     fireEvent.click(saveButtons()[0]);
     fireEvent.click(screen.getByRole("button", { name: "รับคืนสินค้าต่อ" }));
 
     pickType("สินค้าตีกลับ");
     addBlackM();
+    pickReason();
     fireEvent.click(saveButtons()[0]);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(docs()).toHaveLength(2);
     expect(qty()).toBe(7);
+  });
+
+  it("ไม่เลือกเหตุผล: บันทึกไม่ได้ ขึ้นข้อความเตือนสีแดงใต้ช่องเหตุผล สต็อกไม่เปลี่ยน", () => {
+    render(<StockReturnPage />);
+    pickType("สินค้าคืน");
+    addBlackM();
+    expect(screen.queryByText("กรุณาเลือกเหตุผล")).toBeNull(); // ยังไม่กดบันทึก ไม่เตือน
+    fireEvent.click(saveButtons()[0]);
+    expect(toastError).toHaveBeenCalledWith("รายการที่ 1 ยังไม่ได้เลือกเหตุผลที่ลูกค้าคืน");
+    expect(screen.getByText("กรุณาเลือกเหตุผล")).toBeTruthy();
+    expect(docs()).toHaveLength(0);
+    expect(qty()).toBe(5);
+  });
+
+  it("บันทึกพร้อมเหตุผล คำที่ลูกค้าพูด และราคา: ราคาตั้งต้นจากราคาขาย แก้ได้ และรวมมูลค่าของที่ถูกคืน", () => {
+    useStore.setState((st) => ({ variants: { ...st.variants, vBlk: { ...st.variants.vBlk, sellingPrice: 1090 } } }));
+    render(<StockReturnPage />);
+    pickType("สินค้าคืน");
+    addBlackM();
+    expect((screen.getByLabelText("ราคาต่อชิ้นรายการที่ 1") as HTMLInputElement).value).toBe("1090");
+    fireEvent.change(screen.getByLabelText("จำนวนรายการที่ 1"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("ราคาต่อชิ้นรายการที่ 1"), { target: { value: "990" } });
+    expect(screen.getAllByText(/1,980/).length).toBeGreaterThan(0); // มูลค่า 2 x 990
+    pickReason("สีไม่ตรงรูป");
+    fireEvent.click(screen.getByRole("button", { name: "เล็กไป" }));
+    fireEvent.click(screen.getByRole("button", { name: "ผ้าบาง" }));
+    fireEvent.click(saveButtons()[0]);
+    expect(docs()[0].lines[0]).toMatchObject({ qty: 2, unitPrice: 990, returnReason: "color", returnTags: ["เล็กไป", "ผ้าบาง"] });
+    expect(qty()).toBe(7);
+  });
+
+  it("ใบเปลี่ยน: ต้องเลือกสินค้าที่เปลี่ยนเป็น (ไม่ตัดสต็อกของใหม่) ใบประเภทอื่นไม่มีช่องนี้", () => {
+    useStore.setState((st) => ({
+      variants: { ...st.variants, vWht: { id: "vWht", productId: "p1", color: "ขาว", size: "XL", sku: "IS-BS-WHT-XL", active: true, purchasePrice: 0 } as never },
+    }));
+    render(<StockReturnPage />);
+    pickType("สินค้าคืน");
+    addBlackM();
+    expect(screen.queryByText(/เปลี่ยนเป็นสินค้าอะไร/)).toBeNull();
+    pickType("สินค้าเปลี่ยน");
+    pickReason();
+    fireEvent.click(saveButtons()[0]);
+    expect(toastError).toHaveBeenCalledWith("รายการที่ 1 ยังไม่ได้เลือกว่าเปลี่ยนเป็นสินค้าอะไร");
+    expect(docs()).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "เลือกสินค้าที่เปลี่ยนเป็น" }));
+    const dialog = screen.getByRole("dialog");
+    const input = within(dialog).getByPlaceholderText(/ค้นหาสินค้า/);
+    fireEvent.change(input, { target: { value: "IS-BS-WHT-XL" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getByText(/→ Billie Slim ขาว XL/)).toBeTruthy();
+    fireEvent.click(saveButtons()[0]);
+    expect(docs()[0].lines[0].exchangeToId).toBe("vWht");
+    expect(qty()).toBe(6);
+    expect(useStore.getState().variantStock["vWht::w1"]?.qtyOnHand ?? 0).toBe(0);
   });
 });

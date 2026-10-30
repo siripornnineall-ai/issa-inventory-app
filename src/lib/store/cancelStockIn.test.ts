@@ -113,7 +113,7 @@ describe("ยกเลิกใบรับเข้า", () => {
       engine.stockOut(d, { itemType: "product", date: DATE, warehouseId: warehouse, reasonType: "sale", actorId: "u1", actorName: "ขาย", channel: "shopee", lines: [{ itemId: black, qty: 4 }] });
     });
     const returned = produce(base, (d) => {
-      docId = engine.stockReturn(d, { date: DATE, warehouseId: warehouse, returnType: "return_customer", receivedBy: "u1", receivedByName: "คืน", lines: [{ itemId: black, qty: 2 }] }).id;
+      docId = engine.stockReturn(d, { date: DATE, warehouseId: warehouse, returnType: "return_customer", receivedBy: "u1", receivedByName: "คืน", lines: [{ itemId: black, qty: 2, reason: "size" }] }).id;
     });
     expect(returnStats(returned, FROM, TO).total.qty).toBe(2);
 
@@ -162,7 +162,7 @@ describe("ยกเลิกใบรับเข้า", () => {
       engine.stockOut(d, { itemType: "product", date: DATE, warehouseId: warehouse, reasonType: "sale", actorId: "u1", actorName: "ขาย", channel: "shopee", lines: [{ itemId: black, qty: 4 }] });
     });
     const returned = produce(base, (d) => {
-      docId = engine.stockReturn(d, { date: DATE, warehouseId: warehouse, returnType: "return_rts", receivedBy: "u1", receivedByName: "คืน", lines: [{ itemId: black, qty: 3 }] }).id;
+      docId = engine.stockReturn(d, { date: DATE, warehouseId: warehouse, returnType: "return_rts", receivedBy: "u1", receivedByName: "คืน", lines: [{ itemId: black, qty: 3, reason: "size" }] }).id;
     });
     const range = { from: new Date(Date.now() - 86400000).getTime(), to: new Date(Date.now() + 86400000).getTime() };
     const net = (s: typeof returned) => salesBetween(s, range, { from: 0, to: 0 }).reduce((sum, p) => sum + p.net, 0);

@@ -320,7 +320,20 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
         check(
           supabase
             .from("stock_in_lines")
-            .insert(d.lines.map((l) => ({ id: l.id, doc_id: d.id, item_id: l.itemId, variant_id: l.variantId ?? null, qty: l.qty, unit_cost: l.unitCost ?? null })))
+            .insert(
+              d.lines.map((l) => ({
+                id: l.id,
+                doc_id: d.id,
+                item_id: l.itemId,
+                variant_id: l.variantId ?? null,
+                qty: l.qty,
+                unit_cost: l.unitCost ?? null,
+                unit_price: l.unitPrice ?? null,
+                return_reason: l.returnReason ?? null,
+                return_tags: l.returnTags && l.returnTags.length > 0 ? l.returnTags : null,
+                exchange_to_variant_id: l.exchangeToId ?? null,
+              }))
+            )
         )
       )
     );
