@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BarChart3, Trash2, Undo2 } from "lucide-react";
+import { Trash2, Undo2 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { RequireAccess } from "@/components/layout/RequireAccess";
@@ -19,7 +18,7 @@ import { PendingSaveBar } from "@/components/stock/PendingSaveBar";
 import { DuplicateSaveDialog } from "@/components/stock/DuplicateSaveDialog";
 import { SaveSuccessCard, type SavedInfo } from "@/components/stock/SaveSuccessCard";
 import { useStore, useActions } from "@/lib/store";
-import { CancelStockInLink } from "@/components/stock/CancelStockInLink";
+import { ReturnNav } from "@/components/stock/ReturnNav";
 import { checkScannedToken } from "@/lib/store/engine";
 import { useCurrentUser } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -514,16 +513,9 @@ export default function StockReturnPage() {
   const [round, setRound] = useState(0);
   return (
     <>
-      <Header title="สต็อกคืนสินค้า" description="รับสินค้าที่กลับมาเข้าคลัง: ตีกลับ คืน ตำหนิ หรือเปลี่ยน (แยกจากการรับสินค้าเข้าใหม่)" actions={
-          <div className="flex flex-wrap items-center gap-1">
-            <Link href="/stock-return/summary" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-[var(--color-primary-container)] hover:bg-[var(--color-surface-container)]">
-              <BarChart3 className="h-4 w-4" /> ดูสรุปสินค้าคืน/เปลี่ยน
-            </Link>
-            <CancelStockInLink />
-          </div>
-        }
-      />
+      <Header title="สต็อกคืนสินค้า" description="รับสินค้าที่กลับมาเข้าคลัง: ตีกลับ คืน ตำหนิ หรือเปลี่ยน (แยกจากการรับสินค้าเข้าใหม่)" />
       <PageContainer className="max-w-5xl">
+        <ReturnNav active="record" />
         <RequireAccess perm="stock.in">
           <StockReturnForm key={round} onAgain={() => setRound((n) => n + 1)} />
         </RequireAccess>

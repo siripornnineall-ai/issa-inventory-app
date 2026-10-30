@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Download } from "lucide-react";
+import { Download } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { RequireAccess } from "@/components/layout/RequireAccess";
@@ -10,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, KpiCard } from "@/components/
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SegmentedChoice } from "@/components/ui/SegmentedChoice";
+import { ReturnNav } from "@/components/stock/ReturnNav";
 import { DateRangePicker, useDateRange } from "@/components/ui/DateRangePicker";
 import { useStore } from "@/lib/store";
 import { STOCK_RETURN_LABEL_TH, STOCK_RETURN_TYPES, type StockReturnType } from "@/lib/types";
@@ -106,9 +106,6 @@ function SummaryContent() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link href="/stock-return" className="flex w-fit items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
-          <ArrowLeft className="h-4 w-4" /> กลับไปหน้าสต็อกคืนสินค้า
-        </Link>
         <DateRangePicker value={range} onChange={setRange} />
       </div>
 
@@ -269,6 +266,7 @@ export default function ReturnSummaryPage() {
     <>
       <Header title="สรุปสินค้าคืน/เปลี่ยน" description="ลูกค้าคืนหรือเปลี่ยนเพราะอะไร พูดอะไรบ่อย มูลค่าเท่าไหร่ ดาวน์โหลดไปใช้ต่อได้" />
       <PageContainer className="max-w-5xl">
+        <ReturnNav active="summary" />
         <RequireAccess perm="view.history">
           <SummaryContent />
         </RequireAccess>
