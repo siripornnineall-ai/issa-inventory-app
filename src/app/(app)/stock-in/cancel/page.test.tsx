@@ -85,4 +85,38 @@ describe("หน้ายกเลิกใบรับเข้า", () => {
     expect(screen.getByText("ไม่มีสิทธิ์เข้าถึงหน้านี้")).toBeTruthy();
     expect(screen.queryByText("SIN-20261029-0525")).toBeNull();
   });
+
+  it("มีขั้นตอนบอกชัด และปุ่มยกเลิกอยู่ด้านบนเหนือรายการ", () => {
+    render(<CancelStockInPage />);
+    expect(screen.getByText("รับเข้าผิดรุ่น/ผิดจำนวน ทำตามนี้")).toBeTruthy();
+    const button = screen.getByRole("button", { name: "ยกเลิกใบที่เลือก" });
+    const firstDoc = screen.getByText("SIN-20261029-0525");
+    // ปุ่มอยู่ก่อนรายการใบในหน้า (ไม่ต้องเลื่อนลงไปท้ายรายการ)
+    expect(button.compareDocumentPosition(firstDoc) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("เลือกทั้งหมดที่แสดงอยู่: เลือกทุกใบที่ยังไม่ถูกยกเลิก กดซ้ำเพื่อยกเลิกการเลือก", () => {
+    render(<CancelStockInPage />);
+    const all = screen.getByLabelText(/เลือกทั้งหมดที่แสดงอยู่/) as HTMLInputElement;
+    fireEvent.click(all);
+    expect(screen.getByText("เลือก 1 ใบ รวม 15 ชิ้น")).toBeTruthy(); // ใบ d2 ยกเลิกแล้ว ไม่ถูกเลือก
+    fireEvent.click(all);
+    expect(screen.getByText(/ยังไม่ได้เลือกใบ/)).toBeTruthy();
+  });
+
+  it("กรองตามคนที่บันทึก: เห็นเฉพาะใบของคนนั้น", () => {
+    useStore.setState((st) => ({
+      users: { ...st.users, u2: { id: "u2", name: "น้ำ", email: "w@x.com", role: "warehouse", active: true, createdAt: now } },
+      stockInDocs: {
+        ...st.stockInDocs,
+        d3: { id: "d3", docNo: "SIN-20261029-0600", date: now, itemType: "product", receiptImages: [], warehouseId: "w1", lines: [{ id: "l3", itemId: "vWht", qty: 2 }], receivedBy: "u2", status: "confirmed", createdAt: now },
+      },
+    }));
+    render(<CancelStockInPage />);
+    expect(screen.getByText("SIN-20261029-0525")).toBeTruthy();
+    expect(screen.getByText("SIN-20261029-0600")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("คนที่บันทึก"), { target: { value: "u2" } });
+    expect(screen.queryByText("SIN-20261029-0525")).toBeNull();
+    expect(screen.getByText("SIN-20261029-0600")).toBeTruthy();
+  });
 });
