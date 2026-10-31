@@ -20,6 +20,15 @@ function isTransient(error: { code?: string; message?: string }, status: number)
 
 export const SYNC_RETRY_DELAYS_MS = [800, 2500];
 
+// โหมดส่งซ้ำรายการที่ค้างจากรอบก่อน: ระเบียนที่ถูกบันทึกไปแล้วบางส่วน (id ซ้ำ) นับว่าสำเร็จ ไม่ใช่ข้อผิดพลาด
+// นับเฉพาะชนกันที่คีย์หลัก (id) เท่านั้น ชนที่เลขเอกสาร (doc_no) ซ้ำยังเป็นข้อผิดพลาดจริง เพราะแปลว่าเลขที่ชนกับของเครื่องอื่น
+// ทำงานทีละรายการตามคิวเสมอ (index.ts ต่อคิวไว้) ธงนี้จึงไม่ปนกับการบันทึกปกติ
+let tolerateExistingRows = false;
+
+function isDuplicateId(error: { code?: string; message?: string; details?: string }): boolean {
+  return error.code === "23505" && /_pkey|Key (id)=/.test(`${error.message ?? ""} ${error.details ?? ""}`);
+}
+
 // supabase-js builder ส่งคำขอใหม่ทุกครั้งที่ await จึงรอแล้วลองซ้ำได้ ก่อนหน้านี้คำขอที่หลุดครั้งเดียว (เช่นเน็ตสะดุดตอนบันทึกการนับสต็อก)
 // ทำให้ข้อมูลบางส่วนไม่ถูกบันทึก (ประวัติเข้าแต่ยอดคงเหลือไม่เข้า) ถ้าครั้งแรกสำเร็จที่เซิร์ฟเวอร์แต่ตอบกลับไม่ทัน
 // การลองซ้ำของ insert จะชนคีย์ซ้ำ (23505) ซึ่งแปลว่าบันทึกไปแล้ว นับเป็นสำเร็จ (เฉพาะรอบลองซ้ำ ไม่ซ่อนข้อผิดพลาดซ้ำจริงของรอบแรก)
@@ -29,6 +38,7 @@ export async function check<T>(builder: PromiseLike<PostgrestSingleResponse<T>>,
     const res = await builder;
     if (!res.error) return res.data;
     if (attempt > 0 && res.error.code === "23505") return res.data ?? null;
+    if (tolerateExistingRows && isDuplicateId(res.error)) return res.data ?? null;
     if (attempt >= delays.length || !isTransient(res.error, res.status)) throw new Error(res.error.message);
     await new Promise((r) => setTimeout(r, delays[attempt]));
     attempt += 1;
@@ -71,7 +81,16 @@ function docDate(iso: string): string {
   return iso.slice(0, 10);
 }
 
-export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, next: AppState): Promise<void> {
+export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, next: AppState, opts: { retry?: boolean } = {}): Promise<void> {
+  tolerateExistingRows = Boolean(opts.retry);
+  try {
+    await syncStateDiffInner(supabase, prev, next);
+  } finally {
+    tolerateExistingRows = false;
+  }
+}
+
+async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next: AppState): Promise<void> {
   const jobs: Promise<unknown>[] = [];
 
   const wh = diffRecords(prev.warehouses, next.warehouses);

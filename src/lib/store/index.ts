@@ -7,6 +7,7 @@ import { assertUserPermission, setActiveRolePermissions, type Permission } from 
 import { createClient } from "@/lib/supabase/client";
 import { syncStateDiff } from "@/lib/supabase/sync";
 import { toastError } from "@/lib/toast";
+import { clearFailure, discardAllFailures, failedSyncCount, getFailedSyncs, markAttempt, recordFailure, restoreFailures, setPendingSyncs, setRetrying } from "./syncStatus";
 import type {
   AppUser,
   Brand,
@@ -111,28 +112,124 @@ function installUnloadGuard() {
   if (unloadGuardInstalled || typeof window === "undefined") return;
   unloadGuardInstalled = true;
   window.addEventListener("beforeunload", (e) => {
-    if (pendingSyncs > 0) {
+    if (pendingSyncCount() > 0) {
       e.preventDefault();
       e.returnValue = "";
     }
   });
 }
 
+// รายการที่ยังส่งไม่เสร็จ "และ" รายการที่ส่งไม่สำเร็จรอส่งซ้ำ: ทั้งสองอย่างห้ามดึงข้อมูลจากฐานข้อมูลมาทับ
+// (ไม่งั้นของที่ยังไม่เข้าฐานข้อมูลจะหายจากหน้าจอ แล้วไม่มีใครรู้ว่าไม่เข้า)
 export function pendingSyncCount(): number {
-  return pendingSyncs;
+  return pendingSyncs + failedSyncCount();
+}
+
+// รอให้คิวบันทึกว่าง (ใช้ในเทสต์และตอนต้องการแน่ใจว่าส่งเสร็จแล้ว)
+export function whenSyncIdle(): Promise<void> {
+  return syncQueue;
+}
+
+function currentUserId(): string | null {
+  return useStore.getState().currentUserId;
+}
+
+let retryInFlight: Promise<number> | null = null;
+let watchersInstalled = false;
+
+function errorText(e: unknown): string {
+  return e instanceof Error ? e.message : "บันทึกข้อมูลลงฐานข้อมูลไม่สำเร็จ";
+}
+
+// ส่งรายการที่ค้างอีกครั้ง (ของบัญชีที่ล็อกอินอยู่) ตามลำดับเดิม ใช้ร่วมกับคิวปกติ ไม่ส่งปนกัน
+// คืนจำนวนที่ยังค้างหลังลองเสร็จ ระเบียนที่ถูกบันทึกไปแล้วบางส่วนนับว่าสำเร็จ (ไม่เกิดรายการซ้ำ ดู sync.ts)
+export function retryFailedSyncs(): Promise<number> {
+  if (retryInFlight) return retryInFlight;
+  const me = currentUserId();
+  const mine = getFailedSyncs().filter((f) => f.userId === me || f.userId === null);
+  if (mine.length === 0) return Promise.resolve(0);
+  setRetrying(true);
+  pendingSyncs += 1;
+  setPendingSyncs(pendingSyncs);
+  retryInFlight = new Promise<number>((resolve) => {
+    syncQueue = syncQueue.then(async () => {
+      try {
+        const supabase = createClient();
+        for (const f of mine) {
+          try {
+            await syncStateDiff(supabase, f.prev, f.next, { retry: true });
+            clearFailure(f.id);
+          } catch (e) {
+            markAttempt(f.id, errorText(e));
+            break; // ลำดับสำคัญ (รายการหลังอาจพึ่งรายการก่อน) ล้มแล้วหยุด รอรอบหน้า
+          }
+        }
+      } finally {
+        pendingSyncs -= 1;
+        setPendingSyncs(pendingSyncs);
+        setRetrying(false);
+        retryInFlight = null;
+        const left = getFailedSyncs().filter((f) => f.userId === me || f.userId === null).length;
+        // ส่งครบแล้ว: ดึงข้อมูลล่าสุดจากฐานข้อมูล (กรณีเปิดแอปใหม่แล้วโหลดรายการค้างมาส่งจะได้เห็นผลทันที)
+        if (left === 0) void import("./refresh").then((m) => m.refreshAppData());
+        resolve(left);
+      }
+    });
+  });
+  return retryInFlight;
+}
+
+// ผู้ใช้เลือกทิ้งรายการที่ส่งไม่สำเร็จ (ใช้เมื่อส่งไม่ได้จริง ๆ เช่นสิทธิ์ไม่พอ) แล้วดึงข้อมูลจริงจากฐานข้อมูลมาแทน
+export function discardFailedSyncs() {
+  discardAllFailures();
+  void import("./refresh").then((m) => m.refreshAppData());
+}
+
+// เปิดแอปใหม่: โหลดรายการที่ค้างจากรอบก่อนมาส่งต่อ
+export function restoreUnsentSyncs(): number {
+  const n = restoreFailures(currentUserId());
+  if (n > 0) {
+    installSyncGuards();
+    void retryFailedSyncs();
+  }
+  return n;
+}
+
+function installWatchers() {
+  if (watchersInstalled || typeof window === "undefined") return;
+  watchersInstalled = true;
+  const tryAgain = () => {
+    if (failedSyncCount() > 0) void retryFailedSyncs();
+  };
+  window.addEventListener("online", tryAgain);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") tryAgain();
+  });
+  window.setInterval(tryAgain, 30_000);
+}
+
+function installSyncGuards() {
+  installUnloadGuard();
+  installWatchers();
 }
 
 function persistDiff(prev: AppState, next: AppState) {
-  installUnloadGuard();
+  installSyncGuards();
+  const userId = currentUserId();
   pendingSyncs += 1;
+  setPendingSyncs(pendingSyncs);
   syncQueue = syncQueue.then(async () => {
     try {
       const supabase = createClient();
       await syncStateDiff(supabase, prev, next);
     } catch (e) {
-      toastError(e instanceof Error ? e.message : "บันทึกข้อมูลลงฐานข้อมูลไม่สำเร็จ");
+      // ไม่ทิ้ง: เก็บไว้ส่งซ้ำ และขึ้นแถบเตือนค้างบนจอ (ดู SyncStatusBanner)
+      const message = errorText(e);
+      recordFailure(prev, next, message, userId);
+      toastError(`${message} — ระบบเก็บไว้และจะส่งใหม่ให้เอง`);
     } finally {
       pendingSyncs -= 1;
+      setPendingSyncs(pendingSyncs);
     }
   });
 }

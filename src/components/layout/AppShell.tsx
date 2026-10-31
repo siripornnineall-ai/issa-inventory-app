@@ -11,6 +11,7 @@ import { Header } from "./Header";
 import { PageContainer } from "./PageContainer";
 import { ForcePasswordChange } from "@/components/account/ChangePassword";
 import { PinReminder } from "@/components/account/PinReminder";
+import { SyncStatusBanner } from "./SyncStatusBanner";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const user = useCurrentUser();
@@ -34,6 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen bg-[var(--color-bg)]">
         <Sidebar />
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+          <SyncStatusBanner />
           <PinReminder />
           {needPerm && !canViewPage ? (
             <>

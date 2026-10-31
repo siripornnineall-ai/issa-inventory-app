@@ -5,6 +5,7 @@ import { useStore } from "./index";
 import { createClient } from "@/lib/supabase/client";
 import { fetchAppState, type LoadProgress } from "@/lib/supabase/fetch";
 import { markRefreshed, msSinceLastRefresh, refreshAppData } from "./refresh";
+import { restoreUnsentSyncs } from "./index";
 import { countStateRows, currentSlowest, recordLoadStats } from "./loadStats";
 
 const AUTO_REFRESH_AFTER_MS = 2 * 60 * 1000;
@@ -46,6 +47,8 @@ export function AppHydration({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           useStore.getState().actions.hydrate(state);
           markRefreshed();
+          // รายการที่ส่งไม่สำเร็จจากรอบก่อน (เก็บไว้ในเครื่อง) โหลดมาส่งต่อ
+          restoreUnsentSyncs();
         }
       } catch (e) {
         console.error("โหลดข้อมูลจาก Supabase ไม่สำเร็จ", e);
