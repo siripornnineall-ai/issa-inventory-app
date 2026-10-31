@@ -267,14 +267,22 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
   for (const id of variant.removedIds) jobs.push(check(supabase.from("product_variants").delete().eq("id", id)));
   await Promise.all(jobs.splice(0));
 
-  const vStock = diffRecords(prev.variantStock, next.variantStock);
-  for (const s of [...vStock.added, ...vStock.changed]) {
-    jobs.push(check(supabase.from("variant_stock").upsert({ variant_id: s.itemId, warehouse_id: s.warehouseId, qty_on_hand: s.qtyOnHand, qty_reserved: s.qtyReserved })));
+  // ยอดคงเหลือ (qty_on_hand) ไม่ส่งจากเครื่องอีกแล้ว ฐานข้อมูลบวก/ลบเองทุกครั้งที่บันทึกรายการเคลื่อนไหว (trigger apply_stock_movement, migration 0035)
+  // เดิมส่งยอดทั้งก้อน เครื่องที่ข้อมูลเก่าหรือส่งซ้ำจึงเขียนทับยอดที่คนอื่นเพิ่งทำได้
+  // ที่ยังส่งคือแถวใหม่ (ให้มีแถวรออยู่ ยอดเริ่มที่ 0) กับยอดจอง (qty_reserved) ที่เปลี่ยน
+  for (const [key, s] of Object.entries(next.variantStock)) {
+    const before = prev.variantStock[key];
+    if (!before) {
+      jobs.push(check(supabase.from("variant_stock").upsert({ variant_id: s.itemId, warehouse_id: s.warehouseId }, { onConflict: "variant_id,warehouse_id", ignoreDuplicates: true })));
+    } else if (before.qtyReserved !== s.qtyReserved) {
+      jobs.push(check(supabase.from("variant_stock").upsert({ variant_id: s.itemId, warehouse_id: s.warehouseId, qty_reserved: s.qtyReserved })));
+    }
   }
 
-  const eStock = diffRecords(prev.equipmentStock, next.equipmentStock);
-  for (const s of [...eStock.added, ...eStock.changed]) {
-    jobs.push(check(supabase.from("equipment_stock").upsert({ equipment_id: s.itemId, warehouse_id: s.warehouseId, qty_on_hand: s.qtyOnHand })));
+  for (const [key, s] of Object.entries(next.equipmentStock)) {
+    if (!(key in prev.equipmentStock)) {
+      jobs.push(check(supabase.from("equipment_stock").upsert({ equipment_id: s.itemId, warehouse_id: s.warehouseId }, { onConflict: "equipment_id,warehouse_id", ignoreDuplicates: true })));
+    }
   }
 
   const mov = diffRecords(prev.movements, next.movements);

@@ -33,7 +33,7 @@ function fakeSupabase() {
 }
 
 describe("ซิงก์การยกเลิกใบรับเข้า ลงฐานข้อมูล", () => {
-  it("ใบที่ยกเลิกถูก update สถานะ+เหตุผล, รายการหักคืนถูก insert, และสต็อกถูกเขียนเป็นค่าใหม่", async () => {
+  it("ใบที่ยกเลิกถูก update สถานะ+เหตุผล, รายการหักคืนถูก insert, และแอปไม่เขียนยอดสต็อกเอง", async () => {
     let wh = "";
     let item = "";
     let docId = "";
@@ -59,8 +59,8 @@ describe("ซิงก์การยกเลิกใบรับเข้า 
     expect(JSON.stringify(reversal?.payload)).toContain("cancel_stock_in");
     expect(JSON.stringify(reversal?.payload)).toContain("-15");
 
-    const stockWrite = calls.find((c) => c.table === "variant_stock");
-    expect(JSON.stringify(stockWrite?.payload)).toContain("\"qty_on_hand\":0");
+    // ยอดคงเหลือฐานข้อมูลหักเองจากรายการหักคืนข้างบน (trigger) แอปไม่ส่งยอดทั้งก้อนอีก
+    expect(calls.some((c) => c.table === "variant_stock")).toBe(false);
   });
 
   it("ออเดอร์ใหม่เก็บเลขที่ใบเบิกออก และยกเลิกแบบไม่คืนสต็อก: update สถานะยกเลิก restocked=false โดยไม่มีรายการคืนสต็อกหรือแก้สต็อก", async () => {
