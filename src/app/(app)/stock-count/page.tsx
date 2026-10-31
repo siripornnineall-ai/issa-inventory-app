@@ -28,16 +28,18 @@ import { DraftBanner } from "@/components/stock/DraftBanner";
 import { useSaveGuard } from "@/lib/utils/saveGuard";
 import { createClient } from "@/lib/supabase/client";
 import { fetchUnitTokenByScan } from "@/lib/supabase/fetch";
-import type { Product, ProductVariant } from "@/lib/types";
+import type { Product, ProductVariant, StockMovement } from "@/lib/types";
 
 interface CountRow {
   variant: ProductVariant;
   system: number; // ยอดในระบบตอนนี้
-  start: number; // ยอดในระบบตอนเริ่มนับ
-  changed: boolean;
-  counted: number;
+  counted: number; // จำนวนที่นับได้บนชั้น
   touched: boolean;
-  diff: number;
+  // ของที่เข้า/ออกหลังจากที่กรอกจำนวนนับ (ยอดในระบบตอนนี้ − ยอดในระบบตอนที่กรอกนับ) เช่น นับแล้วมีคนขายออก 2 ชิ้น = −2
+  during: number;
+  // ยอดที่จะตั้งให้ตอนบันทึก = จำนวนที่นับ + ของที่เข้า/ออกหลังนับ (ไม่เอาจำนวนนับไปทับของที่ขายไปแล้ว)
+  final: number;
+  diff: number; // final − system = จำนวนที่ปรับจริง
 }
 
 function diffLabel(diff: number) {
@@ -63,6 +65,10 @@ function StockCountForm() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   // ยอดในระบบ "ตอนเริ่มนับ" ของแต่ละตัวเลือก (ถ่ายภาพไว้ตอนเพิ่มรุ่นเข้ารอบ) ใช้เทียบกับยอดปัจจุบันว่ามีรายการเข้า/ออกระหว่างที่นับอยู่ไหม
   const [baseline, setBaseline] = useState<Record<string, number>>({});
+  // เวลาที่ "กรอก/สแกนจำนวนนับ" ล่าสุดของแต่ละตัวเลือก (อัปเดตทุกครั้งที่แก้จำนวนนับ) ใช้หาของที่เข้า/ออก "หลังจากนับ"
+  // ใช้เวลาของรายการเคลื่อนไหวเทียบ ไม่ใช้ยอดในเครื่อง เพราะเครื่องที่นับอาจมีข้อมูลเก่าค้าง (ไม่เห็นของที่ขายจากเครื่องอื่นก่อนหน้า)
+  const [countedAt, setCountedAt] = useState<Record<string, string>>({});
+  const [checking, setChecking] = useState(false);
   const [scannedTokenIds, setScannedTokenIds] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -94,6 +100,11 @@ function StockCountForm() {
     void refreshAppData().then(() => setBaseline((prev) => ({ ...prev, ...snap() })));
   }
 
+  function stampCounted(variantIds: string[]) {
+    const at = new Date().toISOString();
+    setCountedAt((prev) => ({ ...prev, ...Object.fromEntries(variantIds.map((id) => [id, at])) }));
+  }
+
   function includeProducts(ids: string[]) {
     const fresh = ids.filter((id) => !productIds.includes(id));
     if (fresh.length === 0) return;
@@ -121,6 +132,7 @@ function StockCountForm() {
     setProductIds((prev) => prev.filter((p) => p !== id));
     setCounts((prev) => Object.fromEntries(Object.entries(prev).filter(([vid]) => !ids.has(vid))));
     setBaseline((prev) => Object.fromEntries(Object.entries(prev).filter(([vid]) => !ids.has(vid))));
+    setCountedAt((prev) => Object.fromEntries(Object.entries(prev).filter(([vid]) => !ids.has(vid))));
   }
 
   function resetAll() {
@@ -128,6 +140,7 @@ function StockCountForm() {
     setProductQuery("");
     setCounts({});
     setBaseline({});
+    setCountedAt({});
     setScannedTokenIds(new Set());
   }
 
@@ -136,6 +149,7 @@ function StockCountForm() {
     setWarehouseId(id);
     setCounts({});
     setBaseline({});
+    setCountedAt({});
     setScannedTokenIds(new Set());
     if (productIds.length > 0 && id) snapshotProducts(productIds, id, true);
   }
@@ -147,6 +161,8 @@ function StockCountForm() {
       else next[variantId] = Math.max(0, Math.floor(Number(raw)) || 0);
       return next;
     });
+    if (raw === "") setCountedAt((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => id !== variantId)));
+    else stampCounted([variantId]);
   }
 
   function applyScan(variant: ProductVariant, tokenId: string | undefined) {
@@ -170,6 +186,7 @@ function StockCountForm() {
     if (tokenId) setScannedTokenIds((prev) => new Set(prev).add(tokenId));
     playBeep("success");
     setCounts((prev) => ({ ...prev, [variant.id]: (prev[variant.id] ?? 0) + 1 }));
+    stampCounted([variant.id]);
     toastSuccess(`${variant.color} / ${variant.size} — นับได้ ${(counts[variant.id] ?? 0) + 1} ชิ้น`);
   }
 
@@ -201,6 +218,20 @@ function StockCountForm() {
     toastError(`ไม่พบสินค้าที่ตรงกับ "${value}"`);
   }
 
+  // ของที่เข้า/ออกของตัวเลือกนี้ในคลังนี้ "หลังจาก" เวลาที่กรอกจำนวนนับ (รวมที่เครื่องอื่นบันทึก เมื่อข้อมูลถูกดึงล่าสุดแล้ว)
+  // รายการที่เกิดก่อนเวลานับถือว่าเห็นอยู่ในของบนชั้นตอนนับแล้ว ไม่หักซ้ำ
+  function movedAfterCount(movements: Record<string, StockMovement>, variantId: string, atIso: string | undefined): number {
+    if (!atIso || !warehouseId) return 0;
+    const at = new Date(atIso).getTime();
+    let sum = 0;
+    for (const m of Object.values(movements)) {
+      if (m.variantId !== variantId) continue;
+      if (m.warehouseToId !== warehouseId && m.warehouseFromId !== warehouseId) continue;
+      if (new Date(m.createdAt).getTime() > at) sum += m.qtyChange;
+    }
+    return sum;
+  }
+
   // แถวนับของแต่ละรุ่นที่อยู่ในรอบ
   const groups = productIds
     .map((pid) => state.products[pid])
@@ -211,8 +242,9 @@ function StockCountForm() {
         const system = warehouseId ? getStockLevel(state.variantStock, v.id, warehouseId).qtyOnHand : 0;
         const touched = v.id in counts;
         const counted = counts[v.id] ?? 0;
-        const start = baseline[v.id] ?? system;
-        return { variant: v, system, start, changed: start !== system, counted, touched, diff: counted - system };
+        const during = touched ? movedAfterCount(state.movements, v.id, countedAt[v.id]) : 0;
+        const final = touched ? Math.max(0, counted + during) : system;
+        return { variant: v, system, counted, touched, during, final, diff: final - system };
       });
       return { product, rows };
     });
@@ -220,25 +252,22 @@ function StockCountForm() {
   const touchedRows = allRows.filter((r) => r.touched);
   const diffRows = touchedRows.filter((r) => r.diff !== 0);
   // ยอดในระบบเปลี่ยนไปจากตอนเริ่มนับ (มีรับเข้า/เบิกออก/ปรับยอดจากเครื่องอื่นระหว่างที่นับ) — ยอดที่นับได้อาจไม่ตรงกับของจริง ณ ตอนเริ่ม
-  const changedRows = allRows.filter((r) => r.changed);
+  const movedRows = touchedRows.filter((r) => r.during !== 0);
   const uncountedRows = allRows.filter((r) => !r.touched);
   const totalSystem = touchedRows.reduce((s, r) => s + r.system, 0);
   const totalCounted = touchedRows.reduce((s, r) => s + r.counted, 0);
-  const totalDiff = totalCounted - totalSystem;
-
-  function acceptCurrentAsStart() {
-    setBaseline((prev) => ({ ...prev, ...Object.fromEntries(changedRows.map((r) => [r.variant.id, r.system])) }));
-  }
+  const totalDiff = touchedRows.reduce((sum, r) => sum + r.diff, 0);
 
   // นับรอบเต็ม: รายการที่หาไม่เจอเลยถือว่ามี 0 ชิ้น (ตั้งให้เป็นนับแล้ว = 0)
   function markAsZero(rows: CountRow[]) {
     setCounts((prev) => ({ ...prev, ...Object.fromEntries(rows.filter((r) => !r.touched).map((r) => [r.variant.id, 0])) }));
+    stampCounted(rows.filter((r) => !r.touched).map((r) => r.variant.id));
   }
 
   // เก็บร่างการนับไว้ในเครื่อง ปิดแอป/สลับแอปแล้วกลับมา ยอดที่นับค้างไว้ไม่หาย (ถามก่อนว่าจะทำต่อไหม)
   const draftValue = useMemo(
-    () => ({ warehouseId, productIds, counts, baseline, scannedTokenIds: Array.from(scannedTokenIds) }),
-    [warehouseId, productIds, counts, baseline, scannedTokenIds]
+    () => ({ warehouseId, productIds, counts, baseline, countedAt, scannedTokenIds: Array.from(scannedTokenIds) }),
+    [warehouseId, productIds, counts, baseline, countedAt, scannedTokenIds]
   );
   const draft = useDraft({
     key: user ? `issa-draft:stock-count:${user.id}` : null,
@@ -258,8 +287,21 @@ function StockCountForm() {
       setScannedTokenIds(new Set(v.scannedTokenIds ?? []));
       // ยอดเริ่มนับเดิมในร่างต้องคงไว้ ถึงจะเห็นว่าระหว่างที่ปิดแอปไป ยอดในระบบเปลี่ยนไหม
       if (v.baseline) setBaseline(v.baseline);
+      // เวลาที่กรอกนับ (ร่างรุ่นเก่าไม่มี: ถือว่าไม่มีของเข้า/ออกหลังนับ)
+      if (v.countedAt) setCountedAt(v.countedAt);
     },
   });
+
+  // กดบันทึกผลนับ: ดึงยอดล่าสุดจากฐานข้อมูลก่อน (ให้เห็นของที่เข้า/ออกจากเครื่องอื่นระหว่างนับ) แล้วค่อยเปิดหน้าต่างยืนยัน
+  async function openConfirm() {
+    setChecking(true);
+    try {
+      await refreshAppData();
+    } finally {
+      setChecking(false);
+    }
+    setConfirmOpen(true);
+  }
 
   function handleSave() {
     if (!user || !warehouseId || touchedRows.length === 0) return;
@@ -275,18 +317,23 @@ function StockCountForm() {
         uncounted: uncountedRows
           .filter((r) => r.system > 0)
           .map((r) => ({ label: `${state.products[r.variant.productId]?.sellingName ?? ""} ${r.variant.color} / ${r.variant.size}`, qty: r.system })),
-        totalAfter: allRows.reduce((s, r) => s + (r.touched ? r.counted : r.system), 0),
+        totalAfter: allRows.reduce((s, r) => s + (r.touched ? r.final : r.system), 0),
         products: groups.length,
       };
       // รายการที่นับแล้วตรงกับระบบก็บันทึกด้วย (จำนวนไม่เปลี่ยน) เป็นหลักฐานว่าตรวจนับแล้ว ณ เวลานี้ ไม่ใช่แค่ไม่ได้แตะ
       for (const row of touchedRows) {
         const product = state.products[row.variant.productId];
+        // ยอดที่ตั้ง = จำนวนที่นับ + ของที่เข้า/ออกหลังนับ คำนวณจากรายการเคลื่อนไหวล่าสุดจริงตอนบันทึก (ไม่ใช่ค่าในหน้าจอที่อาจค้าง)
+        const live = getStockLevel(useStore.getState().variantStock, row.variant.id, warehouseId).qtyOnHand;
+        const during = movedAfterCount(useStore.getState().movements, row.variant.id, countedAt[row.variant.id]);
+        const finalQty = Math.max(0, row.counted + during);
+        const moved = during !== 0 ? ` (นับได้ ${row.counted} ${during > 0 ? "+" : "−"} เข้า/ออกหลังนับ ${Math.abs(during)})` : "";
         adjustStock({
           itemType: "product",
           itemId: row.variant.id,
           warehouseId,
-          newQty: row.counted,
-          reason: row.diff === 0 ? `นับสต็อก (ตรงกับระบบ) — ${product?.sellingName ?? row.variant.sku}` : `นับสต็อก — ${product?.sellingName ?? row.variant.sku}`,
+          newQty: finalQty,
+          reason: (finalQty === live ? `นับสต็อก (ตรงกับระบบ) — ${product?.sellingName ?? row.variant.sku}` : `นับสต็อก — ${product?.sellingName ?? row.variant.sku}`) + moved,
           actorId: user.id,
           actorName: user.name,
         });
@@ -296,6 +343,7 @@ function StockCountForm() {
       setConfirmOpen(false);
       setSummary(summaryNow);
       setCounts({});
+      setCountedAt({});
       setScannedTokenIds(new Set());
       // เริ่มรอบใหม่ต่อได้เลย: ยอดตอนเริ่มนับของรอบใหม่ = ยอดหลังปรับ
       if (productIds.length > 0) snapshotProducts(productIds, warehouseId, true);
@@ -446,15 +494,12 @@ function StockCountForm() {
             </Button>
           </CardHeader>
           <CardContent className="pt-0">
-            {changedRows.length > 0 && (
-              <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-warning)] bg-[var(--color-warning-container)] p-3 text-sm">
-                <p>
-                  <span className="font-semibold">ยอดในระบบเปลี่ยนไประหว่างที่นับ {changedRows.length} รายการ</span> (มีรับเข้า เบิกออก หรือปรับยอดเข้ามาหลังจากเริ่มนับ) ตรวจดูคอลัมน์ &quot;ตอนเริ่มนับ&quot; กับ &quot;ตอนนี้&quot; ก่อนบันทึก
-                  ถ้ายืนยันว่าจำนวนที่นับถูกต้อง ณ ตอนนี้ กดรับทราบได้
+            {movedRows.length > 0 && (
+              <div role="alert" className="mb-3 rounded-xl border border-[var(--color-warning)] bg-[var(--color-warning-container)] p-3 text-sm">
+                <p className="font-semibold">หลังจากที่นับ มีของเข้า/ออก {movedRows.length} รายการ</p>
+                <p className="mt-0.5 text-xs">
+                  ระบบรวมให้เองตอนบันทึก: ยอดที่ตั้ง = จำนวนที่นับ + ของที่เข้า/ออกหลังนับ (เช่น นับได้ 10 แล้วขายออก 2 → ตั้งเป็น 8) ดูตัวเลขในคอลัมน์ &quot;หลังนับเข้า/ออก&quot; และ &quot;ยอดหลังปรับ&quot; ได้
                 </p>
-                <Button size="sm" variant="secondary" onClick={acceptCurrentAsStart}>
-                  รับทราบ ใช้ยอดปัจจุบัน
-                </Button>
               </div>
             )}
             {uncountedRows.length > 0 && touchedRows.length > 0 && (
@@ -485,7 +530,7 @@ function StockCountForm() {
 
                     {/* การ์ดสำหรับจอมือถือ */}
                     <div className="flex flex-col gap-2 sm:hidden">
-                      {rows.map(({ variant: v, system, start, changed, counted, touched, diff }) => (
+                      {rows.map(({ variant: v, system, counted, touched, during, final, diff }) => (
                         <div key={v.id} className="rounded-lg border border-[var(--color-border)] p-2">
                           <div className="flex items-center justify-between gap-2">
                             <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
@@ -500,8 +545,13 @@ function StockCountForm() {
                             {touched && diff === 0 && <span className="shrink-0 text-xs text-[var(--color-on-surface-variant)]">ตรงกัน</span>}
                           </div>
                           <p className="truncate text-xs text-[var(--color-on-surface-variant)]">
-                            {v.sku} · ตอนเริ่มนับ {start}
-                            {changed ? <span className="font-semibold text-[var(--color-warning)]"> → ตอนนี้ {system} (เปลี่ยน)</span> : ` · ตอนนี้ ${system}`}
+                            {v.sku} · ในระบบตอนนี้ {system}
+                            {touched && during !== 0 && (
+                              <span className="font-semibold text-[var(--color-warning)]">
+                                {" "}
+                                · หลังนับ {diffLabel(during)} → ยอดหลังปรับ {final}
+                              </span>
+                            )}
                           </p>
                           <div className="mt-1.5">
                             <label className="mb-0.5 block text-[10px] text-[var(--color-on-surface-variant)]">นับได้</label>
@@ -526,14 +576,15 @@ function StockCountForm() {
                             <Th>สี</Th>
                             <Th>ไซซ์</Th>
                             <Th>SKU</Th>
-                            <Th>ตอนเริ่มนับ</Th>
-                            <Th>ตอนนี้</Th>
+                            <Th>ในระบบตอนนี้</Th>
                             <Th>นับได้</Th>
+                            <Th>หลังนับเข้า/ออก</Th>
+                            <Th>ยอดหลังปรับ</Th>
                             <Th>ผลต่าง</Th>
                           </Tr>
                         </Thead>
                         <Tbody>
-                          {rows.map(({ variant: v, system, start, changed, counted, touched, diff }) => (
+                          {rows.map(({ variant: v, system, counted, touched, during, final, diff }) => (
                             <Tr key={v.id}>
                               <Td>
                                 <span className="flex items-center gap-1.5">
@@ -543,11 +594,7 @@ function StockCountForm() {
                               </Td>
                               <Td>{v.size}</Td>
                               <Td className="font-mono text-xs">{v.sku}</Td>
-                              <Td>{start}</Td>
-                              <Td className={changed ? "bg-[var(--color-warning-container)] font-semibold" : undefined}>
-                                {system}
-                                {changed && <span className="ml-1 text-xs font-normal text-[var(--color-warning)]">เปลี่ยน</span>}
-                              </Td>
+                              <Td>{system}</Td>
                               <Td>
                                 <Input
                                   type="number"
@@ -558,6 +605,8 @@ function StockCountForm() {
                                   className="w-24"
                                 />
                               </Td>
+                              <Td className={touched && during !== 0 ? "bg-[var(--color-warning-container)] font-semibold" : undefined}>{touched ? (during !== 0 ? diffLabel(during) : "-") : ""}</Td>
+                              <Td className="font-semibold">{touched ? final : ""}</Td>
                               <Td>
                                 {touched && diff !== 0 && (
                                   <span className={diff > 0 ? "font-semibold text-[var(--color-success)]" : "font-semibold text-[var(--color-danger)]"}>{diffLabel(diff)}</span>
@@ -587,7 +636,7 @@ function StockCountForm() {
               ยังไม่ได้นับรายการไหนเลย สแกนหรือกรอกจำนวนที่นับได้ก่อน
             </p>
           )}
-          <Button onClick={() => setConfirmOpen(true)} disabled={touchedRows.length === 0}>
+          <Button onClick={() => void openConfirm()} disabled={touchedRows.length === 0} loading={checking}>
             <ClipboardCheck className="h-4 w-4" /> บันทึกผลการนับ ({touchedRows.length})
           </Button>
         </div>
@@ -646,23 +695,24 @@ function StockCountForm() {
         }
       >
         <p className="mb-3 text-sm text-[var(--color-on-surface-variant)]">
-          ระบบจะตั้งสต็อกของแต่ละรายการ <span className="font-semibold text-[var(--color-on-surface)]">ให้เท่ากับจำนวนที่นับได้</span> (ไม่ใช่บวกเพิ่ม) และบันทึกประวัติทุกรายการที่นับ รายการที่ไม่ได้นับจะไม่ถูกแตะ
+          ระบบจะตั้งสต็อกของแต่ละรายการ <span className="font-semibold text-[var(--color-on-surface)]">ให้เท่ากับจำนวนที่นับได้ รวมของที่เข้า/ออกหลังนับ</span> (ไม่ใช่บวกเพิ่ม) และบันทึกประวัติทุกรายการที่นับ รายการที่ไม่ได้นับจะไม่ถูกแตะ
         </p>
         <p className="mb-3 text-sm">
           ปรับยอด <span className="font-semibold">{diffRows.length}</span> รายการ · นับแล้วตรงกับระบบ <span className="font-semibold">{touchedRows.length - diffRows.length}</span> รายการ (บันทึกเป็นการยืนยันยอด จำนวนไม่เปลี่ยน)
         </p>
-        {diffRows.some((r) => r.changed) && (
+        {movedRows.length > 0 && (
           <p role="alert" className="mb-3 rounded-xl bg-[var(--color-warning-container)] px-3 py-2 text-sm text-[var(--color-warning)]">
-            มี {diffRows.filter((r) => r.changed).length} รายการที่ยอดในระบบเปลี่ยนไปจากตอนเริ่มนับ ตรวจให้แน่ใจก่อนว่าจำนวนที่นับได้คือของจริงตอนนี้
+            มี {movedRows.length} รายการที่หลังนับมีของเข้า/ออก ระบบรวมให้ในคอลัมน์ &quot;ยอดหลังปรับ&quot; แล้ว ตรวจให้แน่ใจว่าจำนวนที่นับยังถูกต้อง ตรวจให้แน่ใจก่อนว่าจำนวนที่นับได้คือของจริงตอนนี้
           </p>
         )}
         <Table>
           <Thead>
             <Tr>
               <Th>สี / ไซซ์</Th>
-              <Th>ตอนเริ่มนับ</Th>
-              <Th>ตอนนี้</Th>
+              <Th>ในระบบตอนนี้</Th>
               <Th>นับได้</Th>
+              <Th>หลังนับเข้า/ออก</Th>
+              <Th>ยอดหลังปรับ</Th>
               <Th>ผลต่าง</Th>
             </Tr>
           </Thead>
@@ -674,7 +724,7 @@ function StockCountForm() {
                 <Fragment key={product.id}>
                   {groups.length > 1 && (
                     <Tr className="bg-[var(--color-surface-container)] hover:bg-[var(--color-surface-container)]">
-                      <Td colSpan={5} className="py-2 text-xs font-semibold">
+                      <Td colSpan={6} className="py-2 text-xs font-semibold">
                         {product.sellingName}
                       </Td>
                     </Tr>
@@ -684,9 +734,10 @@ function StockCountForm() {
                       <Td>
                         {r.variant.color} / {r.variant.size}
                       </Td>
-                      <Td>{r.start}</Td>
-                      <Td className={r.changed ? "font-semibold text-[var(--color-warning)]" : undefined}>{r.system}</Td>
+                      <Td>{r.system}</Td>
                       <Td className="font-semibold">{r.counted}</Td>
+                      <Td className={r.during !== 0 ? "font-semibold text-[var(--color-warning)]" : undefined}>{r.during !== 0 ? diffLabel(r.during) : "-"}</Td>
+                      <Td className="font-semibold">{r.final}</Td>
                       <Td className={r.diff > 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}>{diffLabel(r.diff)}</Td>
                     </Tr>
                   ))}

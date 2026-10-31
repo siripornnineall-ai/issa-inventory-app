@@ -43,7 +43,7 @@ async function openProduct() {
   render(<StockCountPage />);
   fireEvent.change(screen.getByPlaceholderText("พิมพ์ชื่อรุ่นสินค้า..."), { target: { value: "Flow" } });
   fireEvent.click(await screen.findByRole("button", { name: "Flow Wide" }));
-  await screen.findByText("ตอนเริ่มนับ");
+  await screen.findByText("ในระบบตอนนี้");
 }
 
 describe("นับสต็อก: เทียบยอดตอนเริ่มนับกับยอดปัจจุบัน", () => {
@@ -58,22 +58,93 @@ describe("นับสต็อก: เทียบยอดตอนเริ�
     expect(screen.queryByText(/ยอดในระบบเปลี่ยนไประหว่างที่นับ/)).toBeNull();
   });
 
-  it("มีของเข้า/ออกระหว่างที่นับ (ยอดในระบบเปลี่ยน) → เตือน ขึ้นป้ายเปลี่ยน และเตือนซ้ำในหน้ายืนยัน", async () => {
+// จำลองอีกเครื่องหนึ่งบันทึกของเข้า/ออกของ S (ยอดในระบบเปลี่ยน + มีรายการเคลื่อนไหว) offsetMs = เกิดหลัง(+)/ก่อน(-) ตอนนี้
+let mvSeq = 0;
+function otherDeviceMove(delta: number, offsetMs: number, qtyAfter: number) {
+  mvSeq += 1;
+  const st = useStore.getState();
+  useStore.setState({
+    variantStock: { ...st.variantStock, "vS::w1": { itemId: "vS", warehouseId: "w1", qtyOnHand: qtyAfter, qtyReserved: 0 } },
+    movements: {
+      ...st.movements,
+      [`other${mvSeq}`]: {
+        id: `other${mvSeq}`,
+        refNo: `SOUT-OTHER-${mvSeq}`,
+        itemType: "product",
+        itemId: "vS",
+        variantId: "vS",
+        itemName: "Flow Wide",
+        sku: "IA-FW-BLK-S",
+        movementType: delta < 0 ? "sale" : "stock_in",
+        qtyChange: delta,
+        qtyBefore: qtyAfter - delta,
+        qtyAfter,
+        ...(delta < 0 ? { warehouseFromId: "w1" } : { warehouseToId: "w1" }),
+        actorId: "u9",
+        actorName: "เครื่องอื่น",
+        createdAt: new Date(Date.now() + offsetMs).toISOString(),
+      },
+    },
+  } as never);
+}
+
+  it("นับแล้วมีคนขายออกจากเครื่องอื่น (หลังนับ) → เตือน และบันทึกเป็น นับได้ + ของที่เข้า/ออกหลังนับ ไม่เอายอดนับไปทับของที่ขายไปแล้ว", async () => {
     seed(5, 3);
     await openProduct();
-    // นับ S ได้ 4
+    // นับ S ได้ 5 (ตอนนั้นระบบมี 5)
     const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
-    fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "4" } });
+    fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "5" } });
+    expect(screen.queryByText(/หลังจากที่นับ มีของเข้า\/ออก/)).toBeNull();
 
-    // ระหว่างนับ มีคนเบิกออก S 2 ชิ้นจากเครื่องอื่น แล้วข้อมูลถูกรีเฟรชเข้ามา: ยอดในระบบ 5 → 3
-    seed(3, 3);
-    useStore.setState({ ...useStore.getState() });
-    // seed() ใหม่ไม่เปลี่ยนยอดเริ่มนับที่ถ่ายไว้ในหน้า (เก็บใน state ของหน้า)
-    await waitFor(() => expect(screen.getByText(/ยอดในระบบเปลี่ยนไประหว่างที่นับ 1 รายการ/)).toBeTruthy());
+    // หลังนับ มีคนเบิกออก S 2 ชิ้นจากเครื่องอื่น แล้วข้อมูลถูกรีเฟรชเข้ามา: ระบบเหลือ 3
+    otherDeviceMove(-2, 60_000, 3);
+    await waitFor(() => expect(screen.getByText(/หลังจากที่นับ มีของเข้า\/ออก 1 รายการ/)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /บันทึกผลการนับ/ }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(/ยอดในระบบเปลี่ยนไปจากตอนเริ่มนับ/)).toBeTruthy();
+    expect(within(dialog).getByText(/หลังนับมีของเข้า\/ออก/)).toBeTruthy();
+    // ยอดหลังปรับ = นับได้ 5 + (−2) = 3 → ตรงกับระบบตอนนี้ ของที่ขายไปแล้วไม่กลับมา
+    fireEvent.click(within(dialog).getByRole("button", { name: "ยืนยันบันทึก" }));
+    await waitFor(() => expect(useStore.getState().variantStock["vS::w1"].qtyOnHand).toBe(3));
+    const adj = Object.values(useStore.getState().movements).filter((m) => m.movementType === "adjustment");
+    expect(adj).toHaveLength(1);
+    expect(adj[0]).toMatchObject({ qtyBefore: 3, qtyAfter: 3, qtyChange: 0 });
+    expect(adj[0].reason).toContain("นับได้ 5");
+    expect(adj[0].reason).toContain("เข้า/ออกหลังนับ 2");
+  });
+
+  it("นับได้ต่างจากระบบ และหลังนับมีคนขายเพิ่ม: ตั้งเป็น นับได้ − ที่ขายหลังนับ", async () => {
+    seed(10, 3);
+    await openProduct();
+    const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
+    fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "8" } }); // นับได้ 8 ระบบ 10
+    otherDeviceMove(-3, 60_000, 7); // ขายหลังนับ 3
+    fireEvent.click(screen.getByRole("button", { name: /บันทึกผลการนับ/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "ยืนยันบันทึก" }));
+    await waitFor(() => expect(useStore.getState().variantStock["vS::w1"].qtyOnHand).toBe(5)); // 8 + (−3)
+  });
+
+  it("ขายออกก่อนนับ (เครื่องที่นับยังมีข้อมูลเก่า เพิ่งเห็นตอนรีเฟรช): ของบนชั้นไม่มีชิ้นนั้นแล้ว ไม่หักซ้ำ ตั้งเท่าที่นับ", async () => {
+    seed(5, 3);
+    await openProduct();
+    const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
+    fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "3" } }); // ชั้นเหลือ 3 จริง (ขายไป 2 ก่อนนับ)
+    otherDeviceMove(-2, -60_000, 3); // รายการขายนั้นเกิด "ก่อน" เวลานับ แต่เครื่องนี้เพิ่งเห็น
+    expect(screen.queryByText(/หลังจากที่นับ มีของเข้า\/ออก/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /บันทึกผลการนับ/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "ยืนยันบันทึก" }));
+    await waitFor(() => expect(useStore.getState().variantStock["vS::w1"].qtyOnHand).toBe(3));
+  });
+
+  it("มีของรับเข้าหลังนับ: ตั้งเป็น นับได้ + ที่รับเข้าหลังนับ", async () => {
+    seed(5, 3);
+    await openProduct();
+    const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
+    fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "5" } });
+    otherDeviceMove(+10, 60_000, 15); // รับเข้า 10 หลังนับ
+    fireEvent.click(screen.getByRole("button", { name: /บันทึกผลการนับ/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "ยืนยันบันทึก" }));
+    await waitFor(() => expect(useStore.getState().variantStock["vS::w1"].qtyOnHand).toBe(15)); // 5 + 10 ไม่ถูกทับเป็น 5
   });
 
   it("บันทึกแล้วตั้งสต็อกให้เท่ากับที่นับ (ไม่ใช่บวกเพิ่ม) และมีประวัติปรับยอด", async () => {
