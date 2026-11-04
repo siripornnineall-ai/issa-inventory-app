@@ -21,6 +21,7 @@ import { BannerEditor } from "@/components/settings/BannerEditor";
 import { BrandBannersCard } from "@/components/settings/BrandBannersCard";
 import { BrandSlidesCard } from "@/components/settings/BrandSlidesCard";
 import { StockAuditCard } from "@/components/settings/StockAuditCard";
+import { NightlyCheckCard } from "@/components/settings/NightlyCheckCard";
 import { BrandColorsCard } from "@/components/settings/BrandColorsCard";
 import { useStore, useActions } from "@/lib/store";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -263,6 +264,10 @@ export default function SettingsPage() {
 
         <RequireAccess perm="master.write">
           <StockAuditCard />
+        </RequireAccess>
+
+        <RequireAccess perm="master.write">
+          <NightlyCheckCard />
         </RequireAccess>
 
         <RequireAccess perm="master.write">
