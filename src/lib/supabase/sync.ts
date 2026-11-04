@@ -1,7 +1,7 @@
 import type { PostgrestSingleResponse, SupabaseClient } from "@supabase/supabase-js";
 import type { AppState } from "@/lib/store/state";
 import { ROLES } from "@/lib/auth/permissions";
-import type { Invoice, Order, Product, ProductImage, StockInDoc, StockOutDoc, Transfer, UnitToken } from "@/lib/types";
+import type { Invoice, Order, Product, ProductImage, StockInDoc, StockMovement, StockOutDoc, Transfer, UnitToken } from "@/lib/types";
 
 // เปรียบเทียบ state ก่อน/หลังการทำรายการ แล้วบันทึกส่วนต่างลง Supabase (write-through)
 // ทำให้ engine.ts (business logic) ยังทำงานแบบ sync ในหน่วยความจำเหมือนเดิมทุกประการ
@@ -75,6 +75,46 @@ async function syncEquipmentImages(supabase: SupabaseClient, equipmentId: string
   await check(
     supabase.from("equipment_images").insert(images.map((img) => ({ id: img.id, equipment_id: equipmentId, url: img.url, is_main: img.isMain, sort_order: img.sortOrder })))
   );
+}
+
+function movementRow(m: StockMovement) {
+  return {
+    id: m.id,
+    created_at: m.createdAt,
+    ref_no: m.refNo,
+    item_type: m.itemType,
+    item_id: m.itemId,
+    variant_id: m.variantId ?? null,
+    item_name: m.itemName,
+    sku: m.sku,
+    color: m.color ?? null,
+    size: m.size ?? null,
+    movement_type: m.movementType,
+    qty_change: m.qtyChange,
+    qty_before: m.qtyBefore,
+    qty_after: m.qtyAfter,
+    warehouse_from_id: m.warehouseFromId ?? null,
+    warehouse_to_id: m.warehouseToId ?? null,
+    actor_id: m.actorId || null,
+    actor_name: m.actorName,
+    reason: m.reason ?? null,
+    note: m.note ?? null,
+    related_doc_no: m.relatedDocNo ?? null,
+    edited_note: m.editedNote ?? null,
+  };
+}
+
+// รายการเคลื่อนไหวของการบันทึกครั้งเดียว ส่งเป็นคำสั่งเดียวเรียงตามลำดับที่ทำรายการ (เช่น แปลงรุ่นเข้าก่อนแล้วจึงขาย) ทั้งชุดสำเร็จหรือล้มพร้อมกัน
+// ฐานข้อมูลบวก/ลบสต็อกตามรายการแต่ละแถวที่เข้ามา (ดู migration 0035/0036) ไม่ส่งแยกเป็นหลายคำขอพร้อมกันเพราะลำดับที่ถึงจะสลับกันได้
+// รอบส่งซ้ำ (retry): ของที่ค้างอาจถูกบันทึกไปบางส่วนแล้ว ส่งทีละแถวตามลำดับ แถวที่มีอยู่แล้วนับว่าสำเร็จ
+function insertMovements(supabase: SupabaseClient, list: StockMovement[]): Promise<unknown> {
+  const rows = list.map(movementRow);
+  const table = supabase.from("stock_movements");
+  if (rows.length === 1) return check(table.insert(rows[0]));
+  if (!tolerateExistingRows) return check(table.insert(rows));
+  return (async () => {
+    for (const row of rows) await check(table.insert(row));
+  })();
 }
 
 function docDate(iso: string): string {
@@ -286,36 +326,7 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
   }
 
   const mov = diffRecords(prev.movements, next.movements);
-  for (const m of mov.added) {
-    jobs.push(
-      check(
-        supabase.from("stock_movements").insert({
-          id: m.id,
-          created_at: m.createdAt,
-          ref_no: m.refNo,
-          item_type: m.itemType,
-          item_id: m.itemId,
-          variant_id: m.variantId ?? null,
-          item_name: m.itemName,
-          sku: m.sku,
-          color: m.color ?? null,
-          size: m.size ?? null,
-          movement_type: m.movementType,
-          qty_change: m.qtyChange,
-          qty_before: m.qtyBefore,
-          qty_after: m.qtyAfter,
-          warehouse_from_id: m.warehouseFromId ?? null,
-          warehouse_to_id: m.warehouseToId ?? null,
-          actor_id: m.actorId || null,
-          actor_name: m.actorName,
-          reason: m.reason ?? null,
-          note: m.note ?? null,
-          related_doc_no: m.relatedDocNo ?? null,
-          edited_note: m.editedNote ?? null,
-        })
-      )
-    );
-  }
+  if (mov.added.length > 0) jobs.push(insertMovements(supabase, mov.added));
   for (const m of mov.changed) {
     jobs.push(check(supabase.from("stock_movements").update({ edited_note: m.editedNote ?? null }).eq("id", m.id)));
   }

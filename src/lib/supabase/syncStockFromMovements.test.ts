@@ -92,6 +92,48 @@ describe("ยอดสต็อกให้ฐานข้อมูลคิด�
     expect(row?.payload).toEqual({ variant_id: variant, warehouse_id: wh, qty_reserved: 3 });
   });
 
+  it("ขายรุ่นที่ตัดตัวเปล่า: รายการเคลื่อนไหวไปเป็นคำสั่งเดียว เรียง แปลงรุ่นออก → แปลงรุ่นเข้า → ขาย (กันขายถึงก่อนแปลงรุ่นจนสต็อกเกิน)", async () => {
+    let wh = "";
+    let bw = "";
+    let bm = "";
+    let wM = "";
+    let mM = "";
+    const stocked = produce(emptyState(), (d) => {
+      wh = engine.upsertWarehouse(d, { name: "คลังหลัก", type: "main" });
+      bw = engine.createProduct(d, { sellingName: "Billie Wide", sellingPrice: 1090, category: "กางเกง", status: "active", images: [] });
+      bm = engine.createProduct(d, { sellingName: "Bobbie Mid", sellingPrice: 1090, category: "กางเกง", status: "active", images: [] });
+      wM = engine.addVariant(d, bw, { color: "ดำ", size: "M", purchasePrice: 200, sellingPrice: 1090 });
+      mM = engine.addVariant(d, bm, { color: "ดำ", size: "M", purchasePrice: 230, sellingPrice: 1090 });
+      engine.stockIn(d, { itemType: "product", date: new Date().toISOString(), warehouseId: wh, receivedBy: "u1", receivedByName: "รับ", lines: [{ itemId: wM, qty: 5 }] });
+      engine.linkProductSource(d, bm, bw);
+    });
+    const sold = produce(stocked, (d) => {
+      engine.stockOut(d, { itemType: "product", date: new Date().toISOString(), warehouseId: wh, reasonType: "sale", actorId: "u1", actorName: "ขาย", channel: "shopee", lines: [{ itemId: mM, qty: 1 }] });
+    });
+    const { supabase, calls } = fakeSupabase();
+    await syncStateDiff(supabase, stocked, sold);
+    const inserts = calls.filter((c) => c.table === "stock_movements" && c.op === "insert");
+    expect(inserts).toHaveLength(1);
+    const types = (inserts[0].payload as { movement_type: string }[]).map((r) => r.movement_type);
+    expect(types).toEqual(["convert_out", "convert_in", "sale"]);
+  });
+
+  it("ส่งซ้ำ (retry): รายการเคลื่อนไหวส่งทีละแถวตามลำดับ เพราะบางแถวอาจถูกบันทึกไปแล้ว", async () => {
+    const { base, wh, variant } = setup();
+    const received = produce(base, (d) => {
+      engine.stockIn(d, { itemType: "product", date: new Date().toISOString(), warehouseId: wh, receivedBy: "u1", receivedByName: "รับ", lines: [{ itemId: variant, qty: 10 }] });
+    });
+    const sold = produce(received, (d) => {
+      engine.stockOut(d, { itemType: "product", date: new Date().toISOString(), warehouseId: wh, reasonType: "sale", actorId: "u1", actorName: "ขาย", channel: "shopee", lines: [{ itemId: variant, qty: 2 }] });
+      engine.stockOut(d, { itemType: "product", date: new Date().toISOString(), warehouseId: wh, reasonType: "sale", actorId: "u1", actorName: "ขาย", channel: "shopee", lines: [{ itemId: variant, qty: 1 }] });
+    });
+    const { supabase, calls } = fakeSupabase();
+    await syncStateDiff(supabase, received, sold, { retry: true });
+    const inserts = calls.filter((c) => c.table === "stock_movements" && c.op === "insert");
+    expect(inserts).toHaveLength(2);
+    expect(Array.isArray(inserts[0].payload)).toBe(false);
+  });
+
   it("อุปกรณ์: แถวใหม่ส่งแบบข้ามถ้าซ้ำ และไม่ส่งยอดคงเหลือ", async () => {
     let wh = "";
     let eq = "";
