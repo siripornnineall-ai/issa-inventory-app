@@ -37,12 +37,56 @@ export async function check<T>(builder: PromiseLike<PostgrestSingleResponse<T>>,
   for (;;) {
     const res = await builder;
     if (!res.error) return res.data;
-    if (attempt > 0 && res.error.code === "23505") return res.data ?? null;
+    if (attempt > 0 && res.error.code === "23505" && !isNumberCollision(res.error)) return res.data ?? null;
     if (tolerateExistingRows && isDuplicateId(res.error)) return res.data ?? null;
-    if (attempt >= delays.length || !isTransient(res.error, res.status)) throw new Error(res.error.message);
+    if (attempt >= delays.length || !isTransient(res.error, res.status)) {
+      const err = new Error(res.error.message) as Error & { code?: string };
+      err.code = res.error.code;
+      throw err;
+    }
     await new Promise((r) => setTimeout(r, delays[attempt]));
     attempt += 1;
   }
+}
+
+// เลขที่เอกสารชนกับของอีกเครื่อง: เลขออกจากตัวนับในเครื่อง ถ้าอีกเครื่องออกเลขเดียวกันก่อน ฐานข้อมูลปฏิเสธใบที่สอง (เลขซ้ำไม่ได้)
+// เดิมใบ/ออเดอร์/ต้นทุนของใบนั้นหายไป (รายการเคลื่อนไหวบันทึกสำเร็จแต่ใบไม่ถูกสร้าง เครื่องค้างแถบแดงส่งซ้ำไม่ผ่านตลอด เช่น SIN-20261104-0706)
+// ใหม่: ออกเลขถัดไปที่ว่างให้เองแล้วบันทึกใหม่ และให้รายการเคลื่อนไหว/ออเดอร์ของการบันทึกครั้งนั้นอ้างเลขใหม่ (ดู renames)
+function isNumberCollision(e: unknown): boolean {
+  const err = e as { code?: string; message?: string } | null;
+  return err?.code === "23505" && /_(doc_no|order_no|transfer_no|invoice_no)_key/.test(err.message ?? "");
+}
+
+// เลขใหม่ = เลขสูงสุดของคำนำหน้านี้ในฐานข้อมูล + 1 (ตัวนับของแอปรันต่อเนื่องข้ามวัน) ใช้วันที่เดิมของเลขที่ชน
+async function freeNumber(supabase: SupabaseClient, table: string, column: string, clash: string): Promise<string> {
+  const m = /^(.*)-(\d{8})-(\d+)$/.exec(clash);
+  if (!m) throw new Error(`เลขที่เอกสาร ${clash} ซ้ำกับของเครื่องอื่นและออกเลขใหม่ไม่ได้`);
+  const [, prefix, date, seqText] = m;
+  const { data } = await supabase.from(table).select(column).like(column, `${prefix}-%`).order(column, { ascending: false }).limit(1);
+  const top = (data?.[0] as unknown as Record<string, string> | undefined)?.[column] ?? clash;
+  const topSeq = Number(/-(\d+)$/.exec(top)?.[1] ?? seqText);
+  return `${prefix}-${date}-${String(Math.max(topSeq, Number(seqText)) + 1).padStart(seqText.length, "0")}`;
+}
+
+// บันทึกใบพร้อมเลขที่ ถ้าเลขชนจะออกเลขใหม่แล้วลองอีก (สูงสุด 6 รอบ เผื่ออีกเครื่องออกเลขใหม่พร้อมกัน) renames เก็บ เลขเดิม → เลขที่ใช้จริง
+// รอบส่งซ้ำ: ถ้าเลขนี้คือใบเดียวกัน (id ตรงกัน) ที่บันทึกไปแล้วโดยรอบก่อน นับว่าสำเร็จ ไม่ใช่การชน
+async function insertNumbered(supabase: SupabaseClient, table: string, column: string, row: Record<string, unknown>, renames: Map<string, string>): Promise<void> {
+  const original = String(row[column]);
+  let current = row;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      await check(supabase.from(table).insert(current));
+      return;
+    } catch (e) {
+      if (!isNumberCollision(e)) throw e;
+      const clash = String(current[column]);
+      const { data } = await supabase.from(table).select("id").eq(column, clash).limit(1);
+      if ((data?.[0] as { id?: string } | undefined)?.id === current.id) return;
+      current = { ...current, [column]: await freeNumber(supabase, table, column, clash) };
+      renames.set(original, String(current[column]));
+    }
+  }
+  throw new Error(`เลขที่เอกสาร ${original} ซ้ำกับของเครื่องอื่นและออกเลขใหม่ไม่สำเร็จ`);
 }
 
 function diffRecords<T>(prev: Record<string, T>, next: Record<string, T>) {
@@ -77,11 +121,11 @@ async function syncEquipmentImages(supabase: SupabaseClient, equipmentId: string
   );
 }
 
-function movementRow(m: StockMovement) {
+function movementRow(m: StockMovement, mapNo: (no: string) => string) {
   return {
     id: m.id,
     created_at: m.createdAt,
-    ref_no: m.refNo,
+    ref_no: mapNo(m.refNo),
     item_type: m.itemType,
     item_id: m.itemId,
     variant_id: m.variantId ?? null,
@@ -99,7 +143,7 @@ function movementRow(m: StockMovement) {
     actor_name: m.actorName,
     reason: m.reason ?? null,
     note: m.note ?? null,
-    related_doc_no: m.relatedDocNo ?? null,
+    related_doc_no: m.relatedDocNo ? mapNo(m.relatedDocNo) : null,
     edited_note: m.editedNote ?? null,
   };
 }
@@ -107,8 +151,8 @@ function movementRow(m: StockMovement) {
 // รายการเคลื่อนไหวของการบันทึกครั้งเดียว ส่งเป็นคำสั่งเดียวเรียงตามลำดับที่ทำรายการ (เช่น แปลงรุ่นเข้าก่อนแล้วจึงขาย) ทั้งชุดสำเร็จหรือล้มพร้อมกัน
 // ฐานข้อมูลบวก/ลบสต็อกตามรายการแต่ละแถวที่เข้ามา (ดู migration 0035/0036) ไม่ส่งแยกเป็นหลายคำขอพร้อมกันเพราะลำดับที่ถึงจะสลับกันได้
 // รอบส่งซ้ำ (retry): ของที่ค้างอาจถูกบันทึกไปบางส่วนแล้ว ส่งทีละแถวตามลำดับ แถวที่มีอยู่แล้วนับว่าสำเร็จ
-function insertMovements(supabase: SupabaseClient, list: StockMovement[]): Promise<unknown> {
-  const rows = list.map(movementRow);
+function insertMovements(supabase: SupabaseClient, list: StockMovement[], mapNo: (no: string) => string): Promise<unknown> {
+  const rows = list.map((m) => movementRow(m, mapNo));
   const table = supabase.from("stock_movements");
   if (rows.length === 1) return check(table.insert(rows[0]));
   if (!tolerateExistingRows) return check(table.insert(rows));
@@ -132,6 +176,10 @@ export async function syncStateDiff(supabase: SupabaseClient, prev: AppState, ne
 
 async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next: AppState): Promise<void> {
   const jobs: Promise<unknown>[] = [];
+  // เลขที่เอกสารที่ถูกออกใหม่เพราะชนกับของเครื่องอื่น (เลขเดิม → เลขจริง) และงานของขั้นใบที่ล้มเหลว
+  const renames = new Map<string, string>();
+  const mapNo = (no: string) => renames.get(no) ?? no;
+  const earlyFailed: PromiseRejectedResult[] = [];
 
   const wh = diffRecords(prev.warehouses, next.warehouses);
   for (const w of [...wh.added, ...wh.changed]) {
@@ -325,17 +373,10 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
     }
   }
 
-  const mov = diffRecords(prev.movements, next.movements);
-  if (mov.added.length > 0) jobs.push(insertMovements(supabase, mov.added));
-  for (const m of mov.changed) {
-    jobs.push(check(supabase.from("stock_movements").update({ edited_note: m.editedNote ?? null }).eq("id", m.id)));
-  }
-
   const sinDocs = diffRecords(prev.stockInDocs, next.stockInDocs);
   for (const d of sinDocs.added as StockInDoc[]) {
     jobs.push(
-      check(
-        supabase.from("stock_in_docs").insert({
+      insertNumbered(supabase, "stock_in_docs", "doc_no", {
           id: d.id,
           doc_no: d.docNo,
           date: docDate(d.date),
@@ -353,8 +394,7 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
           note: d.note ?? null,
           status: d.status,
           created_at: d.createdAt,
-        })
-      ).then(() =>
+        }, renames).then(() =>
         check(
           supabase
             .from("stock_in_lines")
@@ -392,8 +432,7 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
   const soutDocs = diffRecords(prev.stockOutDocs, next.stockOutDocs);
   for (const d of soutDocs.added as StockOutDoc[]) {
     jobs.push(
-      check(
-        supabase.from("stock_out_docs").insert({
+      insertNumbered(supabase, "stock_out_docs", "doc_no", {
           id: d.id,
           doc_no: d.docNo,
           date: docDate(d.date),
@@ -404,16 +443,14 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
           note: d.note ?? null,
           status: d.status,
           created_at: d.createdAt,
-        })
-      ).then(() => check(supabase.from("stock_out_lines").insert(d.lines.map((l) => ({ id: l.id, doc_id: d.id, item_id: l.itemId, variant_id: l.variantId ?? null, qty: l.qty })))))
+        }, renames).then(() => check(supabase.from("stock_out_lines").insert(d.lines.map((l) => ({ id: l.id, doc_id: d.id, item_id: l.itemId, variant_id: l.variantId ?? null, qty: l.qty })))))
     );
   }
 
   const transfers = diffRecords(prev.transfers, next.transfers);
   for (const t of transfers.added as Transfer[]) {
     jobs.push(
-      check(
-        supabase.from("transfers").insert({
+      insertNumbered(supabase, "transfers", "transfer_no", {
           id: t.id,
           transfer_no: t.transferNo,
           item_type: t.itemType,
@@ -427,8 +464,7 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
           created_at: t.createdAt,
           received_at: t.receivedAt ?? null,
           cancelled_at: t.cancelledAt ?? null,
-        })
-      ).then(() =>
+        }, renames).then(() =>
         check(supabase.from("transfer_lines").insert(t.lines.map((l) => ({ id: l.id, transfer_id: t.id, item_id: l.itemId, variant_id: l.variantId ?? null, qty: l.qty }))))
       )
     );
@@ -444,11 +480,19 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
     );
   }
 
+  // ใบต้องบันทึกเสร็จก่อนรายการเคลื่อนไหวและออเดอร์ เพราะถ้าเลขที่ใบถูกออกใหม่ (ชนกับเครื่องอื่น) รายการเหล่านั้นต้องอ้างเลขใหม่
+  for (const r of await Promise.allSettled(jobs.splice(0))) if (r.status === "rejected") earlyFailed.push(r);
+
+  const mov = diffRecords(prev.movements, next.movements);
+  if (mov.added.length > 0) jobs.push(insertMovements(supabase, mov.added, mapNo));
+  for (const m of mov.changed) {
+    jobs.push(check(supabase.from("stock_movements").update({ edited_note: m.editedNote ?? null }).eq("id", m.id)));
+  }
+
   const orders = diffRecords(prev.orders, next.orders);
   for (const o of orders.added as Order[]) {
     jobs.push(
-      check(
-        supabase.from("orders").insert({
+      insertNumbered(supabase, "orders", "order_no", {
           id: o.id,
           order_no: o.orderNo,
           date: docDate(o.date),
@@ -460,10 +504,9 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
           cancel_reason: o.cancelReason ?? null,
           cancelled_at: o.cancelledAt ?? null,
           restocked: o.restocked,
-          stock_out_doc_no: o.stockOutDocNo ?? null,
+          stock_out_doc_no: o.stockOutDocNo ? mapNo(o.stockOutDocNo) : null,
           created_at: o.createdAt,
-        })
-      ).then(() =>
+        }, renames).then(() =>
         check(
           supabase
             .from("order_lines")
@@ -491,8 +534,7 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
   const invoices = diffRecords(prev.invoices, next.invoices);
   for (const inv of invoices.added as Invoice[]) {
     jobs.push(
-      check(
-        supabase.from("invoices").insert({
+      insertNumbered(supabase, "invoices", "invoice_no", {
           id: inv.id,
           invoice_no: inv.invoiceNo,
           date: docDate(inv.date),
@@ -502,8 +544,7 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
           buyer_tax_id: inv.buyerTaxId ?? null,
           note: inv.note ?? null,
           created_at: inv.createdAt,
-        })
-      )
+        }, renames)
     );
   }
 
@@ -661,7 +702,7 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
   }
 
   const results = await Promise.allSettled(jobs);
-  const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+  const failed = [...earlyFailed, ...results.filter((r): r is PromiseRejectedResult => r.status === "rejected")];
   if (failed.length > 0) {
     console.error(
       "syncStateDiff: บางรายการบันทึกลง Supabase ไม่สำเร็จ",
