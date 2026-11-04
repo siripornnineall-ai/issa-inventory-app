@@ -140,6 +140,17 @@ const THAI_COLOR_CODE_DICTIONARY: Record<string, string> = {
   ฟ้าพาสเทล: "PSK",
   ม่วงพาสเทล: "PPP",
   เหลืองพาสเทล: "PYL",
+  กาแฟ: "COF",
+  ช็อกโกแลต: "CHC",
+  สนิม: "RST",
+  เทาสนิม: "RGY",
+  น้ำเงินสนิม: "RBL",
+  ซีเมนต์: "CMT",
+  คราม: "IND",
+  นู้ด: "NUD",
+  ส้มอมชมพู: "SPK",
+  เขียวหัวเป็ด: "TEL",
+  เขียวไพน์: "PIN",
 };
 
 // รายการสีสำเร็จรูปสำหรับให้เลือกตอนพิมพ์ (ชื่อไทยที่ไม่ซ้ำกันเมื่อไม่นับวรรณยุกต์)
@@ -177,7 +188,8 @@ const DEEP_TONE = normalizeThaiColor("เข้ม");
 
 // เดารหัสสีจากชื่อสี (ไม่ต้องพิมพ์เอง) — รหัสที่ได้เป็นตัวย่อภาษาอังกฤษเสมอ ไม่มีตัวเลข
 // 1) พจนานุกรมสีที่ใช้บ่อย 2) ชื่อประกอบ: สีหลัก + อ่อน/เข้ม (LGY, DBR) หรือสีหลัก + สีย่อย (ใช้รหัสสีย่อย)
-// 3) ชื่อที่มีตัวอักษรอังกฤษปนอยู่ใช้ 3 ตัวแรก 4) ถ้าไม่รู้จักเลยใช้ COL (ซ้ำจะต่อเลขเป็นทางสุดท้าย)
+// 3) ชื่อที่มีตัวอักษรอังกฤษปนอยู่ใช้ 3 ตัวแรก 4) ถ้าไม่รู้จักเลยคืนค่าว่าง (ให้ผู้ใช้ใส่รหัสเอง ดู resolveColorCode)
+// เดิมข้อ 4 ตั้งเป็น COL, COL2, COL3 ... ซึ่งอ่านไม่ออกว่าเป็นสีอะไร (เจ้าของงานไม่ต้องการ) รหัสเดิมที่ตั้งไปแล้วไม่ถูกแตะ
 function baseColorCode(name: string, taken: (code: string) => boolean): string {
   const key = normalizeThaiColor(name);
   const direct = NORMALIZED_DICTIONARY[key];
@@ -197,16 +209,35 @@ function baseColorCode(name: string, taken: (code: string) => boolean): string {
   return "";
 }
 
+export type ColorCodeResult = { code: string } | { error: string };
+
+// รหัสสีที่จะใช้กับสีหนึ่ง: รหัสที่ผู้ใช้พิมพ์ → รหัสเดิมของสีนี้ที่เคยบันทึก → รหัสที่เดาจากชื่อ
+// ถ้าไม่ได้สักทาง คืนข้อความบอกให้ใส่รหัสเอง ไม่เดามั่ว (ไม่ให้เกิดรหัสแบบ COL3 ที่ไม่สื่อความหมาย)
+export function resolveColorCode(name: string, typedCode: string, saved: Record<string, { thaiName: string }>): ColorCodeResult {
+  const trimmedName = name.trim();
+  const typed = typedCode.trim().toUpperCase().replace(/\s+/g, "");
+  if (typed) {
+    if (!/^[A-Z0-9]{2,6}$/.test(typed)) return { error: "รหัสสีใช้ได้เฉพาะตัวอักษรภาษาอังกฤษหรือตัวเลข 2-6 ตัว เช่น COF" };
+    if (/^COL\d*$/.test(typed)) return { error: "รหัสสีต้องสื่อความหมายถึงสีนั้น (เช่น กาแฟ = COF) ห้ามใช้ COL" };
+    return { code: typed };
+  }
+  const existing = Object.entries(saved).find(([, c]) => c.thaiName === trimmedName);
+  if (existing) return { code: existing[0] };
+  const guessed = suggestColorCode(trimmedName, saved);
+  if (guessed) return { code: guessed };
+  return { error: `ระบบยังไม่รู้จักสี "${trimmedName}" เดารหัสให้ไม่ได้ กรุณาใส่รหัสสีเป็นตัวอักษรอังกฤษ 3 ตัวที่สื่อถึงสีนั้น (เช่น กาแฟ = COF) ในช่องรหัสสี` };
+}
+
 export function suggestColorCode(name: string, existingCodes: Record<string, { thaiName: string }> = {}): string {
   const trimmed = name.trim();
-  if (!trimmed) return "COL";
+  if (!trimmed) return "";
   const taken = (code: string) => Boolean(existingCodes[code]) && existingCodes[code].thaiName !== trimmed;
   let base = baseColorCode(trimmed, taken);
   if (!base) {
     const latinOnly = trimmed.normalize("NFKD").replace(/[^a-zA-Z]/g, "");
     base = latinOnly.slice(0, 3).toUpperCase();
   }
-  if (!base) base = "COL";
+  if (!base) return "";
   let candidate = base;
   let i = 2;
   while (existingCodes[candidate] && existingCodes[candidate].thaiName !== trimmed) {

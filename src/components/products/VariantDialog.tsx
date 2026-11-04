@@ -7,7 +7,7 @@ import { Input, FormField } from "@/components/ui/Field";
 import { useActions, useStore } from "@/lib/store";
 import type { ProductVariant } from "@/lib/types";
 import { toastError, toastSuccess } from "@/lib/toast";
-import { genSkuV2, normalizeThaiColor, suggestColorCode } from "@/lib/utils/ids";
+import { genSkuV2, normalizeThaiColor, resolveColorCode, suggestColorCode } from "@/lib/utils/ids";
 import { filterColorOptions, listColorOptions } from "@/lib/utils/colorOptions";
 
 interface VariantDialogProps {
@@ -79,10 +79,21 @@ function VariantDialogForm({ open, onClose, productId, existing }: VariantDialog
         updateVariant(existing.id, { color, size, sku, isDefective, purchasePrice, sellingPrice, reorderPoint, storageLocation });
         toastSuccess("แก้ไขตัวเลือกสินค้าเรียบร้อยแล้ว");
       } else {
-        if (colorCode.trim()) upsertColorCode(colorCode, color);
+        // สินค้าที่ตั้งแบรนด์+รหัสรุ่นแล้ว ต้องมีรหัสสีที่สื่อความหมาย (ไม่ใช่ COL3) ถ้าไม่ได้ตั้ง SKU เอง
+        let finalColorCode = colorCode;
+        if (!(skuTouched && sku.trim()) && brand && product?.modelCode) {
+          const resolved = resolveColorCode(color, colorCode, colorCodes);
+          if ("error" in resolved) {
+            toastError(resolved.error);
+            setSaving(false);
+            return;
+          }
+          finalColorCode = resolved.code;
+        }
+        if (finalColorCode.trim()) upsertColorCode(finalColorCode, color);
         addVariant(productId, {
           color,
-          colorCode: colorCode || undefined,
+          colorCode: finalColorCode || undefined,
           isDefective,
           size,
           sku: (skuTouched ? sku : previewSku) || undefined,

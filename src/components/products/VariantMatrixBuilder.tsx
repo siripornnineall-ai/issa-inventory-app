@@ -5,7 +5,7 @@ import { Plus, X, Wand2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, FormField } from "@/components/ui/Field";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/Table";
-import { genSku, genSkuV2, normalizeThaiColor, suggestColorCode } from "@/lib/utils/ids";
+import { genSku, genSkuV2, normalizeThaiColor, resolveColorCode } from "@/lib/utils/ids";
 import { filterColorOptions, listColorOptions } from "@/lib/utils/colorOptions";
 import { SIZE_PRESETS } from "@/lib/utils/sizes";
 import { useStore, useActions } from "@/lib/store";
@@ -110,11 +110,12 @@ export function VariantMatrixBuilder({
       toastError("มีสีนี้อยู่แล้ว");
       return;
     }
-    let finalCode = trimmedCode;
-    if (!finalCode) {
-      const existing = Object.values(colorCodes).find((c) => c.thaiName === trimmedName);
-      finalCode = existing ? existing.code : suggestColorCode(trimmedName, colorCodes);
+    const resolved = resolveColorCode(trimmedName, trimmedCode, colorCodes);
+    if ("error" in resolved) {
+      toastError(resolved.error);
+      return;
     }
+    const finalCode = resolved.code;
     try {
       upsertColorCode(finalCode, trimmedName);
     } catch (e) {
@@ -222,7 +223,7 @@ export function VariantMatrixBuilder({
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField label="สี" hint="พิมพ์ชื่อสีแล้วกดเพิ่มได้เลย ไม่ต้องใส่รหัส ระบบสร้างให้อัตโนมัติ (แก้เองได้ถ้าต้องการ)">
+        <FormField label="สี" hint="พิมพ์ชื่อสีแล้วกดเพิ่มได้เลย ถ้าเป็นสีที่ระบบรู้จักจะใส่รหัสให้เอง ถ้าเป็นสีใหม่ที่ระบบไม่รู้จัก ต้องใส่รหัสสีเอง (ตัวอักษรอังกฤษ 3 ตัว เช่น กาแฟ = COF)">
           <div className="flex gap-2">
             <Input
               value={colorNameInput}

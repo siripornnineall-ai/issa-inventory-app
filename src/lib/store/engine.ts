@@ -353,6 +353,7 @@ export function regenerateProductSkus(draft: Draft<AppState>, productId: string)
     let colorCode = existingColor?.code;
     if (!colorCode) {
       colorCode = suggestColorCode(variant.color, draft.colorCodes);
+      if (!colorCode) throw new BusinessRuleError(`ระบบยังไม่รู้จักสี "${variant.color}" กรุณากำหนดรหัสสีนี้ก่อน (เพิ่มตัวเลือกสีนี้ใหม่พร้อมรหัสสี)`);
       draft.colorCodes[colorCode] = { code: colorCode, thaiName: variant.color, createdAt: nowISO() };
     }
     const newSku = genSkuV2({ brandCode: brand.code, modelCode: product.modelCode, colorCode, size: variant.size, isDefective: variant.isDefective });
