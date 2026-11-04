@@ -25,6 +25,7 @@ export function VariantPicker({
   onSelectMany,
   onScanSku,
   onScanToken,
+  inlineResults,
   placeholder = "ค้นหาสินค้าด้วยชื่อ สี ไซซ์ หรือ SKU / สแกนบาร์โค้ด...",
 }: {
   warehouseId?: string;
@@ -38,6 +39,9 @@ export function VariantPicker({
   onScanSku?: (variantId: string) => void;
   // เรียกเมื่อสแกนได้ป้าย QR ที่มีรหัสเฉพาะตัว (ต่อชิ้นจริง) — ถ้าไม่ส่งมาจะ fallback ไปที่ onSelect แบบเดิม
   onScanToken?: (token: UnitToken, variant: ProductVariant) => void;
+  // ใช้เมื่อวางตัวเลือกนี้ในหน้าต่างป๊อปอัป (Dialog) ที่เนื้อหาเลื่อนเองและสูงแค่ช่องค้นหา: รายการผลค้นหาแบบลอยทับ (absolute)
+  // จะถูกตัดจนมองไม่เห็น ให้แสดงรายการต่อท้ายช่องค้นหาตามปกติแทน (หน้าต่างขยายตามรายการ)
+  inlineResults?: boolean;
   placeholder?: string;
 }) {
   const state = useStore();
@@ -223,7 +227,10 @@ export function VariantPicker({
         />
       )}
       {open && results.length > 0 && (
-        <div className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-xl border border-[var(--color-border)] bg-white py-1 shadow-[var(--shadow-micro)]">
+        <div
+          data-testid="variant-picker-results"
+          className={`${inlineResults ? "mt-2 max-h-[55vh]" : "absolute z-30 mt-1 max-h-72"} w-full overflow-y-auto rounded-xl border border-[var(--color-border)] bg-white py-1 shadow-[var(--shadow-micro)]`}
+        >
           {results.map(({ product, variants, all }) => {
             const totalStock = warehouseId
               ? variants.reduce((sum, v) => sum + getStockLevel(state.variantStock, v.id, warehouseId).qtyOnHand, 0)
@@ -251,7 +258,9 @@ export function VariantPicker({
         </div>
       )}
       {open && query.trim() && results.length === 0 && (
-        <div className="absolute z-30 mt-1 w-full rounded-xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-on-surface-variant)] shadow-[var(--shadow-micro)]">
+        <div
+          className={`${inlineResults ? "mt-2" : "absolute z-30 mt-1"} w-full rounded-xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-on-surface-variant)] shadow-[var(--shadow-micro)]`}
+        >
           ไม่พบสินค้าที่ตรงกับคำค้นหา
         </div>
       )}

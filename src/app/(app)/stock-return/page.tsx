@@ -498,6 +498,7 @@ function StockReturnForm({ onAgain }: { onAgain: () => void }) {
       <DuplicateSaveDialog guard={guard} docLabel="ใบรับคืน" />
       <Dialog open={targetFor !== null} onClose={() => setTargetFor(null)} title="เลือกสินค้าที่เปลี่ยนเป็น" description="ค้นหารุ่น สี ไซซ์ หรือ SKU ของสินค้าใหม่ที่ส่งให้ลูกค้า (ไม่ตัดสต็อก)" size="md">
         <VariantPicker
+          inlineResults
           onSelect={(id) => {
             if (targetFor) patchLine(targetFor, { exchangeToId: id });
             setTargetFor(null);

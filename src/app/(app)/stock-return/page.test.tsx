@@ -182,4 +182,27 @@ describe("หน้าสต็อกคืนสินค้า", () => {
     expect(qty()).toBe(6);
     expect(useStore.getState().variantStock["vWht::w1"]?.qtyOnHand ?? 0).toBe(0);
   });
+
+  it("ใบเปลี่ยน: ค้นด้วยชื่อรุ่นในหน้าต่างเลือกสินค้าแล้วรายการต้องขึ้นในหน้าต่าง (ไม่ลอยทับจนถูกตัด) กดเลือกรุ่น → สี → ไซซ์ได้", () => {
+    useStore.setState((st) => ({
+      variants: { ...st.variants, vWht: { id: "vWht", productId: "p1", color: "ขาว", size: "XL", sku: "IS-BS-WHT-XL", active: true, purchasePrice: 0 } as never },
+    }));
+    render(<StockReturnPage />);
+    pickType("สินค้าเปลี่ยน");
+    addBlackM();
+    pickReason();
+    fireEvent.click(screen.getByRole("button", { name: "เลือกสินค้าที่เปลี่ยนเป็น" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByPlaceholderText(/ค้นหาสินค้า/), { target: { value: "billie" } });
+
+    const results = within(dialog).getByTestId("variant-picker-results");
+    expect(results.className).not.toContain("absolute"); // ลอยทับในหน้าต่างที่เลื่อนเองจะถูกตัดจนมองไม่เห็น
+    fireEvent.click(within(results).getByRole("button", { name: /Billie Slim/ }));
+
+    // หน้าต่างเลือกสี/ไซซ์ของรุ่นขึ้นเป็นหน้าต่างที่สอง
+    const picker = screen.getAllByRole("dialog").at(-1)!;
+    fireEvent.click(within(picker).getByText("ขาว"));
+    fireEvent.click(within(picker).getByRole("button", { name: /XL/ }));
+    expect(screen.getByText(/→ Billie Slim ขาว XL/)).toBeTruthy();
+  });
 });
