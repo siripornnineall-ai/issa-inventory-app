@@ -27,6 +27,8 @@ const MAX_STORED_BYTES = 1_500_000;
 let pending = 0;
 let retrying = false;
 let failures: FailedSync[] = [];
+// กำลังส่งอยู่ แต่เขียนลงเครื่องไว้ก่อนส่งแล้ว: ถ้าหน้าถูกปิด/โหลดใหม่/เครื่องดับระหว่างส่ง รอบหน้าเปิดแอปจะส่งต่อให้ (ไม่นับเป็นส่งไม่สำเร็จ ไม่ขึ้นแถบแดง)
+let inflight: FailedSync[] = [];
 // ของบัญชีอื่นบนเครื่องเดียวกัน: เก็บไว้ในเครื่องไม่ลบ ไม่นับ ไม่ส่ง (ส่งได้เฉพาะตอนเจ้าของบัญชีล็อกอิน)
 let foreign: FailedSync[] = [];
 let snapshot: SyncSnapshot = { pending: 0, failed: 0, retrying: false, lastError: "" };
@@ -107,7 +109,7 @@ export function sparseChange(prev: AppState, next: AppState): { prev: AppState; 
 function persist() {
   if (typeof window === "undefined") return;
   try {
-    const all = [...failures, ...foreign];
+    const all = [...failures, ...inflight, ...foreign];
     if (all.length === 0) {
       window.localStorage.removeItem(STORAGE_KEY);
       return;
@@ -127,6 +129,31 @@ export function recordFailure(prev: AppState, next: AppState, error: string, use
   persist();
   refreshSnapshot();
   return f;
+}
+
+// เขียนรายการลงเครื่อง "ก่อน" ส่งขึ้นฐานข้อมูล เดิมเก็บเฉพาะรายการที่ส่งแล้วล้มเหลว ถ้าหน้าปิด/โหลดใหม่ระหว่างที่ยังรอคิวส่ง รายการที่ค้างคิวหายหมด
+// (เคยทำให้สินค้าใหม่ 9 สี 45 ตัวเลือกบันทึกขึ้นไปแค่สีแรก 5 ตัวเลือก) ส่งสำเร็จแล้วต้องเรียก settleInflight เพื่อลบออก
+export function recordInflight(prev: AppState, next: AppState, userId: string | null): string {
+  const sparse = sparseChange(prev, next);
+  const f: FailedSync = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, at: Date.now(), userId, error: "", attempts: 0, prev: sparse.prev, next: sparse.next };
+  inflight = [...inflight, f];
+  persist();
+  return f.id;
+}
+
+export function settleInflight(id: string) {
+  inflight = inflight.filter((f) => f.id !== id);
+  persist();
+}
+
+// ส่งไม่สำเร็จ: ย้ายจาก "กำลังส่ง" ไปเป็น "ส่งไม่สำเร็จ รอส่งซ้ำ" (ขึ้นแถบแดง)
+export function failInflight(id: string, error: string) {
+  const f = inflight.find((x) => x.id === id);
+  if (!f) return;
+  inflight = inflight.filter((x) => x.id !== id);
+  failures = [...failures, { ...f, error, attempts: 1 }];
+  persist();
+  refreshSnapshot();
 }
 
 export function markAttempt(id: string, error: string) {
@@ -154,8 +181,9 @@ export function restoreFailures(userId: string | null): number {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return 0;
     const stored = JSON.parse(raw) as FailedSync[];
-    const have = new Set(failures.map((f) => f.id));
-    const mine = stored.filter((f) => f && !have.has(f.id) && (f.userId === userId || f.userId === null));
+    const have = new Set([...failures, ...inflight].map((f) => f.id));
+    // รวมที่ค้างตอนกำลังส่งด้วย (เครื่องปิดไปก่อนส่งเสร็จ) ส่งซ้ำตามลำดับเวลาเดิม ระเบียนที่ถูกบันทึกไปแล้วบางส่วนนับว่าสำเร็จ (ดู sync.ts)
+    const mine = stored.filter((f) => f && !have.has(f.id) && (f.userId === userId || f.userId === null)).sort((a, b) => a.at - b.at);
     foreign = stored.filter((f) => f && f.userId !== userId && f.userId !== null);
     failures = [...failures, ...mine];
     refreshSnapshot();
@@ -170,6 +198,7 @@ export function resetSyncStatusForTests() {
   pending = 0;
   retrying = false;
   failures = [];
+  inflight = [];
   foreign = [];
   snapshot = { pending: 0, failed: 0, retrying: false, lastError: "" };
   if (typeof window !== "undefined") {

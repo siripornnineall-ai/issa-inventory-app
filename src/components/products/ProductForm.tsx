@@ -28,7 +28,7 @@ export function ProductForm({ existing }: { existing?: Product }) {
   const suppliers = state.suppliers;
   const brandsMap = state.brands;
   const shapeOptionsMap = state.productShapeOptions;
-  const { createProduct, updateProduct, removeProduct, addVariant, upsertProductShape, upsertSupplier } = useActions();
+  const { createProduct, updateProduct, removeProduct, addVariants, upsertProductShape, upsertSupplier } = useActions();
   const isEdit = Boolean(existing);
   const brands = useMemo(() => Object.values(brandsMap).filter((b) => b.active), [brandsMap]);
   const shapeOptions = useMemo(() => {
@@ -180,9 +180,12 @@ export function ProductForm({ existing }: { existing?: Product }) {
         images,
       };
 
+      // เพิ่มทุกตัวเลือกเป็นรายการเดียว (เดิมเพิ่มทีละตัวแล้วส่งขึ้นฐานข้อมูลทีละตัว ถ้าหน้าปิดก่อนส่งครบ ตัวเลือกที่เหลือหาย)
       const addRows = (productId: string, rows: DraftVariant[]) => {
-        for (const row of rows) {
-          addVariant(productId, {
+        if (rows.length === 0) return;
+        addVariants(
+          productId,
+          rows.map((row) => ({
             color: row.color,
             colorCode: row.colorCode || undefined,
             isDefective: row.isDefective,
@@ -192,8 +195,8 @@ export function ProductForm({ existing }: { existing?: Product }) {
             sellingPrice: row.sellingPrice,
             reorderPoint: row.reorderPoint,
             storageLocation: row.storageLocation || undefined,
-          });
-        }
+          }))
+        );
       };
 
       if (isEdit && existing) {

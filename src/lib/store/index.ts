@@ -7,7 +7,7 @@ import { assertUserPermission, setActiveRolePermissions, type Permission } from 
 import { createClient } from "@/lib/supabase/client";
 import { syncStateDiff } from "@/lib/supabase/sync";
 import { toastError } from "@/lib/toast";
-import { clearFailure, discardAllFailures, failedSyncCount, getFailedSyncs, markAttempt, recordFailure, restoreFailures, setPendingSyncs, setRetrying } from "./syncStatus";
+import { clearFailure, discardAllFailures, failedSyncCount, failInflight, getFailedSyncs, markAttempt, recordFailure, recordInflight, restoreFailures, setPendingSyncs, setRetrying, settleInflight } from "./syncStatus";
 import type {
   AppUser,
   Brand,
@@ -55,6 +55,8 @@ interface Actions {
   setProductStatus: (id: string, status: Product["status"]) => void;
   removeProduct: (id: string) => void;
   addVariant: (productId: string, input: Parameters<typeof engine.addVariant>[2]) => string;
+  // เพิ่มหลายตัวเลือกพร้อมกันเป็นรายการเดียว (สำเร็จทั้งชุดหรือไม่เพิ่มเลย และบันทึกลงฐานข้อมูลครั้งเดียว ไม่แยกส่งทีละตัว)
+  addVariants: (productId: string, inputs: Parameters<typeof engine.addVariant>[2][]) => string[];
   updateVariant: (variantId: string, input: Partial<ProductVariant>) => void;
   removeVariant: (variantId: string) => void;
   regenerateProductSkus: (productId: string) => number;
@@ -216,16 +218,20 @@ function installSyncGuards() {
 function persistDiff(prev: AppState, next: AppState) {
   installSyncGuards();
   const userId = currentUserId();
+  // เขียนลงเครื่องก่อนส่งเสมอ: ถ้าปิด/โหลดหน้าใหม่ตอนยังรอคิวอยู่ รอบหน้าเปิดแอปจะส่งต่อให้ (ไม่มีรายการหายเงียบ ๆ)
+  const entryId = prev === next ? null : recordInflight(prev, next, userId);
   pendingSyncs += 1;
   setPendingSyncs(pendingSyncs);
   syncQueue = syncQueue.then(async () => {
     try {
       const supabase = createClient();
       await syncStateDiff(supabase, prev, next);
+      if (entryId) settleInflight(entryId);
     } catch (e) {
       // ไม่ทิ้ง: เก็บไว้ส่งซ้ำ และขึ้นแถบเตือนค้างบนจอ (ดู SyncStatusBanner)
       const message = errorText(e);
-      recordFailure(prev, next, message, userId);
+      if (entryId) failInflight(entryId, message);
+      else recordFailure(prev, next, message, userId);
       toastError(`${message} — ระบบเก็บไว้และจะส่งใหม่ให้เอง`);
     } finally {
       pendingSyncs -= 1;
@@ -306,6 +312,8 @@ export const useStore = create<Store>()((set, get) => ({
     setProductStatus: (id, status) => runChecked(set, get, "product.write", (draft) => engine.setProductStatus(draft as never, id, status)),
     removeProduct: (id) => runChecked(set, get, "product.write", (draft) => engine.removeProduct(draft as never, id)),
     addVariant: (productId, input) => runChecked(set, get, "product.write", (draft) => engine.addVariant(draft as never, productId, input)),
+    addVariants: (productId, inputs) =>
+      runChecked(set, get, "product.write", (draft) => inputs.map((input) => engine.addVariant(draft as never, productId, input))),
     updateVariant: (variantId, input) => runChecked(set, get, "product.write", (draft) => engine.updateVariant(draft as never, variantId, input)),
     removeVariant: (variantId) => runChecked(set, get, "product.write", (draft) => engine.removeVariant(draft as never, variantId)),
     regenerateProductSkus: (productId) => runChecked(set, get, "product.write", (draft) => engine.regenerateProductSkus(draft as never, productId)),
