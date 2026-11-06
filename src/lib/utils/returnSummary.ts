@@ -10,6 +10,18 @@ export interface ReturnFilters {
   to: number;
   brandId?: string; // "" / undefined = ทุกแบรนด์
   returnType?: StockReturnType | ""; // "" / undefined = ทุกประเภท
+  reasonCode?: string; // "" / undefined = ทุกเหตุผล, "none" = ไม่ได้ระบุ (กดดูรายละเอียดจากแผนภูมิ)
+  productId?: string; // "" / undefined = ทุกรุ่น
+}
+
+export type TrendGrain = "day" | "week" | "month";
+
+export interface TrendPoint {
+  key: string; // วันแรกของช่วง (YYYY-MM-DD)
+  label: string;
+  pieces: number;
+  value: number;
+  byType: Record<StockReturnType, number>;
 }
 
 export interface Bucket {
@@ -48,7 +60,9 @@ export interface ReturnSummary {
   byType: Record<StockReturnType, Bucket & { docs: number }>;
   byReason: ({ code: string; label: string; lines: number } & Bucket)[];
   byTag: { tag: string; pieces: number }[];
-  byProduct: ({ productId: string; name: string } & Bucket)[];
+  byProduct: ({ productId: string; name: string; salesPieces: number } & Bucket)[];
+  trend: TrendPoint[];
+  trendGrain: TrendGrain;
   byVariant: ({ variantId: string; label: string } & Bucket)[];
   byChannel: ({ channel: string } & Bucket)[];
   exchanges: { from: string; to: string; pieces: number }[];
@@ -67,6 +81,54 @@ function add(map: Map<string, Bucket>, key: string, pieces: number, value: numbe
 }
 
 const byPiecesDesc = <T extends { pieces: number }>(a: T, b: T) => b.pieces - a.pieces;
+
+const DAY_MS = 86400000;
+const pad = (n: number) => String(n).padStart(2, "0");
+const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+// แบ่งกลุ่มแนวโน้มตามความยาวช่วง: <= 35 วันรายวัน, <= 150 วันรายสัปดาห์ (เริ่มวันจันทร์), นานกว่านั้นรายเดือน
+export function trendGrainFor(from: number, to: number): TrendGrain {
+  const days = (to - from) / DAY_MS;
+  return days <= 35 ? "day" : days <= 150 ? "week" : "month";
+}
+
+function bucketStart(date: Date, grain: TrendGrain): Date {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  if (grain === "week") d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  if (grain === "month") d.setDate(1);
+  return d;
+}
+
+function nextBucket(d: Date, grain: TrendGrain): Date {
+  const n = new Date(d);
+  if (grain === "day") n.setDate(n.getDate() + 1);
+  else if (grain === "week") n.setDate(n.getDate() + 7);
+  else n.setMonth(n.getMonth() + 1);
+  return n;
+}
+
+function buildTrend(rows: ReturnRow[], from: number, to: number): { grain: TrendGrain; trend: TrendPoint[] } {
+  const grain = trendGrainFor(from, to);
+  const blank = () => Object.fromEntries(STOCK_RETURN_TYPES.map((t) => [t, 0])) as Record<StockReturnType, number>;
+  const map = new Map<string, TrendPoint>();
+  // เติมช่วงที่ไม่มีของคืนเป็น 0 เพื่อให้แกนเวลาต่อเนื่อง (จำกัดไม่เกิน 400 จุด กันช่วงยาวผิดปกติ)
+  let cur = bucketStart(new Date(from), grain);
+  const end = new Date(to);
+  for (let i = 0; i < 400 && cur <= end; i++) {
+    const key = ymd(cur);
+    map.set(key, { key, label: key, pieces: 0, value: 0, byType: blank() });
+    cur = nextBucket(cur, grain);
+  }
+  for (const r of rows) {
+    const key = ymd(bucketStart(new Date(r.date), grain));
+    const p = map.get(key);
+    if (!p) continue;
+    p.pieces += r.qty;
+    p.value += r.value;
+    p.byType[r.returnType] += r.qty;
+  }
+  return { grain, trend: [...map.values()] };
+}
 
 export function returnSummary(state: AppState, f: ReturnFilters): ReturnSummary {
   // ช่องทางที่ขายเก็บอยู่ในเหตุผลของรายการเคลื่อนไหว ("ประเภท · ช่องทาง") ใบรับคืนไม่ได้เก็บช่องทางแยก
@@ -109,6 +171,8 @@ export function returnSummary(state: AppState, f: ReturnFilters): ReturnSummary 
       const variant = state.variants[line.itemId];
       const product = variant ? state.products[variant.productId] : undefined;
       if (f.brandId && product?.brandId !== f.brandId) continue;
+      if (f.productId && product?.id !== f.productId) continue;
+      if (f.reasonCode && (line.returnReason || "none") !== f.reasonCode) continue;
       const hasPrice = line.unitPrice !== undefined && line.unitPrice !== null;
       if (!hasPrice) estimatedLines += 1;
       const unitPrice = hasPrice ? (line.unitPrice as number) : (variant?.sellingPrice ?? 0);
@@ -183,18 +247,23 @@ export function returnSummary(state: AppState, f: ReturnFilters): ReturnSummary 
 
   // ยอดขาย (ชิ้น) ในช่วงเดียวกัน ไว้เทียบเป็นเปอร์เซ็นต์ (ออเดอร์ที่ไม่ยกเลิก ตามวันที่ขาย)
   let salesPieces = 0;
+  const salesByProduct = new Map<string, number>();
   for (const o of Object.values(state.orders)) {
     if (o.status === "cancelled") continue;
     const t = new Date(o.date).getTime();
     if (!(t >= f.from && t <= f.to)) continue;
     for (const l of o.lines) {
       if (f.brandId && state.products[l.productId]?.brandId !== f.brandId) continue;
+      if (f.productId && l.productId !== f.productId) continue;
       salesPieces += l.qty;
+      salesByProduct.set(l.productId, (salesByProduct.get(l.productId) ?? 0) + l.qty);
     }
   }
 
   const pieces = rows.reduce((s, r) => s + r.qty, 0);
   const value = rows.reduce((s, r) => s + r.value, 0);
+
+  const { grain, trend } = buildTrend(rows, f.from, f.to);
 
   const reasonOrder = [...RETURN_REASONS.map((r) => r.code as string), "none"];
   const byReason = [...reasons.entries()]
@@ -211,7 +280,9 @@ export function returnSummary(state: AppState, f: ReturnFilters): ReturnSummary 
     byType,
     byReason,
     byTag: [...tags.entries()].map(([tag, p]) => ({ tag, pieces: p })).sort(byPiecesDesc),
-    byProduct: [...products.entries()].map(([productId, b]) => ({ productId, ...b })).sort(byPiecesDesc),
+    byProduct: [...products.entries()].map(([productId, b]) => ({ productId, ...b, salesPieces: salesByProduct.get(productId) ?? 0 })).sort(byPiecesDesc),
+    trend,
+    trendGrain: grain,
     byVariant: [...variants.entries()].map(([variantId, b]) => ({ variantId, ...b })).sort(byPiecesDesc),
     byChannel: [...channels.entries()].map(([channel, b]) => ({ channel, ...b })).sort(byPiecesDesc),
     exchanges: [...pairs.values()].sort(byPiecesDesc),
