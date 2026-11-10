@@ -338,6 +338,33 @@ export interface StockDocLine {
   returnReason?: string;
   returnTags?: string[];
   exchangeToId?: string;
+  // รับเข้าแบบ "เย็บเสร็จจากโรงงาน BC": จำนวนนี้ถูกหักจากตัวที่ยังไม่เย็บของสี/ไซซ์เดียวกัน (ดู factoryWip.ts)
+  fromWip?: boolean;
+}
+
+// โรงงาน BC: สมุดบันทึกตัวที่ตัดเป็นชิ้นแล้วแต่ยังไม่ได้เย็บ (แยกจากสต็อกสินค้าสำเร็จรูป) แก้ไม่ได้ ถ้าผิดให้บันทึกรายการปรับยอด
+export type FactoryWipKind = "opening" | "cut_in" | "adjust" | "scrap";
+export const FACTORY_WIP_KINDS: FactoryWipKind[] = ["opening", "cut_in", "adjust", "scrap"];
+export const FACTORY_WIP_KIND_LABEL_TH: Record<FactoryWipKind, string> = {
+  opening: "ยอดตั้งต้น (นับของที่มีอยู่)",
+  cut_in: "ตัดเข้า (ตัดผ้าเพิ่ม)",
+  adjust: "ปรับยอด (นับแล้วไม่ตรง)",
+  scrap: "เสียหาย/ทิ้ง",
+};
+export function isFactoryWipKind(v: string): v is FactoryWipKind {
+  return (FACTORY_WIP_KINDS as string[]).includes(v);
+}
+export interface FactoryWipEntry {
+  id: string;
+  batchId: string; // บันทึกครั้งเดียวกัน (กรอกหลายสี/ไซซ์พร้อมกัน)
+  date: string;
+  variantId: string;
+  kind: FactoryWipKind;
+  qtyChange: number; // ติดลบได้ (ปรับยอดลด / เสียหาย)
+  note?: string;
+  actorId?: string;
+  actorName: string;
+  createdAt: string;
 }
 
 export interface StockInDoc {

@@ -1,7 +1,7 @@
 import type { PostgrestSingleResponse, SupabaseClient } from "@supabase/supabase-js";
 import type { AppState } from "@/lib/store/state";
 import { ROLES } from "@/lib/auth/permissions";
-import type { Invoice, Order, Product, ProductImage, StockInDoc, StockMovement, StockOutDoc, Transfer, UnitToken } from "@/lib/types";
+import type { FactoryWipEntry, Invoice, Order, Product, ProductImage, StockInDoc, StockMovement, StockOutDoc, Transfer, UnitToken } from "@/lib/types";
 
 // เปรียบเทียบ state ก่อน/หลังการทำรายการ แล้วบันทึกส่วนต่างลง Supabase (write-through)
 // ทำให้ engine.ts (business logic) ยังทำงานแบบ sync ในหน่วยความจำเหมือนเดิมทุกประการ
@@ -410,6 +410,8 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
                 return_reason: l.returnReason ?? null,
                 return_tags: l.returnTags && l.returnTags.length > 0 ? l.returnTags : null,
                 exchange_to_variant_id: l.exchangeToId ?? null,
+                // ส่งเฉพาะเมื่อเป็นแบบเย็บเสร็จจากโรงงาน BC (ใบทั่วไปไม่ส่งคอลัมน์นี้ กันพังถ้าฐานข้อมูลยังไม่ได้เพิ่มคอลัมน์)
+                ...(l.fromWip ? { from_wip: true } : {}),
               }))
             )
         )
@@ -487,6 +489,24 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
   if (mov.added.length > 0) jobs.push(insertMovements(supabase, mov.added, mapNo));
   for (const m of mov.changed) {
     jobs.push(check(supabase.from("stock_movements").update({ edited_note: m.editedNote ?? null }).eq("id", m.id)));
+  }
+
+  // โรงงาน BC: สมุดบันทึกตัวที่ยังไม่เย็บ (เพิ่มอย่างเดียว แก้/ลบไม่ได้) ส่งเป็นคำสั่งเดียว รอบส่งซ้ำข้ามแถวที่มีอยู่แล้ว
+  const wip = diffRecords(prev.factoryWipEntries, next.factoryWipEntries);
+  if (wip.added.length > 0) {
+    const rows = (wip.added as FactoryWipEntry[]).map((e) => ({
+      id: e.id,
+      batch_id: e.batchId,
+      entry_date: docDate(e.date),
+      variant_id: e.variantId,
+      kind: e.kind,
+      qty_change: e.qtyChange,
+      note: e.note ?? null,
+      actor_id: e.actorId ?? null,
+      actor_name: e.actorName,
+      created_at: e.createdAt,
+    }));
+    jobs.push(check(supabase.from("factory_wip_entries").upsert(rows, { onConflict: "id", ignoreDuplicates: true })));
   }
 
   const orders = diffRecords(prev.orders, next.orders);

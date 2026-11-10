@@ -12,6 +12,7 @@ import type {
   EquipmentType,
   EquipmentTypeOption,
   EquipmentUnit,
+  FactoryWipEntry,
   Invoice,
   MovementItemType,
   MovementType,
@@ -41,6 +42,7 @@ import type {
   UserRole,
   Warehouse,
 } from "@/lib/types";
+import { isFactoryWipKind } from "@/lib/types";
 import { DEFAULT_STOREFRONT_SETTINGS } from "@/lib/store/state";
 import { setTableTimings } from "@/lib/store/loadStats";
 import { normalizeUnitCode, UNIT_CODE_PATTERN } from "@/lib/store/engine";
@@ -164,7 +166,7 @@ export async function fetchAppState(supabase: SupabaseClient, onProgress?: (p: L
   const pending = new Set<string>();
   const timings: { table: string; ms: number }[] = [];
   let done = 0;
-  const TOTAL_TABLES = 33;
+  const TOTAL_TABLES = 34;
   const tracked = <T,>(table: string, work: Promise<T>): Promise<T> => {
     const started = performance.now();
     pending.add(table);
@@ -249,6 +251,8 @@ export async function fetchAppState(supabase: SupabaseClient, onProgress?: (p: L
   const productImagesRows = await productImagesPromise;
   // สิทธิ์ตามตำแหน่ง: ถ้าโหลดไม่ได้/ยังไม่มีข้อมูล ใช้ค่าเริ่มต้นของระบบ (ผู้ดูแลระบบมีสิทธิ์ทุกอย่างเสมอไม่ขึ้นกับตารางนี้)
   const rolePermsRes = await tracked("role_permissions", fetchAllRows(supabase, "role_permissions", ["role", "permission"]));
+  // โรงงาน BC (ตัวที่ยังไม่เย็บ): ถ้าตารางยังไม่ถูกสร้าง/โหลดไม่ได้ ใช้ค่าว่าง ไม่ให้ทั้งแอปเปิดไม่ขึ้น (ฟีเจอร์นี้ไม่กระทบสต็อกหลัก)
+  const factoryWipRes = await tracked("factory_wip_entries", fetchAllRows(supabase, "factory_wip_entries", ["created_at", "id"]));
   setTableTimings(timings);
   const rolePermissions = cloneRolePermissions();
   if (!rolePermsRes.error && rolePermsRes.data.length > 0) {
@@ -547,6 +551,23 @@ export async function fetchAppState(supabase: SupabaseClient, onProgress?: (p: L
     };
   }
 
+  const factoryWipEntries: Record<string, FactoryWipEntry> = {};
+  for (const row of factoryWipRes.error ? [] : factoryWipRes.data) {
+    if (!isFactoryWipKind(row.kind)) continue;
+    factoryWipEntries[row.id] = {
+      id: row.id,
+      batchId: row.batch_id,
+      date: row.entry_date,
+      variantId: row.variant_id,
+      kind: row.kind,
+      qtyChange: row.qty_change,
+      note: row.note ?? undefined,
+      actorId: row.actor_id ?? undefined,
+      actorName: row.actor_name,
+      createdAt: row.created_at,
+    };
+  }
+
   const linesByStockInDoc = new Map<string, StockDocLine[]>();
   for (const row of stockInLinesRes.data ?? []) {
     const list = linesByStockInDoc.get(row.doc_id) ?? [];
@@ -560,6 +581,7 @@ export async function fetchAppState(supabase: SupabaseClient, onProgress?: (p: L
       returnReason: row.return_reason ?? undefined,
       returnTags: row.return_tags ?? undefined,
       exchangeToId: row.exchange_to_variant_id ?? undefined,
+      fromWip: row.from_wip === true ? true : undefined,
     });
     linesByStockInDoc.set(row.doc_id, list);
   }
@@ -793,6 +815,7 @@ export async function fetchAppState(supabase: SupabaseClient, onProgress?: (p: L
     storefrontSettings,
     poSignatories,
     unitTokens,
+    factoryWipEntries,
     rolePermissions,
     seededAt: new Date().toISOString(),
   };

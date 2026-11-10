@@ -67,6 +67,7 @@ interface Actions {
   removeEquipment: (id: string) => void;
 
   stockIn: (input: engine.StockInInput) => ReturnType<typeof engine.stockIn>;
+  recordFactoryWip: (input: engine.FactoryWipInput) => ReturnType<typeof engine.recordFactoryWip>;
   stockReturn: (input: engine.StockReturnInput) => ReturnType<typeof engine.stockReturn>;
   linkProductSource: (productId: string, sourceProductId: string) => ReturnType<typeof engine.linkProductSource>;
   unlinkProductSource: (productId: string) => number;
@@ -321,6 +322,9 @@ export const useStore = create<Store>()((set, get) => ({
     createEquipment: (input) => runChecked(set, get, "equipment.write", (draft) => engine.createEquipment(draft as never, input)),
     updateEquipment: (id, input) => runChecked(set, get, "equipment.write", (draft) => engine.updateEquipment(draft as never, id, input)),
     removeEquipment: (id) => runChecked(set, get, "equipment.write", (draft) => engine.removeEquipment(draft as never, id)),
+    // โรงงาน BC: ยอดตั้งต้น/ตัดเข้า ใช้สิทธิ์รับเข้า ส่วนปรับยอด/เสียหายใช้สิทธิ์นับสต็อก/ปรับยอด
+    recordFactoryWip: (input) =>
+      runChecked(set, get, input.kind === "adjust" || input.kind === "scrap" ? "stock.adjust" : "stock.in", (draft) => engine.recordFactoryWip(draft as never, input)),
     stockIn: (input) =>
       runChecked(set, get, input.itemType === "product" ? "stock.in" : "equipment.write", (draft) => engine.stockIn(draft as never, input)),
     stockReturn: (input) => runChecked(set, get, "stock.in", (draft) => engine.stockReturn(draft as never, input)),

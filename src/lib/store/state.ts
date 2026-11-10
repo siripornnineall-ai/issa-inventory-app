@@ -8,6 +8,7 @@ import type {
   Equipment,
   EquipmentRequisition,
   EquipmentTypeOption,
+  FactoryWipEntry,
   Invoice,
   Order,
   Product,
@@ -82,6 +83,7 @@ export interface AppState {
   storefrontSettings: StorefrontSettings;
   poSignatories: Record<string, PoSignatory>;
   unitTokens: Record<string, UnitToken>;
+  factoryWipEntries: Record<string, FactoryWipEntry>; // โรงงาน BC: ตัวที่ยังไม่เย็บ (ไม่รวมในสต็อกสินค้า)
   rolePermissions: RolePermissionMap; // สิทธิ์ของแต่ละตำแหน่ง (ผู้ดูแลระบบกำหนดเองได้)
   seededAt: string | null;
 }
@@ -120,6 +122,7 @@ export function emptyState(): AppState {
     storefrontSettings: { ...DEFAULT_STOREFRONT_SETTINGS },
     poSignatories: {},
     unitTokens: {},
+    factoryWipEntries: {},
     rolePermissions: cloneRolePermissions(),
     seededAt: null,
   };

@@ -29,6 +29,7 @@ import { PendingSaveBar } from "@/components/stock/PendingSaveBar";
 import { DuplicateSaveDialog } from "@/components/stock/DuplicateSaveDialog";
 import { SaveSuccessCard, type SavedInfo } from "@/components/stock/SaveSuccessCard";
 import { findRecentSimilarDoc, useSaveGuard } from "@/lib/utils/saveGuard";
+import { wipBalances } from "@/lib/utils/factoryWip";
 import type { UnitToken, ProductVariant } from "@/lib/types";
 
 interface Line {
@@ -36,6 +37,17 @@ interface Line {
   variantId: string;
   qty: number;
   unitCost: number;
+}
+
+// รับมาจากโรงงาน BC: บอกยอดยังไม่เย็บก่อน/หลังรับ (ติดลบ = รับมากกว่าที่บันทึกตัดไว้ บันทึกได้แต่เตือน)
+function WipLineNote({ before, qty }: { before: number; qty: number }) {
+  const after = before - (qty || 0);
+  return (
+    <p className={`text-xs ${after < 0 ? "font-semibold text-[var(--color-danger)]" : "text-[var(--color-on-surface-variant)]"}`}>
+      ยังไม่เย็บ {formatNumber(before)} → {formatNumber(after)}
+      {after < 0 && " (ติดลบ)"}
+    </p>
+  );
 }
 
 function StockInForm({ onAgain }: { onAgain: () => void }) {
@@ -56,7 +68,12 @@ function StockInForm({ onAgain }: { onAgain: () => void }) {
   const [approvedByName, setApprovedByName] = useState("");
   const [billNumber, setBillNumber] = useState("");
   const [note, setNote] = useState("");
+  // รับมาจาก: รับเข้าปกติ หรือ เย็บเสร็จจากโรงงาน BC (หักจากตัวที่ยังไม่เย็บของสี/ไซซ์เดียวกัน)
+  const [source, setSource] = useState<"normal" | "wip">("normal");
   const [lines, setLines] = useState<Line[]>([]);
+  const wipBal = useMemo(() => wipBalances(state), [state]);
+  const fromWip = source === "wip";
+  const wipShort = fromWip ? lines.filter((l) => (wipBal.get(l.variantId) ?? 0) - (l.qty || 0) < 0) : [];
   // ล็อกปุ่มบันทึกทันทีที่กด (กันมือถือค้างแล้วบันทึกซ้ำ) และขึ้นหน้ายืนยันเมื่อสำเร็จ
   const guard = useSaveGuard();
   const saving = guard.locked;
@@ -74,8 +91,8 @@ function StockInForm({ onAgain }: { onAgain: () => void }) {
 
   // เก็บร่างไว้ในเครื่อง: ปิดแอป/สลับแอปแล้วกลับมา รายการที่สแกนค้างไว้ไม่หาย (ถามก่อนว่าจะทำต่อไหม)
   const draftValue = useMemo(
-    () => ({ warehouseId, supplierId, poNumber, issuePo, issuedByName, approvedByName, billNumber, note, lines, scannedTokensByVariant }),
-    [warehouseId, supplierId, poNumber, issuePo, issuedByName, approvedByName, billNumber, note, lines, scannedTokensByVariant]
+    () => ({ warehouseId, supplierId, poNumber, issuePo, issuedByName, approvedByName, billNumber, note, source, lines, scannedTokensByVariant }),
+    [warehouseId, supplierId, poNumber, issuePo, issuedByName, approvedByName, billNumber, note, source, lines, scannedTokensByVariant]
   );
   const draft = useDraft({
     key: user ? `issa-draft:stock-in:${user.id}` : null,
@@ -91,6 +108,7 @@ function StockInForm({ onAgain }: { onAgain: () => void }) {
       setApprovedByName(v.approvedByName ?? "");
       setBillNumber(v.billNumber ?? "");
       setNote(v.note ?? "");
+      setSource(v.source === "wip" ? "wip" : "normal");
       setLines(pruned.lines);
       setScannedTokensByVariant(pruned.scanned);
       if (pruned.dropped > 0) toastError(`ตัดป้าย ${pruned.dropped} ใบที่ถูกบันทึกไปแล้วโดยเครื่องอื่นออกจากรายการ`);
@@ -194,6 +212,7 @@ function StockInForm({ onAgain }: { onAgain: () => void }) {
         receivedBy: user.id,
         receivedByName: user.name,
         note: note || undefined,
+        fromWip: fromWip || undefined,
         lines: lines.map((l) => ({ itemId: l.variantId, qty: l.qty, unitCost: l.unitCost })),
       });
       for (const tokenIds of Object.values(scannedTokensByVariant)) {
@@ -240,6 +259,12 @@ function StockInForm({ onAgain }: { onAgain: () => void }) {
           <CardTitle>ข้อมูลการรับเข้า</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+          <FormField label="รับมาจาก" className="col-span-2 lg:col-span-3" hint={fromWip ? "สต็อกสินค้าเพิ่มตามปกติ และหักจากตัวที่ยังไม่เย็บ (โรงงาน BC) ของสี/ไซซ์เดียวกัน" : undefined}>
+            <Select value={source} onChange={(e) => setSource(e.target.value === "wip" ? "wip" : "normal")}>
+              <option value="normal">รับเข้าปกติ (ซื้อ/ผลิตเข้า)</option>
+              <option value="wip">เย็บเสร็จจากโรงงาน BC (หักจากตัวที่ยังไม่เย็บ)</option>
+            </Select>
+          </FormField>
           <FormField label="วันที่รับเข้า" required>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </FormField>
@@ -314,6 +339,16 @@ function StockInForm({ onAgain }: { onAgain: () => void }) {
           <CardTitle>รายการสินค้า</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          {fromWip && (
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container)] p-3 text-sm">
+              <p className="font-medium">รับมาจากโรงงาน BC: ทุกรายการจะหักจากตัวที่ยังไม่เย็บของสี/ไซซ์เดียวกัน</p>
+              {wipShort.length > 0 && (
+                <p className="mt-1 text-[var(--color-danger)]">
+                  มี {formatNumber(wipShort.length)} รายการที่รับมากกว่าตัวที่ยังไม่เย็บที่บันทึกไว้ ยอดจะติดลบ บันทึกได้ แต่ควรไปเพิ่มยอดตัดเข้าที่หน้าโรงงาน BC ให้ตรงภายหลัง
+                </p>
+              )}
+            </div>
+          )}
           <VariantPicker warehouseId={warehouseId} onSelect={addLine} onScanSku={scanSku} onScanToken={handleScanToken} />
 
           {scanLog.length > 0 && (
@@ -344,6 +379,7 @@ function StockInForm({ onAgain }: { onAgain: () => void }) {
                           <p className="truncate text-xs text-[var(--color-on-surface-variant)]">
                             {variant?.color} / {variant?.size} · {variant?.sku}
                           </p>
+                          {fromWip && <WipLineNote before={wipBal.get(l.variantId) ?? 0} qty={l.qty} />}
                         </div>
                         <button onClick={() => removeLine(l.key)} className="shrink-0 text-[var(--color-danger)]" aria-label="ลบรายการ">
                           <Trash2 className="h-3.5 w-3.5" />
@@ -400,6 +436,7 @@ function StockInForm({ onAgain }: { onAgain: () => void }) {
                             <p className="text-xs text-[var(--color-on-surface-variant)]">
                               {variant?.color} / {variant?.size} · {variant?.sku}
                             </p>
+                            {fromWip && <WipLineNote before={wipBal.get(l.variantId) ?? 0} qty={l.qty} />}
                           </Td>
                           <Td>
                             <Input

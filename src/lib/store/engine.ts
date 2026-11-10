@@ -31,6 +31,7 @@ import type {
   UserRole,
   Warehouse,
 } from "@/lib/types";
+import type { FactoryWipKind } from "@/lib/types";
 import { SALES_CHANNEL_LABEL_TH, STOCK_RETURN_LABEL_TH, STOCK_RETURN_TYPES } from "@/lib/types";
 import { ADMIN_ONLY_PERMISSIONS, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, type Permission } from "@/lib/auth/permissions";
 import { AppState, stockKey } from "./state";
@@ -465,6 +466,8 @@ export interface StockInInput {
   receivedBy: string;
   receivedByName: string;
   note?: string;
+  // รับมาจาก "เย็บเสร็จจากโรงงาน BC": ทุกบรรทัดถูกหักจากตัวที่ยังไม่เย็บของสี/ไซซ์เดียวกัน (เฉพาะสินค้า ไม่ใช่อุปกรณ์)
+  fromWip?: boolean;
   lines: { itemId: string; qty: number; unitCost?: number }[];
 }
 
@@ -483,6 +486,7 @@ export function stockIn(draft: Draft<AppState>, input: StockInInput): StockInDoc
   for (const line of input.lines) {
     if (line.qty <= 0) throw new BusinessRuleError("จำนวนรับเข้าต้องมากกว่า 0");
   }
+  if (input.fromWip && input.itemType !== "product") throw new BusinessRuleError("รับมาจากโรงงาน BC ใช้ได้เฉพาะสินค้า");
   const map = getStockMap(draft, input.itemType);
   const docId = newId();
   const docNo = genDocNo("SIN", nextSeq(draft, "SIN"));
@@ -510,12 +514,12 @@ export function stockIn(draft: Draft<AppState>, input: StockInInput): StockInDoc
       warehouseToId: input.warehouseId,
       actorId: input.receivedBy,
       actorName: input.receivedByName,
-      reason: "รับสินค้าเข้า",
+      reason: input.fromWip ? "รับสินค้าเข้า · เย็บเสร็จจากโรงงาน BC" : "รับสินค้าเข้า",
       note: input.note,
       relatedDocNo: docNo,
       createdAt: input.date,
     } as StockMovement);
-    lines.push({ id: newId(), itemId: line.itemId, qty: line.qty, unitCost: line.unitCost });
+    lines.push({ id: newId(), itemId: line.itemId, qty: line.qty, unitCost: line.unitCost, ...(input.fromWip ? { fromWip: true } : {}) });
   }
 
   const doc: StockInDoc = {
@@ -539,6 +543,52 @@ export function stockIn(draft: Draft<AppState>, input: StockInInput): StockInDoc
   };
   draft.stockInDocs[docId] = doc;
   return doc;
+}
+
+// ===================== โรงงาน BC: ตัวที่ยังไม่เย็บ =====================
+// สมุดบันทึกแยกจากสต็อกสินค้า (ไม่แตะ variantStock / movements) ใช้บันทึกยอดตั้งต้น ตัดเข้า ปรับยอด และเสียหาย
+// ตัวเลขที่กรอก: ยอดตั้งต้น/ตัดเข้า/เสียหาย กรอกเป็นจำนวนบวกเสมอ (เสียหายระบบบันทึกเป็นลบให้) ปรับยอดกรอกเป็นส่วนต่างบวก/ลบได้
+export interface FactoryWipInput {
+  kind: FactoryWipKind;
+  date: string;
+  note?: string;
+  actorId?: string;
+  actorName: string;
+  lines: { variantId: string; qty: number }[];
+}
+
+export function recordFactoryWip(draft: Draft<AppState>, input: FactoryWipInput): { batchId: string; entries: number; pieces: number } {
+  const lines = input.lines.filter((l) => l.qty !== 0);
+  if (lines.length === 0) throw new BusinessRuleError("กรุณากรอกจำนวนอย่างน้อย 1 ช่อง");
+  if ((input.kind === "adjust" || input.kind === "scrap") && !input.note?.trim()) throw new BusinessRuleError("กรุณาระบุเหตุผลของการปรับยอด/เสียหาย");
+  const seen = new Set<string>();
+  const batchId = newId();
+  let pieces = 0;
+  for (const line of lines) {
+    if (!Number.isInteger(line.qty)) throw new BusinessRuleError("จำนวนต้องเป็นจำนวนเต็ม");
+    if (input.kind !== "adjust" && line.qty < 0) throw new BusinessRuleError("จำนวนต้องมากกว่า 0 (ถ้าจะลดยอดให้ใช้ปรับยอดหรือเสียหาย)");
+    if (!draft.variants[line.variantId]) throw new BusinessRuleError("ไม่พบสี/ไซซ์ที่เลือก");
+    if (seen.has(line.variantId)) throw new BusinessRuleError("มีสี/ไซซ์ซ้ำในการบันทึกเดียวกัน");
+    seen.add(line.variantId);
+  }
+  for (const line of lines) {
+    const id = newId();
+    const qtyChange = input.kind === "scrap" ? -Math.abs(line.qty) : line.qty;
+    draft.factoryWipEntries[id] = {
+      id,
+      batchId,
+      date: input.date,
+      variantId: line.variantId,
+      kind: input.kind,
+      qtyChange,
+      note: input.note?.trim() || undefined,
+      actorId: input.actorId,
+      actorName: input.actorName,
+      createdAt: nowISO(),
+    };
+    pieces += qtyChange;
+  }
+  return { batchId, entries: lines.length, pieces };
 }
 
 // ===================== ยกเลิกใบรับเข้า / ใบรับคืน =====================
