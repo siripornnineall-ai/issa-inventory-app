@@ -1,6 +1,7 @@
 import type { AppState } from "@/lib/store/state";
 import { FACTORY_WIP_KIND_LABEL_TH, type FactoryWipKind } from "@/lib/types";
 import { compareSizes } from "@/lib/utils/sizes";
+import { compareColors } from "@/lib/utils/colorOrder";
 import { wipByProduct, type WipProductSummary } from "./factoryWip";
 
 // ข้อมูลสำหรับหน้าโรงงาน BC: ตารางสี x ไซซ์ต่อรุ่น และประวัติการบันทึก (รวมตามครั้งที่บันทึก)
@@ -17,7 +18,7 @@ export interface WipMatrix {
   maxCell: number;
 }
 
-function toMatrix(p: WipProductSummary): WipMatrix {
+function toMatrix(p: WipProductSummary, product?: { colorOrder?: string[] }): WipMatrix {
   const sizes = [...new Set(p.variants.map((v) => v.size))].sort(compareSizes);
   const byColor = new Map<string, { color: string; total: number; cells: Record<string, number> }>();
   const sizeTotals: Record<string, number> = {};
@@ -30,7 +31,7 @@ function toMatrix(p: WipProductSummary): WipMatrix {
     sizeTotals[v.size] = (sizeTotals[v.size] ?? 0) + v.qty;
     maxCell = Math.max(maxCell, v.qty);
   }
-  const colors = [...byColor.values()].sort((a, b) => b.total - a.total || a.color.localeCompare(b.color, "th"));
+  const colors = [...byColor.values()].sort((a, b) => compareColors(a.color, b.color, product));
   return { productId: p.productId, name: p.name, brandId: p.brandId, total: p.total, negativeCells: p.negativeCells, sizes, colors, sizeTotals, maxCell };
 }
 
@@ -38,7 +39,7 @@ export function wipMatrices(state: AppState, filter: { brandId?: string; search?
   const q = (filter.search ?? "").trim().toLowerCase();
   return wipByProduct(state)
     .filter((p) => (!filter.brandId || p.brandId === filter.brandId) && (!q || p.name.toLowerCase().includes(q)))
-    .map(toMatrix);
+    .map((p) => toMatrix(p, state.products[p.productId]));
 }
 
 export interface WipBatch {

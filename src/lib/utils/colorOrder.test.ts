@@ -1,0 +1,38 @@
+import { describe, it, expect } from "vitest";
+import { DEFAULT_COLOR_ORDER, colorRank, compareColors, orderedColorsOf, sortColors } from "./colorOrder";
+
+describe("ลำดับสี", () => {
+  it("ลำดับมาตรฐานตามชีต: ดำ กรม เทาดิน ... ชานม", () => {
+    expect(DEFAULT_COLOR_ORDER.slice(0, 4)).toEqual(["ดำ", "กรม", "เทาดิน", "น้ำตาลไหม้"]);
+    expect(sortColors(["ขาว", "ครีม", "ดำ", "กรม"])).toEqual(["ดำ", "กรม", "ครีม", "ขาว"]);
+  });
+
+  it("รุ่นที่ตั้งลำดับเอง (เช่น Wendy Mid) มาก่อนลำดับมาตรฐาน สีที่ไม่ได้ตั้งตามหลังด้วยลำดับมาตรฐาน", () => {
+    const wendyMid = { colorOrder: ["ดำ", "เทาดิน", "โอวัลติน", "ครีม", "เขียวขี้ม้า", "กรม", "ขาว"] };
+    expect(sortColors(["กรม", "เขียวขี้ม้า", "ดำ", "ขาว", "ครีม", "เทาดิน", "โอวัลติน", "น้ำเงิน"], wendyMid)).toEqual([
+      "ดำ",
+      "เทาดิน",
+      "โอวัลติน",
+      "ครีม",
+      "เขียวขี้ม้า",
+      "กรม",
+      "ขาว",
+      "น้ำเงิน",
+    ]);
+    // ไม่ตั้ง = ลำดับมาตรฐาน (กรม มาที่ 2)
+    expect(sortColors(["เทาดิน", "กรม", "ดำ"])).toEqual(["ดำ", "กรม", "เทาดิน"]);
+  });
+
+  it("สีใหม่ที่ไม่อยู่ในลำดับไหนเลยไปท้าย เรียงตามชื่อ และไม่ทำให้ลำดับของสีอื่นเปลี่ยน", () => {
+    expect(sortColors(["ส้มมะนาว", "ดำ", "เขียวมะนาว", "ขาว"])).toEqual(["ดำ", "ขาว", "เขียวมะนาว", "ส้มมะนาว"]);
+    expect(colorRank("สีแปลก")).toBe(Number.MAX_SAFE_INTEGER);
+    expect(compareColors("ดำ", "สีแปลก")).toBeLessThan(0);
+  });
+
+  it("ไม่แก้ลิสต์ที่ส่งเข้ามา (ไม่กระทบข้อมูลต้นทาง) และตัดช่องว่าง/ซ้ำ", () => {
+    const input = ["ขาว", "ดำ"];
+    sortColors(input);
+    expect(input).toEqual(["ขาว", "ดำ"]);
+    expect(orderedColorsOf([" ดำ ", "ดำ", "ขาว", ""])).toEqual(["ดำ", "ขาว"]);
+  });
+});

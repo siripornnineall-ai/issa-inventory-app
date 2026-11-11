@@ -10,6 +10,7 @@ import { LabelCalibrationPanel } from "@/components/products/LabelCalibrationPan
 import { useStore, useActions } from "@/lib/store";
 import { productVariants } from "@/lib/store/selectors";
 import { compareSizes } from "@/lib/utils/sizes";
+import { compareColors } from "@/lib/utils/colorOrder";
 import { useLabelCalibration } from "@/lib/utils/labelCalibration";
 import { preloadImages } from "@/lib/utils/preloadImages";
 import { toastError } from "@/lib/toast";
@@ -58,8 +59,10 @@ export default function ProductLabelsPage() {
       if (!map.has(v.color)) map.set(v.color, []);
       map.get(v.color)!.push(v);
     }
-    return Array.from(map.entries()).map(([color, rows]) => ({ color, rows: [...rows].sort((a, b) => compareSizes(a.size, b.size)) }));
-  }, [variants]);
+    return Array.from(map.entries())
+      .sort(([a], [b]) => compareColors(a, b, product))
+      .map(([color, rows]) => ({ color, rows: [...rows].sort((a, b) => compareSizes(a.size, b.size)) }));
+  }, [variants, product]);
 
   function toggle(id: string) {
     setSelected((prev) => {

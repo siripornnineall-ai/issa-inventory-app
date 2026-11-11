@@ -64,12 +64,12 @@ describe("monthlySales: ยอดขายสุทธิรายเดือ�
     expect(p.colors.map((c) => c.color)).toEqual(["ดำ", "ครีม"]); // ดำ 3+5=8, ครีม 7
   });
 
-  it("เรียงสีตามยอดรวมมากไปน้อย และ % = สัดส่วนของรุ่น", () => {
+  it("เรียงสีตามลำดับสีที่ตั้งไว้ (ไม่ตามยอด) และ % = สัดส่วนของรุ่น", () => {
     const state = build([order("o1", "2026-10-05T10:00:00", [line("v-black-M", 3), line("v-cream-L", 7)])]);
     const [p] = monthlySales(state, 2026, 9);
     expect(p.colors.map((c) => [c.color, c.total, c.sharePct])).toEqual([
-      ["ครีม", 7, 70],
       ["ดำ", 3, 30],
+      ["ครีม", 7, 70],
     ]);
     expect(p.sizes).toEqual(["M", "L"]);
     expect(p.sizeTotals).toEqual({ M: 3, L: 7 });

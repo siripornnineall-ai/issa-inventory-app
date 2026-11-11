@@ -133,6 +133,8 @@ export interface Product {
   brandId?: string;
   modelCode?: string; // รหัสรุ่นสำหรับสร้าง SKU เช่น WEN, BS
   shape?: string; // ทรงสินค้า
+  // ลำดับสีของรุ่นนี้ที่ใช้แสดงในทุกหน้า (ว่าง = ใช้ลำดับมาตรฐาน ดู colorOrder.ts) สีที่ไม่อยู่ในรายการตามหลังลำดับมาตรฐาน
+  colorOrder?: string[];
   createdAt: string;
   updatedAt: string;
 }

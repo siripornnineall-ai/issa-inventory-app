@@ -295,6 +295,7 @@ async function syncStateDiffInner(supabase: SupabaseClient, prev: AppState, next
           brand_id: p.brandId ?? null,
           model_code: p.modelCode ?? null,
           shape: p.shape ?? null,
+          color_order: p.colorOrder && p.colorOrder.length > 0 ? p.colorOrder : null,
           created_at: p.createdAt,
           updated_at: p.updatedAt,
         })

@@ -97,3 +97,20 @@ describe("หน้าบันทึกตัวที่ยังไม่เ�
     expect(Object.keys(useStore.getState().factoryWipEntries)).toHaveLength(0);
   });
 });
+
+describe("โรงงาน BC: ลำดับสี", () => {
+  it("ตารางเรียงสีตามลำดับที่ตั้งไว้ ไม่ตามยอด", async () => {
+    const { wipMatrices } = await import("@/lib/utils/factoryWipView");
+    seed();
+    const s = useStore.getState();
+    // เพิ่มสีกรมที่ยอดมากกว่าดำ: ลำดับมาตรฐานยังต้องเป็น ดำ ก่อน กรม
+    const state = {
+      ...s,
+      variants: { ...s.variants, vNavy: { id: "vNavy", productId: "p1", color: "กรม", size: "M", sku: "N", active: true, purchasePrice: 0, sellingPrice: 1 } },
+      factoryWipEntries: { ...s.factoryWipEntries, e9: { id: "e9", batchId: "b-2", date: iso, variantId: "vNavy", kind: "opening" as const, qtyChange: 900, actorName: "x", createdAt: iso } },
+    };
+    expect(wipMatrices(state as never)[0].colors.map((c) => c.color)).toEqual(["ดำ", "กรม"]);
+    const custom = { ...state, products: { ...state.products, p1: { ...state.products.p1, colorOrder: ["กรม", "ดำ"] } } };
+    expect(wipMatrices(custom as never)[0].colors.map((c) => c.color)).toEqual(["กรม", "ดำ"]);
+  });
+});

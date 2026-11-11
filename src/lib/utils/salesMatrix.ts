@@ -1,3 +1,4 @@
+import { compareColors } from "@/lib/utils/colorOrder";
 import type { AppState } from "@/lib/store/state";
 import { NET_SALES_RETURN_TYPES } from "@/lib/types";
 import { compareSizes } from "./sizes";
@@ -160,7 +161,7 @@ export function salesBetween(state: AppState, cur: { from: number; to: number },
       }
       return { color, cells: row, total, sharePct: net > 0 ? Math.round((total / net) * 1000) / 10 : null };
     });
-    colors.sort((a, b) => b.total - a.total || a.color.localeCompare(b.color, "th"));
+    colors.sort((a, b) => compareColors(a.color, b.color, product));
 
     out.push({ productId, name: product.sellingName, brandId: product.brandId && state.brands[product.brandId] ? product.brandId : null, sold, returned, net, prevNet, sizes, colors, sizeTotals, maxCell });
   }

@@ -1,3 +1,4 @@
+import { compareColors } from "@/lib/utils/colorOrder";
 import type { AppState } from "@/lib/store/state";
 import { compareSizes } from "./sizes";
 import { monthRange } from "./salesMatrix";
@@ -127,8 +128,8 @@ export function recountBetween(state: AppState, range: { from: number; to: numbe
       const sumSystem = counted.reduce((s, c) => s + c.system, 0);
       return { color, cells, now: nowByColor.get(color) ?? 0, counted: sumCounted, system: sumSystem, diff: sumCounted - sumSystem, countedCells: counted.length };
     });
-    // สีที่นับแล้วขึ้นก่อน เรียงตามยอดนับมากไปน้อย สีที่ไม่ได้นับตามหลัง
-    const sorted = [...rows.filter((r) => r.countedCells > 0).sort((a, b) => b.counted - a.counted || a.color.localeCompare(b.color, "th")), ...rows.filter((r) => r.countedCells === 0)];
+    // เรียงสีตามลำดับที่ตั้งไว้ (ลำดับของรุ่น แล้วลำดับมาตรฐาน) ไม่เรียงตามยอดนับ
+    const sorted = [...rows].sort((a, b) => compareColors(a.color, b.color, product));
 
     const all = sorted.flatMap((r) => Object.values(r.cells).filter((c): c is RecountCell => c !== null));
     const counted = sorted.reduce((s, r) => s + r.counted, 0);

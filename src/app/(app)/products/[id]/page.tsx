@@ -15,10 +15,12 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { VariantDialog } from "@/components/products/VariantDialog";
 import { ColorSwatch } from "@/components/products/ColorSwatch";
 import { ColorImageManager } from "@/components/products/ColorImageManager";
+import { ColorOrderCard } from "@/components/products/ColorOrderCard";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { useStore, useActions } from "@/lib/store";
 import { productVariants, variantStockAcrossWarehouses } from "@/lib/store/selectors";
 import { compareSizes } from "@/lib/utils/sizes";
+import { compareColors } from "@/lib/utils/colorOrder";
 import { formatTHB, profitPercent, profitPerUnit } from "@/lib/utils/money";
 import { formatThaiDate } from "@/lib/utils/date";
 import { useCan, useCanViewCost } from "@/lib/auth/session";
@@ -41,8 +43,10 @@ export default function ProductDetailPage() {
       if (!map.has(v.color)) map.set(v.color, []);
       map.get(v.color)!.push(v);
     }
-    return Array.from(map.entries()).map(([color, rows]) => ({ color, rows: [...rows].sort((a, b) => compareSizes(a.size, b.size)) }));
-  }, [variants]);
+    return Array.from(map.entries())
+      .sort(([a], [b]) => compareColors(a, b, product))
+      .map(([color, rows]) => ({ color, rows: [...rows].sort((a, b) => compareSizes(a.size, b.size)) }));
+  }, [variants, product]);
   const warehouses = Object.values(state.warehouses);
   const brand = product?.brandId ? state.brands[product.brandId] : undefined;
   // SKU ที่ต้องสร้างใหม่: มีอักษรไทยปน (สร้างบาร์โค้ดไม่ได้) หรือสินค้ามีแบรนด์+รหัสรุ่นแล้ว แต่ SKU ยังไม่ขึ้นต้นด้วย แบรนด์-รหัสรุ่น
@@ -270,6 +274,10 @@ export default function ProductDetailPage() {
               ))}
             </CardContent>
           </Card>
+        )}
+
+        {canWrite && product && variantGroups.length > 1 && (
+          <ColorOrderCard key={`${product.id}|${variantGroups.map((g) => g.color).join("|")}|${(product.colorOrder ?? []).join("|")}`} product={product} colors={variantGroups.map((g) => g.color)} />
         )}
 
         <Card>

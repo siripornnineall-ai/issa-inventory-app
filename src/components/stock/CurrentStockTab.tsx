@@ -97,7 +97,7 @@ export function CurrentStockTab({ brandId, setBrandId }: { brandId: string; setB
       .filter((p) => !brandId || p.brandId === brandId)
       .map((p) => {
         const variants = Object.values(state.variants).filter((v) => v.productId === p.id);
-        return { product: p, matrix: buildStockMatrix(variants, qty, { hideEmpty }) };
+        return { product: p, matrix: buildStockMatrix(variants, qty, { hideEmpty, product: p }) };
       })
       .filter((m) => m.matrix.sizes.length > 0);
     return list.sort((a, b) => b.matrix.grandTotal - a.matrix.grandTotal || a.product.sellingName.localeCompare(b.product.sellingName, "th"));

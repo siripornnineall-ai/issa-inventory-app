@@ -18,6 +18,7 @@ import { useStore, useActions } from "@/lib/store";
 import { getStockLevel } from "@/lib/store/engine";
 import { productVariants, resolveUnitToken } from "@/lib/store/selectors";
 import { compareSizes } from "@/lib/utils/sizes";
+import { compareColors } from "@/lib/utils/colorOrder";
 import { playBeep, primeAudio } from "@/lib/utils/beep";
 import { useCurrentUser } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -237,7 +238,7 @@ function StockCountForm() {
     .map((pid) => state.products[pid])
     .filter((p): p is Product => Boolean(p))
     .map((product) => {
-      const variants = [...productVariants(state, product.id)].sort((a, b) => a.color.localeCompare(b.color) || compareSizes(a.size, b.size));
+      const variants = [...productVariants(state, product.id)].sort((a, b) => compareColors(a.color, b.color, product) || compareSizes(a.size, b.size));
       const rows: CountRow[] = variants.map((v) => {
         const system = warehouseId ? getStockLevel(state.variantStock, v.id, warehouseId).qtyOnHand : 0;
         const touched = v.id in counts;

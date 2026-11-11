@@ -405,6 +405,7 @@ export async function fetchAppState(supabase: SupabaseClient, onProgress?: (p: L
       brandId: row.brand_id ?? undefined,
       modelCode: row.model_code ?? undefined,
       shape: row.shape ?? undefined,
+      colorOrder: Array.isArray(row.color_order) && row.color_order.length > 0 ? (row.color_order as string[]) : undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

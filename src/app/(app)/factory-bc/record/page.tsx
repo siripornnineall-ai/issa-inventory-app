@@ -16,6 +16,7 @@ import { toastError } from "@/lib/toast";
 import { todayInputValue, dateInputToISO } from "@/lib/utils/date";
 import { formatNumber } from "@/lib/utils/money";
 import { compareSizes } from "@/lib/utils/sizes";
+import { sortColors } from "@/lib/utils/colorOrder";
 import { useSaveGuard } from "@/lib/utils/saveGuard";
 import { useDraft } from "@/lib/utils/useDraft";
 import { useUnsavedChangesGuard } from "@/lib/utils/useUnsavedChangesGuard";
@@ -59,7 +60,7 @@ function RecordForm({ onAgain }: { onAgain: () => void }) {
   );
   const variants = useMemo(() => Object.values(state.variants).filter((v) => v.productId === productId && v.active), [state.variants, productId]);
   const sizes = useMemo(() => [...new Set(variants.map((v) => v.size))].sort(compareSizes), [variants]);
-  const colors = useMemo(() => [...new Set(variants.map((v) => v.color))], [variants]);
+  const colors = useMemo(() => sortColors([...new Set(variants.map((v) => v.color))], state.products[productId]), [variants, state.products, productId]);
 
   const entered = useMemo(
     () =>

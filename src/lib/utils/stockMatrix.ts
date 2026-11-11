@@ -1,3 +1,4 @@
+import { compareColors } from "@/lib/utils/colorOrder";
 import type { AppState } from "@/lib/store/state";
 import type { ProductVariant } from "@/lib/types";
 import { compareSizes } from "./sizes";
@@ -28,7 +29,7 @@ export function qtyByVariant(state: AppState, warehouseId?: string): Map<string,
   return map;
 }
 
-export function buildStockMatrix(variants: ProductVariant[], qty: Map<string, number>, opts: { hideEmpty?: boolean } = {}): StockMatrix {
+export function buildStockMatrix(variants: ProductVariant[], qty: Map<string, number>, opts: { hideEmpty?: boolean; product?: { colorOrder?: string[] } } = {}): StockMatrix {
   // ตัวเลือกที่ปิดใช้งานแล้วแต่ยังมีสต็อกค้าง (บวกหรือลบ) ต้องยังเห็น ไม่งั้นยอดรวมจะไม่ตรงความจริง
   const used = variants.filter((v) => v.active || (qty.get(v.id) ?? 0) !== 0);
 
@@ -52,8 +53,8 @@ export function buildStockMatrix(variants: ProductVariant[], qty: Map<string, nu
 
   const hasAnyStock = (r: StockMatrixRow) => Object.values(r.cells).some((n) => n !== null && n !== 0);
   if (opts.hideEmpty) rows = rows.filter(hasAnyStock);
-  // สีที่มีสต็อกขึ้นก่อน เรียงจากมากไปน้อย สีที่เป็น 0 ทั้งแถวตามหลังตามลำดับเดิม (เรียงแบบเสถียร)
-  rows = [...rows.filter(hasAnyStock).sort((a, b) => b.total - a.total), ...rows.filter((r) => !hasAnyStock(r))];
+  // เรียงสีตามลำดับที่ตั้งไว้ (ลำดับของรุ่น แล้วลำดับมาตรฐาน) ไม่เรียงตามยอด สีที่เป็น 0 ก็อยู่ตำแหน่งเดิม
+  rows = [...rows].sort((a, b) => compareColors(a.color, b.color, opts.product));
 
   const colTotals: Record<string, number> = Object.fromEntries(sizes.map((s) => [s, 0]));
   let negativeCells = 0;

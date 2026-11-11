@@ -10,6 +10,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { ColorSwatch } from "@/components/products/ColorSwatch";
 import { formatNumber } from "@/lib/utils/money";
 import { compareSizes } from "@/lib/utils/sizes";
+import { sortColors } from "@/lib/utils/colorOrder";
 import { playBeep, primeAudio } from "@/lib/utils/beep";
 import { CameraScanner } from "./CameraScanner";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -160,7 +161,7 @@ export function VariantPicker({
     );
   }
 
-  const pickerColors = pickerGroup ? Array.from(new Set(pickerGroup.variants.map((v) => v.color))) : [];
+  const pickerColors = pickerGroup ? sortColors(Array.from(new Set(pickerGroup.variants.map((v) => v.color))), pickerGroup.product) : [];
   const pickerSizeRows = pickerGroup
     ? [...pickerGroup.variants].filter((v) => v.color === pickerColor).sort((a, b) => compareSizes(a.size, b.size))
     : [];

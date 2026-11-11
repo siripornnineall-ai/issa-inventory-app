@@ -27,11 +27,16 @@ describe("buildStockMatrix", () => {
     expect(m.rows.find((r) => r.color === "ครีม")!.cells.S).toBe(0);
   });
 
-  it("puts colors with stock first, biggest first, and all-zero colors after in their original order", () => {
-    const m = buildStockMatrix(variants, qty({ "ครีม-S": 10, "ดำ-S": 50 }));
+  it("orders colors by the configured color order, not by stock (zero rows keep their place)", () => {
+    // ลำดับมาตรฐาน: ดำ ... ครีม ... ชมพู ไม่ว่าสีไหนมียอดมากกว่า
+    const m = buildStockMatrix(variants, qty({ "ครีม-S": 100, "ดำ-S": 5 }));
     expect(m.rows.map((r) => r.color)).toEqual(["ดำ", "ครีม", "ชมพู"]);
-    const m2 = buildStockMatrix([v("ก", "S"), v("ข", "S"), v("ค", "S")], qty({ "ค-S": 1 }));
-    expect(m2.rows.map((r) => r.color)).toEqual(["ค", "ก", "ข"]);
+    // สีที่ไม่อยู่ในลำดับไหนเลย เรียงตามชื่อ ท้ายสุด
+    const m2 = buildStockMatrix([v("ค", "S"), v("ก", "S"), v("ข", "S")], qty({ "ค-S": 1 }));
+    expect(m2.rows.map((r) => r.color)).toEqual(["ก", "ข", "ค"]);
+    // รุ่นที่ตั้งลำดับเอง มาก่อนลำดับมาตรฐาน
+    const m3 = buildStockMatrix(variants, qty({}), { product: { colorOrder: ["ชมพู", "ครีม"] } });
+    expect(m3.rows.map((r) => r.color)).toEqual(["ชมพู", "ครีม", "ดำ"]);
   });
 
   it("hides colors that have no stock at all when asked, but keeps negative ones", () => {
