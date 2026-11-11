@@ -34,7 +34,9 @@ create policy factory_wip_entries_insert on public.factory_wip_entries for inser
   );
 
 create or replace function public.protect_factory_wip_entries() returns trigger
-language plpgsql as $$
+language plpgsql
+set search_path = ''
+as $$
 begin
   raise exception 'ห้ามแก้ไขหรือลบประวัติตัวที่ยังไม่เย็บ ถ้าบันทึกผิดให้บันทึกรายการปรับยอดแทน';
 end;
