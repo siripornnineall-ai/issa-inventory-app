@@ -86,3 +86,54 @@ export function wipSheetRows(state: AppState, matrices: WipMatrix[]): (string | 
   }
   return rows;
 }
+
+// รายการบันทึกทีละสี/ไซซ์ สำหรับหน้า "ประวัติโรงงาน BC" (ใหม่ไปเก่า) ตัวกรอง: ประเภท ช่วงวันที่ (ตามวันที่ที่ระบุตอนบันทึก) ค้นหารุ่น/สี/ไซซ์/SKU/หมายเหตุ/ผู้บันทึก
+export interface WipEntryRow {
+  id: string;
+  batchId: string;
+  date: string;
+  createdAt: string;
+  kind: FactoryWipKind;
+  kindLabel: string;
+  productName: string;
+  color: string;
+  size: string;
+  sku: string;
+  qtyChange: number;
+  actorName: string;
+  note: string;
+}
+
+export function wipEntryRows(state: AppState, filter: { kind?: FactoryWipKind | ""; from?: number; to?: number; search?: string } = {}): WipEntryRow[] {
+  const q = (filter.search ?? "").trim().toLowerCase();
+  const rows: WipEntryRow[] = [];
+  for (const e of Object.values(state.factoryWipEntries ?? {})) {
+    if (filter.kind && e.kind !== filter.kind) continue;
+    const t = new Date(e.date).getTime();
+    if (filter.from !== undefined && t < filter.from) continue;
+    if (filter.to !== undefined && t > filter.to) continue;
+    const v = state.variants[e.variantId];
+    const row: WipEntryRow = {
+      id: e.id,
+      batchId: e.batchId,
+      date: e.date,
+      createdAt: e.createdAt,
+      kind: e.kind,
+      kindLabel: FACTORY_WIP_KIND_LABEL_TH[e.kind],
+      productName: (v ? state.products[v.productId]?.sellingName : undefined) ?? "ไม่ทราบรุ่น",
+      color: v?.color ?? "",
+      size: v?.size ?? "",
+      sku: v?.sku ?? "",
+      qtyChange: e.qtyChange,
+      actorName: e.actorName,
+      note: e.note ?? "",
+    };
+    if (q && ![row.productName, row.color, row.size, row.sku, row.note, row.actorName].some((x) => x.toLowerCase().includes(q))) continue;
+    rows.push(row);
+  }
+  return rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || a.productName.localeCompare(b.productName, "th"));
+}
+
+export function wipHistorySheetRows(rows: WipEntryRow[]): (string | number)[][] {
+  return [["วันที่", "ประเภท", "รุ่น", "สี", "ไซซ์", "SKU", "จำนวน", "ผู้บันทึก", "หมายเหตุ"], ...rows.map((r) => [r.date.slice(0, 10), r.kindLabel, r.productName, r.color, r.size, r.sku, r.qtyChange, r.actorName, r.note])];
+}

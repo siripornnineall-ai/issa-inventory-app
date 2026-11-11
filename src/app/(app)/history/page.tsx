@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, SlidersHorizontal, Download, History as HistoryIcon, Pencil } from "lucide-react";
+import Link from "next/link";
+import { Search, SlidersHorizontal, Download, History as HistoryIcon, Pencil, Factory } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -228,9 +229,16 @@ export default function HistoryPage() {
               className="w-80 pl-9"
             />
           </div>
-          <Button variant="ghost" onClick={exportExcel}>
-            <Download className="h-4 w-4" /> Export Excel (เฉพาะรายการขาย)
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/history/factory-bc">
+              <Button variant="ghost">
+                <Factory className="h-4 w-4" /> ประวัติโรงงาน BC
+              </Button>
+            </Link>
+            <Button variant="ghost" onClick={exportExcel}>
+              <Download className="h-4 w-4" /> Export Excel (เฉพาะรายการขาย)
+            </Button>
+          </div>
         </div>
 
         <Card className="p-5">

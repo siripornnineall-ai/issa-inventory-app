@@ -15,8 +15,7 @@ import { useCan } from "@/lib/auth/session";
 import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
-import { formatThaiDate } from "@/lib/utils/date";
-import { wipBatches, wipMatrices, wipSheetRows, type WipMatrix } from "@/lib/utils/factoryWipView";
+import { wipMatrices, wipSheetRows, type WipMatrix } from "@/lib/utils/factoryWipView";
 
 function cellStyle(value: number, max: number): React.CSSProperties | undefined {
   if (value <= 0 || max <= 0) return undefined;
@@ -86,11 +85,9 @@ function FactoryContent() {
   const canRecord = useCan("stock.in");
   const [brandId, setBrandId] = useState("");
   const [search, setSearch] = useState("");
-  const [historyLimit, setHistoryLimit] = useState(10);
 
   const brands = useMemo(() => Object.values(state.brands).sort((a, b) => a.name.localeCompare(b.name, "th")), [state.brands]);
   const matrices = useMemo(() => wipMatrices(state, { brandId, search }), [state, brandId, search]);
-  const batches = useMemo(() => wipBatches(state), [state]);
   const total = matrices.reduce((s, m) => s + m.total, 0);
   const negative = matrices.reduce((s, m) => s + m.negativeCells, 0);
 
@@ -143,39 +140,6 @@ function FactoryContent() {
         matrices.map((m) => <ModelBlock key={m.productId} m={m} />)
       )}
 
-      <Card className="p-5">
-        <h2 className="text-base font-semibold">ประวัติการบันทึก</h2>
-        {batches.length === 0 ? (
-          <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">ยังไม่มีการบันทึก</p>
-        ) : (
-          <ul className="mt-2 divide-y divide-[var(--color-border)] text-sm">
-            {batches.slice(0, historyLimit).map((b) => (
-              <li key={b.batchId} className="flex flex-wrap items-start justify-between gap-2 py-2">
-                <div className="min-w-0">
-                  <p className="font-medium">
-                    {b.kindLabel} · {b.products.slice(0, 3).join(", ")}
-                    {b.products.length > 3 && ` +${b.products.length - 3} รุ่น`}
-                  </p>
-                  <p className="text-xs text-[var(--color-on-surface-variant)]">
-                    {formatThaiDate(b.date)} · {b.actorName} · {formatNumber(b.cells)} ช่อง{b.note ? ` · ${b.note}` : ""}
-                  </p>
-                </div>
-                <p className={`shrink-0 font-semibold tabular-nums ${b.pieces < 0 ? "text-[var(--color-danger)]" : ""}`}>
-                  {b.pieces > 0 ? "+" : ""}
-                  {formatNumber(b.pieces)} ชิ้น
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-        {batches.length > historyLimit && (
-          <div className="mt-3">
-            <Button variant="secondary" onClick={() => setHistoryLimit(historyLimit + 20)}>
-              แสดงเพิ่ม
-            </Button>
-          </div>
-        )}
-      </Card>
     </>
   );
 }

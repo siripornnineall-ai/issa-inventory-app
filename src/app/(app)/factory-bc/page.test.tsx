@@ -39,12 +39,12 @@ describe("หน้าโรงงาน BC", () => {
     window.localStorage.clear();
   });
 
-  it("แสดงยอดยังไม่เย็บรวมและตารางสี x ไซซ์ พร้อมประวัติการบันทึก", () => {
+  it("แสดงยอดยังไม่เย็บรวมและตารางสี x ไซซ์", () => {
     seed();
     render(<FactoryBcPage />);
     expect(screen.getByRole("status").textContent).toContain("130");
     expect(screen.getByText("Billie Slim")).toBeTruthy();
-    expect(screen.getByText("ประวัติการบันทึก")).toBeTruthy();
+    expect(screen.queryByText("ประวัติการบันทึก")).toBeNull(); // ประวัติย้ายไปหน้า ประวัติโรงงาน BC ในกลุ่มประวัติการเคลื่อนไหว
     expect(screen.getByRole("link", { name: /บันทึกตัวที่ยังไม่เย็บ/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Excel/ })).toBeTruthy();
   });
