@@ -14,6 +14,10 @@ export const HISTORY_TAB_LABEL: Record<HistoryTab, string> = {
 
 const IN_TYPES: MovementType[] = ["stock_in", "transfer_in", "cancel_restock"];
 const OUT_TYPES: MovementType[] = ["cancel_stock_in", "sale", "transfer_out", "damaged", "lost", "photoshoot", "internal_use", "return_to_source", "send_to_store", "size_change", "color_change"];
+// ประเภทที่นับเป็น "สินค้าออก" (ตรงกับแท็บสินค้าออกในประวัติ) ใช้กำหนดสีป้ายด้วย
+export function isOutMovementType(type: MovementType): boolean {
+  return OUT_TYPES.includes(type);
+}
 const RETURN_TYPES: MovementType[] = [...STOCK_RETURN_TYPES];
 // เย็บตามออเดอร์: ตัดตัวเปล่ารุ่นต้นทาง (convert_out) แล้วได้สินค้ารุ่นปลายทาง (convert_in) ของยังอยู่ในคลัง ไม่ใช่เข้า/ออกจริง
 const CONVERT_TYPES: MovementType[] = ["convert_out", "convert_in"];

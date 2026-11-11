@@ -7,6 +7,7 @@ import type {
   RequisitionStatus,
   TransferStatus,
 } from "@/lib/types";
+import { isOutMovementType } from "@/lib/utils/movementTabs";
 import {
   MOVEMENT_TYPE_LABEL_TH,
   ORDER_STATUS_LABEL_TH,
@@ -73,17 +74,16 @@ export function RequisitionStatusBadge({ status }: { status: RequisitionStatus }
 
 export function MovementTypeBadge({ type }: { type: MovementType }) {
   const inbound = type === "stock_in" || type === "transfer_in" || type === "cancel_restock";
-  // รับสินค้าเข้า = เขียว, ขายสินค้า = เหลือง, ปรับยอด/นับสต็อก = ม่วง (เจ้าของงานเลือกสี 11 พ.ย. 2026)
+  // รับสินค้าเข้า = เขียว, สินค้าออกทุกรูปแบบ (ขาย โอนออก เสียหาย ใช้ภายใน ฯลฯ ตามแท็บสินค้าออก) = เหลือง, ปรับยอด/นับสต็อก = ม่วง
+  // (เจ้าของงานเลือกสี 11 พ.ย. 2026) ส่วนของคืน/ตีกลับ/เปลี่ยนยังเป็นสีส้มเดิม
   const tone: BadgeTone = inbound
     ? "success"
-    : type === "sale"
+    : isOutMovementType(type)
       ? "yellow"
       : type === "adjustment"
         ? "purple"
-        : type === "return_rts" || type === "return_customer" || type === "return_exchange"
+        : type === "return_rts" || type === "return_customer" || type === "return_exchange" || type === "return_defective"
           ? "warning"
-          : type === "damaged" || type === "lost" || type === "return_defective" || type === "cancel_stock_in"
-            ? "danger"
-            : "info";
+          : "info";
   return <Badge tone={tone}>{MOVEMENT_TYPE_LABEL_TH[type]}</Badge>;
 }

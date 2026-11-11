@@ -18,16 +18,27 @@ describe("ป้ายประเภทรายการในประวั�
     expect(cls("ปรับยอด")).toContain("--color-purple");
   });
 
-  it("ประเภทอื่นคงสีเดิม (ของเสียหาย = แดง, ของคืน = ส้มเดิม, โอนย้าย = ฟ้า)", () => {
+  it("สินค้าออกทุกรูปแบบเป็นสีเหลือง (ตรงกับแท็บสินค้าออกในประวัติ)", () => {
+    const outTypes = ["sale", "transfer_out", "damaged", "lost", "photoshoot", "internal_use", "return_to_source", "send_to_store", "size_change", "color_change", "cancel_stock_in"] as const;
+    for (const t of outTypes) {
+      const { container, unmount } = render(<MovementTypeBadge type={t} />);
+      expect(container.querySelector("span")!.className, t).toContain("--color-yellow");
+      unmount();
+    }
+  });
+
+  it("ประเภทอื่นคงสีเดิม (ของคืน = ส้มเดิม, แปลงรุ่น = ฟ้า) และรับเข้า/ปรับยอดไม่ปนกับสินค้าออก", () => {
     render(
       <>
-        <MovementTypeBadge type="damaged" />
         <MovementTypeBadge type="return_customer" />
-        <MovementTypeBadge type="transfer_out" />
+        <MovementTypeBadge type="return_defective" />
+        <MovementTypeBadge type="convert_out" />
+        <MovementTypeBadge type="transfer_in" />
       </>
     );
-    expect(cls("สินค้าเสียหาย")).toContain("--color-danger");
     expect(cls("สินค้าคืน")).toContain("--color-warning");
-    expect(cls("โอนย้ายออก")).toContain("--color-info");
+    expect(cls("สินค้าตำหนิ")).toContain("--color-warning");
+    expect(cls("ตัดตัวเปล่าไปเย็บ")).toContain("--color-info");
+    expect(cls("โอนย้ายเข้า")).toContain("--color-success");
   });
 });
