@@ -26,6 +26,11 @@
   --color-warning-container: #fbeacb;
   --color-info: #1e5a8f;
   --color-info-container: #dcecfb;
+  /* ป้ายประเภทรายการในประวัติ: ปรับยอด/นับสต็อก = ม่วง ขายออก = เหลือง (รับเข้า = เขียว ใช้ success) */
+  --color-purple: #5b3a9a;
+  --color-purple-container: #eadcfb;
+  --color-yellow: #7a5b00;
+  --color-yellow-container: #fff0a6;
 }
 
 @theme inline {

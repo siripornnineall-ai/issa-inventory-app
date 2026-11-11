@@ -15,13 +15,15 @@ import {
   TRANSFER_STATUS_LABEL_TH,
 } from "@/lib/types";
 
-type BadgeTone = "success" | "warning" | "danger" | "info" | "neutral" | "primary";
+type BadgeTone = "success" | "warning" | "danger" | "info" | "neutral" | "primary" | "purple" | "yellow";
 
 const toneClasses: Record<BadgeTone, string> = {
   success: "bg-[var(--color-success-container)] text-[var(--color-success)]",
   warning: "bg-[var(--color-warning-container)] text-[var(--color-warning)]",
   danger: "bg-[var(--color-danger-container)] text-[var(--color-danger)]",
   info: "bg-[var(--color-info-container)] text-[var(--color-info)]",
+  purple: "bg-[var(--color-purple-container)] text-[var(--color-purple)]",
+  yellow: "bg-[var(--color-yellow-container)] text-[var(--color-yellow)]",
   neutral: "bg-[var(--color-secondary-container)] text-[var(--color-on-surface-variant)]",
   primary: "bg-[var(--color-primary-container)] text-white",
 };
@@ -71,12 +73,17 @@ export function RequisitionStatusBadge({ status }: { status: RequisitionStatus }
 
 export function MovementTypeBadge({ type }: { type: MovementType }) {
   const inbound = type === "stock_in" || type === "transfer_in" || type === "cancel_restock";
+  // รับสินค้าเข้า = เขียว, ขายสินค้า = เหลือง, ปรับยอด/นับสต็อก = ม่วง (เจ้าของงานเลือกสี 11 พ.ย. 2026)
   const tone: BadgeTone = inbound
     ? "success"
-    : type === "sale" || type === "return_rts" || type === "return_customer" || type === "return_exchange"
-      ? "warning"
-      : type === "damaged" || type === "lost" || type === "return_defective" || type === "cancel_stock_in"
-        ? "danger"
-        : "info";
+    : type === "sale"
+      ? "yellow"
+      : type === "adjustment"
+        ? "purple"
+        : type === "return_rts" || type === "return_customer" || type === "return_exchange"
+          ? "warning"
+          : type === "damaged" || type === "lost" || type === "return_defective" || type === "cancel_stock_in"
+            ? "danger"
+            : "info";
   return <Badge tone={tone}>{MOVEMENT_TYPE_LABEL_TH[type]}</Badge>;
 }
