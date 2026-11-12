@@ -29,6 +29,7 @@ import { PendingSaveBar } from "@/components/stock/PendingSaveBar";
 import { DuplicateSaveDialog } from "@/components/stock/DuplicateSaveDialog";
 import { SaveSuccessCard, type SavedInfo } from "@/components/stock/SaveSuccessCard";
 import { findRecentSimilarDoc, useSaveGuard } from "@/lib/utils/saveGuard";
+import { logTokenScan, markScansSaved } from "@/lib/supabase/scanLog";
 import { wipBalances } from "@/lib/utils/factoryWip";
 import type { UnitToken, ProductVariant } from "@/lib/types";
 
@@ -141,6 +142,7 @@ function StockInForm({ onAgain }: { onAgain: () => void }) {
       playBeep("duplicate");
       toastError(`ป้ายใบนี้ (รหัส ${token.code ?? token.id.slice(0, 8).toUpperCase()}) สแกนไปแล้วในรายการนี้ — ถ้าชิ้นนี้เป็นชิ้นใหม่ ป้ายอาจถูกถ่ายสำเนามา ให้พิมพ์ป้ายใหม่จากระบบแทนการสั่งพิมพ์หลายสำเนา`);
       logScan(`${label} — สแกนซ้ำ`, false);
+      logTokenScan({ token, variantId: variant.id, action: "in", page: "stock_in", outcome: "duplicate", reason: "สแกนซ้ำในรายการเดียวกัน" });
       return;
     }
     const check = checkScannedToken(state.unitTokens, token, "in");
@@ -148,8 +150,10 @@ function StockInForm({ onAgain }: { onAgain: () => void }) {
       playBeep("error");
       toastError(check.message);
       logScan(`${label} — ${check.message}`, false);
+      logTokenScan({ token, variantId: variant.id, action: "in", page: "stock_in", outcome: "rejected", reason: check.message });
       return;
     }
+    logTokenScan({ token, variantId: variant.id, action: "in", page: "stock_in", outcome: "ok" });
     setScannedTokensByVariant((prev) => ({ ...prev, [variant.id]: [...(prev[variant.id] ?? []), token.id] }));
     setLines((prev) => {
       const existing = prev.find((l) => l.variantId === variant.id);
@@ -224,6 +228,7 @@ function StockInForm({ onAgain }: { onAgain: () => void }) {
           }
         }
       }
+      markScansSaved(Object.values(scannedTokensByVariant).flat(), doc.docNo, "in");
       draft.clear();
       toastSuccess("บันทึกการรับสินค้าเข้าเรียบร้อยแล้ว");
       if (issuePo) {

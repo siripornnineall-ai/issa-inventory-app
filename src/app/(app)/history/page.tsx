@@ -15,6 +15,7 @@ import { MovementTypeBadge } from "@/components/ui/Badge";
 import { Tabs } from "@/components/ui/Tabs";
 import { DateRangePicker, useDateRange } from "@/components/ui/DateRangePicker";
 import { Dialog } from "@/components/ui/Dialog";
+import { ScanLogTab } from "@/components/history/ScanLogTab";
 import { useStore, useActions } from "@/lib/store";
 import { voidedDocNos, isVoidedMovement } from "@/lib/utils/voidedMovements";
 import { allMovementsInRange } from "@/lib/store/selectors";
@@ -43,6 +44,8 @@ export default function HistoryPage() {
 
   const { value: range, setValue: setRange } = useDateRange("30d");
   const [tab, setTab] = useState<HistoryTab>("all");
+  // แท็บ "การสแกน" ใช้ข้อมูลคนละแหล่งกับการเคลื่อนไหวของสต็อก (ประวัติสแกน QR) จึงแยกสถานะจากแท็บอื่น
+  const [showScan, setShowScan] = useState(false);
   const [search, setSearch] = useState("");
   const [itemType, setItemType] = useState<MovementItemType | "all">("all");
   const [movementType, setMovementType] = useState<MovementType | "all">("all");
@@ -211,10 +214,24 @@ export default function HistoryPage() {
       />
       <PageContainer>
         <Tabs
-          tabs={(Object.keys(HISTORY_TAB_LABEL) as HistoryTab[]).map((id) => ({ id, label: `${HISTORY_TAB_LABEL[id]} (${formatNumber(tabCounts[id])})` }))}
-          active={tab}
-          onChange={(id) => changeTab(id as HistoryTab)}
+          tabs={[
+            ...(Object.keys(HISTORY_TAB_LABEL) as HistoryTab[]).map((id) => ({ id, label: `${HISTORY_TAB_LABEL[id]} (${formatNumber(tabCounts[id])})` })),
+            { id: "scan", label: "การสแกน" },
+          ]}
+          active={showScan ? "scan" : tab}
+          onChange={(id) => {
+            if (id === "scan") {
+              setShowScan(true);
+              return;
+            }
+            setShowScan(false);
+            changeTab(id as HistoryTab);
+          }}
         />
+
+        {showScan && <ScanLogTab range={range} />}
+        {!showScan && (
+          <>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="relative">
@@ -432,6 +449,8 @@ export default function HistoryPage() {
           )}
           <Pagination page={page} totalPages={totalPages} onChange={setPage} totalItems={filtered.length} pageSize={PAGE_SIZE} />
         </Card>
+          </>
+        )}
       </PageContainer>
 
       <Dialog

@@ -1,5 +1,6 @@
 "use client";
 
+import { logTokenScan, markScansSaved } from "@/lib/supabase/scanLog";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, PackageMinus } from "lucide-react";
@@ -118,6 +119,7 @@ function StockOutForm({ onAgain }: { onAgain: () => void }) {
       playBeep("duplicate");
       toastError(`ป้ายใบนี้ (รหัส ${token.code ?? token.id.slice(0, 8).toUpperCase()}) สแกนไปแล้วในรายการนี้ — ถ้าชิ้นนี้เป็นชิ้นใหม่ ป้ายอาจถูกถ่ายสำเนามา ให้พิมพ์ป้ายใหม่จากระบบแทนการสั่งพิมพ์หลายสำเนา`);
       logScan(`${label} — สแกนซ้ำ`, false);
+      logTokenScan({ token, variantId: variant.id, action: "out", page: "stock_out", outcome: "duplicate", reason: "สแกนซ้ำในรายการเดียวกัน" });
       return;
     }
     const check = checkScannedToken(state.unitTokens, token, "out");
@@ -125,8 +127,10 @@ function StockOutForm({ onAgain }: { onAgain: () => void }) {
       playBeep("error");
       toastError(check.message);
       logScan(`${label} — ${check.message}`, false);
+      logTokenScan({ token, variantId: variant.id, action: "out", page: "stock_out", outcome: "rejected", reason: check.message });
       return;
     }
+    logTokenScan({ token, variantId: variant.id, action: "out", page: "stock_out", outcome: "ok" });
     setScannedTokensByVariant((prev) => ({ ...prev, [variant.id]: [...(prev[variant.id] ?? []), token.id] }));
     setLines((prev) => {
       const existing = prev.find((l) => l.variantId === variant.id);
@@ -198,6 +202,7 @@ function StockOutForm({ onAgain }: { onAgain: () => void }) {
           }
         }
       }
+      markScansSaved(Object.values(scannedTokensByVariant).flat(), doc.docNo, "out");
       draft.clear();
       toastSuccess("บันทึกการเบิกสินค้าออกเรียบร้อยแล้ว");
       setSaved({ docNo: doc.docNo, totalQty, lineCount: lines.length });
