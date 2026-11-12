@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(git checkout:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git merge:*)",
+      "Bash(git format-patch:*)",
+      "Bash(git push -u origin feature/:*)",
+      "Bash(git push origin feature/:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx next build:*)",
+      "Bash(npm ci:*)",
+      "Bash(npm run:*)",
+      "Bash(gh api repos/siripornnineall-ai/issa-inventory-app/deployments:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(sed -n:*)",
+      "Bash(wc:*)",
+      "Bash(python3 -I:*)",
+      "mcp__Supabase-d80c4e32__list_projects",
+      "mcp__Supabase-d80c4e32__list_tables",
+      "mcp__Supabase-d80c4e32__list_migrations",
+      "mcp__Supabase-d80c4e32__get_advisors",
+      "mcp__Supabase-d80c4e32__query_logs",
+      "mcp__Supabase-d80c4e32__execute_sql"
+    ]
+  }
+}
