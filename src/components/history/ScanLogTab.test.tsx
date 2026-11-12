@@ -20,7 +20,7 @@ vi.mock("@/lib/supabase/client", () => ({
     from() {
       const log: string[] = [];
       const chain: Record<string, unknown> = {};
-      for (const f of ["gte", "lte", "eq", "neq", "is", "not", "lt", "ilike", "order", "range"]) chain[f] = (...a: unknown[]) => (log.push(`${f}:${a.join(",")}`), chain);
+      for (const f of ["gte", "lte", "eq", "neq", "is", "not", "lt", "ilike", "or", "order", "range"]) chain[f] = (...a: unknown[]) => (log.push(`${f}:${a.join(",")}`), chain);
       chain.select = (_cols: string, opts?: { head?: boolean }) => {
         log.push(opts?.head ? "count" : "list");
         return chain;
@@ -48,7 +48,16 @@ describe("ประวัติการสแกน (แท็บในหน�
     } as never);
   });
 
-  it("แสดงใคร ยิงอะไร เมื่อไร ผลอะไร และสถานะบันทึกแล้ว / ยังไม่ได้บันทึก / ถูกปฏิเสธ", async () => {
+  it("ค่าเริ่มต้นดึงเฉพาะที่มีปัญหา (ถูกปฏิเสธ/ซ้ำ หรือผ่านแล้วไม่มีเลขที่ใบเกิน 30 นาที) ไม่ดึงที่บันทึกแล้ว", async () => {
+    render(<ScanLogTab range={{ from: new Date(Date.now() - 86400_000).toISOString(), to: new Date(Date.now() + 86400_000).toISOString() }} />);
+    await waitFor(() => expect(queries.some((q) => q.includes("list"))).toBe(true));
+    const list = queries.find((q) => q.includes("list"))!;
+    expect(list).toContain("or:outcome.neq.ok,and(outcome.eq.ok,saved_doc_no.is.null,scanned_at.lt.");
+    expect(screen.queryByRole("option", { name: "บันทึกลงใบแล้ว" })).toBeNull();
+    expect(screen.getByRole("option", { name: "ที่มีปัญหาทั้งหมด" })).toBeTruthy();
+  });
+
+  it("แสดงใคร ยิงอะไร เมื่อไร ผลอะไร และสถานะ (บันทึกแล้ว / ยังไม่ได้บันทึก / ถูกปฏิเสธ) ตามแถวที่ฐานข้อมูลส่งมา", async () => {
     render(<ScanLogTab range={{ from: new Date(Date.now() - 86400_000).toISOString(), to: new Date(Date.now() + 86400_000).toISOString() }} />);
     await waitFor(() => expect(screen.getAllByText(/Billie Wide ดำ \/ XL/).length).toBe(3));
     expect(screen.getByText("บันทึกแล้ว")).toBeTruthy();
