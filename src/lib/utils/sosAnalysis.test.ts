@@ -84,6 +84,21 @@ describe("แนะนำ SKU", () => {
     expect(a.remove[0].notes).toEqual(["ลูกค้าถามหาบ่อย"]);
   });
 
+  it("ควรถอนมี 2 ระดับ: ทั้งรุ่นไม่ขายเลย (strong) กับ รุ่นขายอยู่แต่สี/ไซซ์ไม่ขยับ (weak, มีของตั้งแต่ 2 ชิ้น) ส่วนมีของ 1 ชิ้นในรุ่นที่ขายอยู่ไม่แนะนำถอน", () => {
+    const a = buildAdvice({
+      sales: [{ code: "S1", description: "Hot Model ทรงกระบอกเล็ก black M", qty: 4 }],
+      stock: [
+        { code: "S1", description: "Hot Model ทรงกระบอกเล็ก black M", qty: 1 },
+        { code: "W2", description: "Hot Model ทรงกระบอกเล็ก grey XL", qty: 2 }, // weak
+        { code: "W1", description: "Hot Model ทรงกระบอกเล็ก grey S", qty: 1 }, // ไม่แนะนำ
+        { code: "ST", description: "Dead Model ทรงกระบอกเล็ก black M", qty: 1 }, // strong แม้มีของ 1 ชิ้น
+      ],
+      otherBranchSales: [],
+      feedback: [],
+    });
+    expect(a.remove.map((x) => [x.code, x.strength])).toEqual([["ST", "strong"], ["W2", "weak"]]);
+  });
+
   it("ค่าส่ง (EMS) ไม่นับเป็นสินค้าที่ต้องเติม/ถอน และสต็อกติดลบไม่นับเป็นของที่มี", () => {
     const a = buildAdvice({ sales: [{ code: "EMS", description: "EMS Issa อื่นๆ", qty: 9 }], stock: [{ code: "NEG", description: P("Neg Model"), qty: -1 }], otherBranchSales: [], feedback: [] });
     expect(a.restock).toHaveLength(0);

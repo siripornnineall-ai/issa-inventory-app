@@ -16,16 +16,16 @@ const KIND_LABEL: Record<SosFeedbackRow["kind"], string> = { good: "ขายด
 const KIND_TONE: Record<SosFeedbackRow["kind"], "success" | "danger" | "info" | "neutral"> = { good: "success", bad: "danger", request: "info", other: "neutral" };
 
 // Feedback จากทีมขายหน้าร้าน: จดความเห็นรายสาขา/รายรุ่น ใช้ประกอบการแนะนำ SKU (ยอดขายจริงเป็นหลัก)
-export function FeedbackTab({ branches, feedback, onChanged }: { branches: SosBranch[]; feedback: SosFeedbackRow[]; onChanged: () => void }) {
+export function FeedbackTab({ branches, feedback, onChanged, selectedBranchId = "" }: { branches: SosBranch[]; feedback: SosFeedbackRow[]; onChanged: () => void; selectedBranchId?: string }) {
   const user = useCurrentUser();
   const canFinance = useCan("report.view");
-  const [branchId, setBranchId] = useState("");
+  const [branchId, setBranchId] = useState(selectedBranchId);
   const [productName, setProductName] = useState("");
   const [sosCode, setSosCode] = useState("");
   const [kind, setKind] = useState<SosFeedbackRow["kind"]>("good");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [filterBranch, setFilterBranch] = useState("");
+  const [filterBranch, setFilterBranch] = useState(selectedBranchId);
 
   const branchName = (id: string | null) => (id ? branches.find((b) => b.id === id)?.name ?? "สาขาอื่น" : "ทุกสาขา");
 
@@ -61,6 +61,7 @@ export function FeedbackTab({ branches, feedback, onChanged }: { branches: SosBr
   }
 
   const shown = feedback.filter((f) => !filterBranch || f.branch_id === filterBranch);
+  const countFor = (id: string) => feedback.filter((f) => f.branch_id === id).length;
 
   return (
     <div className="flex flex-col gap-5">
@@ -105,15 +106,17 @@ export function FeedbackTab({ branches, feedback, onChanged }: { branches: SosBr
 
       <Card className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-base font-semibold">feedback ทั้งหมด ({shown.length})</h2>
-          <Select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} aria-label="กรองสาขา" className="w-52">
-            <option value="">ทุกสาขา</option>
+          <h2 className="text-base font-semibold">feedback ({shown.length})</h2>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="กรองสาขา">
+            <button type="button" aria-pressed={filterBranch === ""} onClick={() => setFilterBranch("")} className={`rounded-lg border px-3 py-1 text-xs font-medium ${filterBranch === "" ? "border-[var(--color-primary-container)] bg-[var(--color-primary-container)] text-white" : "border-[var(--color-border)]"}`}>
+              ทุกสาขา ({feedback.length})
+            </button>
             {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
+              <button key={b.id} type="button" aria-pressed={filterBranch === b.id} onClick={() => setFilterBranch(b.id)} className={`rounded-lg border px-3 py-1 text-xs font-medium ${filterBranch === b.id ? "border-[var(--color-primary-container)] bg-[var(--color-primary-container)] text-white" : "border-[var(--color-border)]"}`}>
+                {b.name} ({countFor(b.id)})
+              </button>
             ))}
-          </Select>
+          </div>
         </div>
         {shown.length === 0 ? (
           <p className="mt-3 text-sm text-[var(--color-on-surface-variant)]">ยังไม่มี feedback</p>

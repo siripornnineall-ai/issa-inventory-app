@@ -109,6 +109,7 @@ export interface AdviceItem {
   reason: string;
   notes: string[]; // feedback ทีมขายที่เกี่ยวข้อง (ประกอบเท่านั้น)
   caution?: string;
+  strength?: "strong" | "weak"; // ของรายการถอน: strong = ทั้งรุ่นไม่ขายเลยที่สาขานี้, weak = รุ่นขายอยู่แต่สี/ไซซ์นี้ไม่ขยับ
 }
 export interface BranchAdvice {
   restock: AdviceItem[]; // ขายแล้วของหมด ควรเติม
@@ -149,16 +150,25 @@ export function buildAdvice(input: { sales: AdviceSale[]; stock: AdviceStock[]; 
     return item;
   };
 
-  // ควรถอน: มีของ แต่ไม่ขายเลยที่สาขานี้ ถ้าทีมขายบอกว่าขายดี/มีคนถามหา ให้ตรวจก่อน (ยอดขายจริงยังเป็นหลัก)
+  // ควรถอน: มีของ แต่ไม่ขายเลยที่สาขานี้ในช่วงที่ดู จัดเป็น 2 ระดับ (ข้อมูลน้อย จึงไม่ตัดสินจากสี/ไซซ์เดียวที่ขายไม่ได้ 1 เดือนถ้ารุ่นนั้นยังขายดี)
+  //  strong: ทั้งรุ่นไม่ขายเลย  weak: รุ่นขายอยู่แต่สี/ไซซ์นี้มีของตั้งแต่ 2 ชิ้นและไม่ขยับ  (มีของ 1 ชิ้นในรุ่นที่ขายอยู่ ไม่แนะนำถอน)
+  // ถ้าทีมขายบอกว่าขายดี/มีคนถามหา ให้ตรวจก่อน (ยอดขายจริงยังเป็นหลัก)
+  const modelOf = (code: string) => modelOfDescription(desc.get(code) ?? "").toLowerCase();
+  const soldByModel = new Map<string, number>();
+  for (const [code, q] of sold) soldByModel.set(modelOf(code), (soldByModel.get(modelOf(code)) ?? 0) + q);
   const remove: AdviceItem[] = [];
   for (const [code, qty] of inStock) {
     if (qty <= 0 || (sold.get(code) ?? 0) > 0 || !isProduct(code)) continue;
-    const item = mk(code, qty, `มีของ ${qty} ชิ้น แต่ไม่ขายเลยในช่วงที่ดู`);
+    const modelSold = soldByModel.get(modelOf(code)) ?? 0;
+    const strength: "strong" | "weak" = modelSold === 0 ? "strong" : "weak";
+    if (strength === "weak" && qty < 2) continue;
+    const item = mk(code, qty, strength === "strong" ? `ทั้งรุ่นไม่ขายเลยที่สาขานี้ในช่วงที่ดู (สี/ไซซ์นี้มีของ ${qty} ชิ้น)` : `รุ่นนี้ขายอยู่ แต่สี/ไซซ์นี้ไม่ขยับ (มีของ ${qty} ชิ้น)`);
+    item.strength = strength;
     const good = relatedNotes(input.feedback, code, item.description).some((f) => f.kind === "good" || f.kind === "request");
     if (good) item.caution = "ทีมขายแจ้งว่าขายดีหรือมีลูกค้าถามหา ลองตรวจก่อนถอน";
     remove.push(item);
   }
-  remove.sort((a, b) => b.qty - a.qty || a.description.localeCompare(b.description));
+  remove.sort((a, b) => (a.strength === b.strength ? 0 : a.strength === "strong" ? -1 : 1) || b.qty - a.qty || a.description.localeCompare(b.description));
 
   // ควรเติม: ขายได้ แต่ตอนนี้ของหมด
   const restockAll: AdviceItem[] = [];

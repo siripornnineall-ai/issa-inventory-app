@@ -14,8 +14,16 @@ const DB: Record<string, unknown[]> = {
   sos_summaries: [{ import_id: "i1", sales_total: 34570, gp: 5185.5, other_fees: 606.9, received_ex_vat: 28940, main_qty: 48, main_net: 34570, credit_qty: 28, credit_net: 20230, main_cogs: 9600 }],
   sos_code_map: [],
   sos_feedback: [{ id: "f1", created_at: "2026-11-12T03:00:00Z", branch_id: "b1", product_name: "Billie Slim", sos_code: null, kind: "good", note: "ลูกค้าถามหาไซซ์ XL", author_id: "u1", author_name: "น้องหน้าร้าน" }],
-  sos_sales_lines: [],
-  sos_stock_lines: [],
+  sos_sales_lines: [
+    { id: "s1", import_id: "i1", branch_id: "b1", section: "main", sos_code: "C1", description: "Billie Wide ทรงกระบอกใหญ่ black XL", qty: 2, net: 1290, variant_id: null },
+    { id: "s2", import_id: "i1", branch_id: "b1", section: "main", sos_code: "C2", description: "Billie Wide ทรงกระบอกใหญ่ navy XL", qty: 1, net: 690, variant_id: null },
+    { id: "s3", import_id: "i1", branch_id: "b1", section: "main", sos_code: "C3", description: "Wendy Mid ทรงกระบอกกลาง white L", qty: 1, net: 645, variant_id: null },
+    { id: "s4", import_id: "i1", branch_id: "b1", section: "credit", sos_code: "C9", description: "Pocky Mid ทรงกระบอกกลาง brown M", qty: 9, net: 6000, variant_id: null },
+  ],
+  sos_stock_lines: [
+    { id: "t1", import_id: "i1", branch_id: "b1", as_of: "2026-10-01", sos_code: "C7", description: "Old Model ทรงกระบอกเล็ก black M", qty: 6, variant_id: null },
+    { id: "t2", import_id: "i1", branch_id: "b1", as_of: "2026-10-01", sos_code: "C1", description: "Billie Wide ทรงกระบอกใหญ่ black XL", qty: 1, variant_id: null },
+  ],
 };
 
 vi.mock("@/lib/supabase/client", () => ({
@@ -45,16 +53,16 @@ describe("หน้าสาขาหน้าร้าน SOS", () => {
     seed("admin");
     render(<SosPage />);
     await waitFor(() => expect(screen.getByText(/SOS MEGA/, { selector: "td p, td" })).toBeTruthy());
-    for (const name of ["ต้นทุนและกำไร", "สต็อกสาขา", "แนะนำ SKU", "นำเข้าไฟล์"]) expect(screen.getByRole("button", { name })).toBeTruthy();
+    for (const name of ["สรุป", "ยอดขาย", "สต็อก", "จัดอันดับ/แนะนำ", "นำเข้าไฟล์"]) expect(screen.getByRole("button", { name })).toBeTruthy();
     expect(screen.getAllByText("฿9,340.00").length).toBeGreaterThan(0); // 28,940 - 9,600 - 10,000 = 9,340 (กำไรสุทธิ)
-    expect(screen.getByText(/ยังไม่นับส่วนบัตรเครดิต/)).toBeTruthy();
+    expect(screen.getByRole("note").textContent).toContain("ยังไม่นับ"); // แจ้งเรื่องส่วนบัตรเครดิตครั้งเดียวที่หัวหน้า
   });
 
   it("ทีมขายที่ไม่มีสิทธิ์ดูรายงาน: เห็นเฉพาะ Feedback ไม่เห็นตัวเลขการเงิน", async () => {
     seed("sales");
     render(<SosPage />);
     await waitFor(() => expect(screen.getByText("ลูกค้าถามหาไซซ์ XL")).toBeTruthy());
-    expect(screen.queryByRole("button", { name: "ต้นทุนและกำไร" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "สรุป" })).toBeNull();
     expect(screen.queryByRole("button", { name: "นำเข้าไฟล์" })).toBeNull();
     expect(screen.getByText("บันทึก feedback")).toBeTruthy();
   });
@@ -65,5 +73,47 @@ describe("หน้าสาขาหน้าร้าน SOS", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "นำเข้าไฟล์" })).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "นำเข้าไฟล์" }));
     expect(screen.getByLabelText("เลือกไฟล์ SOS")).toBeTruthy();
+  });
+
+  it("ยอดขาย: จัดอันดับรุ่น (นับเฉพาะส่วนปกติ) กดขยายดูสี/ไซซ์ได้", async () => {
+    seed("admin");
+    render(<SosPage />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "ยอดขาย" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "ยอดขาย" }));
+    await waitFor(() => expect(screen.getByText("#1")).toBeTruthy());
+    expect(screen.getByText("Billie Wide")).toBeTruthy();
+    expect(screen.getByText("#2")).toBeTruthy();
+    expect(screen.queryByText(/Pocky/)).toBeNull(); // ส่วนบัตรเครดิตยังไม่นับ
+    expect(screen.getByText("ดำ / XL")).toBeTruthy();
+  });
+
+  it("สต็อก: บอกรุ่นที่ค้าง (มีของแต่ไม่ขาย) และรุ่นที่ใกล้หมด", async () => {
+    seed("admin");
+    render(<SosPage />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "สต็อก" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "สต็อก" }));
+    await waitFor(() => expect(screen.getByText("สถานะรายรุ่น")).toBeTruthy());
+    expect(screen.getAllByText("ค้าง").length).toBeGreaterThan(0); // Old Model มี 6 ไม่ขาย
+    expect(screen.getAllByText("ใกล้หมด").length).toBeGreaterThan(0); // Billie Wide ขาย 3 เหลือ 1
+  });
+
+  it("จัดอันดับ/แนะนำ: ควรถอนรุ่นที่ไม่ขายเลย และมีโควตา +20 ให้ปรับ", async () => {
+    seed("admin");
+    render(<SosPage />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "จัดอันดับ/แนะนำ" })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "จัดอันดับ/แนะนำ" }));
+    await waitFor(() => expect(screen.getByText("ควรถอน")).toBeTruthy());
+    expect(screen.getByText(/Old Model/)).toBeTruthy();
+    expect(screen.getAllByText(/ควรถอนก่อน/).length).toBeGreaterThan(0);
+    expect((screen.getByLabelText("โควตาเพิ่มสุทธิ") as HTMLInputElement).value).toBe("20");
+  });
+
+  it("Feedback: มีจำนวนต่อสาขา และกรองตามสาขาได้", async () => {
+    seed("admin");
+    render(<SosPage />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Feedback/ })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /^Feedback/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /SOS MEGA \(1\)/ })).toBeTruthy());
+    expect(screen.getByRole("button", { name: /ทุกสาขา \(1\)/ })).toBeTruthy();
   });
 });
