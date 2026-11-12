@@ -2,6 +2,7 @@ import type { AppState } from "@/lib/store/state";
 import { modelOfDescription, type BranchMonthPnL, type SosImportRow } from "./sosAnalysis";
 import { parseSosDescription } from "./sosMapping";
 import { compareSizes } from "./sizes";
+import { compareColors } from "./colorOrder";
 
 // ตัวช่วยของหน้า SOS: เลือกช่วงเวลา/สาขา จัดอันดับยอดขาย (ลงถึงสี/ไซซ์) สรุปรายสาขา และอัตราขายต่อสต็อก
 
@@ -210,4 +211,37 @@ export function branchTotals(rows: BranchMonthPnL[]): BranchTotals[] {
   });
   // เรียงจากกำไร (หลังค่าเช่าถ้ามี ไม่งั้นก่อนค่าเช่า) มากไปน้อย
   return out.sort((a, b) => (b.netProfit ?? b.profitBeforeRent) - (a.netProfit ?? a.profitBeforeRent) || a.branchName.localeCompare(b.branchName));
+}
+
+// ---------- ตารางสี x ไซซ์ของรุ่นหนึ่ง (จากรายการ SKU ที่ขาย) ----------
+export interface SkuMatrix {
+  sizes: string[];
+  rows: { color: string; cells: Record<string, number>; total: number }[];
+  sizeTotals: Record<string, number>;
+  other: SkuRank[]; // อ่านสีหรือไซซ์ไม่ได้ (ไม่เข้าตาราง)
+  max: number;
+}
+
+// สีเรียงตามลำดับสีที่ตั้งไว้ (ลำดับของรุ่นก่อน แล้วลำดับมาตรฐาน) ไซซ์เรียง S ถึง 9XL
+export function skuMatrix(skus: SkuRank[], product?: { colorOrder?: string[] } | null): SkuMatrix {
+  const sizes = [...new Set(skus.filter((s) => s.color && s.size).map((s) => s.size))].sort(compareSizes);
+  const byColor = new Map<string, Record<string, number>>();
+  const other: SkuRank[] = [];
+  const sizeTotals: Record<string, number> = {};
+  let max = 0;
+  for (const s of skus) {
+    if (!s.color || !s.size) {
+      other.push(s);
+      continue;
+    }
+    const cells = byColor.get(s.color) ?? {};
+    cells[s.size] = (cells[s.size] ?? 0) + s.qty;
+    byColor.set(s.color, cells);
+    sizeTotals[s.size] = (sizeTotals[s.size] ?? 0) + s.qty;
+    max = Math.max(max, cells[s.size]);
+  }
+  const rows = [...byColor.entries()]
+    .map(([color, cells]) => ({ color, cells, total: Object.values(cells).reduce((a, b) => a + b, 0) }))
+    .sort((a, b) => compareColors(a.color, b.color, product));
+  return { sizes, rows, sizeTotals, other, max };
 }

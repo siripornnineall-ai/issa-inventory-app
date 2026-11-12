@@ -84,7 +84,10 @@ describe("หน้าสาขาหน้าร้าน SOS", () => {
     expect(screen.getByText("Billie Wide")).toBeTruthy();
     expect(screen.getByText("#2")).toBeTruthy();
     expect(screen.queryByText(/Pocky/)).toBeNull(); // ส่วนบัตรเครดิตยังไม่นับ
-    expect(screen.getByText("ดำ / XL")).toBeTruthy();
+    // ตารางสี x ไซซ์ (ไม่ใช่รายการยาว): แถวสี คอลัมน์ไซซ์ มีรวมต่อไซซ์
+    expect(screen.getAllByText("รวมต่อไซซ์").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("columnheader", { name: "XL" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("cell", { name: "ดำ" }).length).toBeGreaterThan(0);
   });
 
   it("สต็อก: บอกรุ่นที่ค้าง (มีของแต่ไม่ขาย) และรุ่นที่ใกล้หมด", async () => {

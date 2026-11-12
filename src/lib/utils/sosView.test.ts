@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { emptyState } from "@/lib/store/state";
-import { branchTotals, describeLine, latestImportPerBranch, periodsOf, rankModels, selectImports, selectedPeriods, sellThrough } from "./sosView";
+import { skuMatrix, branchTotals, describeLine, latestImportPerBranch, periodsOf, rankModels, selectImports, selectedPeriods, sellThrough } from "./sosView";
 import type { BranchMonthPnL } from "./sosAnalysis";
 
 const imp = (id: string, branch: string, start: string) => ({ id, branch_id: branch, period_start: start, period_end: start, stock_as_of: null, file_name: null });
@@ -82,5 +82,22 @@ describe("สรุปรายสาขาหลายเดือน", () => {
     const mega = t.find((x) => x.branchName === "MEGA")!;
     expect(mega).toMatchObject({ months: 2, pieces: 20, received: 1900, cogs: 700, profitBeforeRent: 1200, rentTotal: 600, netProfit: 600, creditQty: 10, creditNet: 100 });
     expect(t.find((x) => x.branchName === "SIAM")).toMatchObject({ rentTotal: null, netProfit: null });
+  });
+});
+
+describe("ตารางสี x ไซซ์ของยอดขายรุ่นหนึ่ง", () => {
+  const sku = (key: string, color: string, size: string, qty: number) => ({ key, label: `${color} / ${size}`, color, size, qty, net: qty * 690, byBranch: {} });
+  it("จัดเป็นตาราง สีเรียงตามลำดับสี (ดำ กรม ... ไม่ตามยอด) ไซซ์เรียง S ถึง 9XL มีรวมแถว/คอลัมน์", () => {
+    const m = skuMatrix([sku("1", "ครีม", "XL", 5), sku("2", "ดำ", "XL", 2), sku("3", "ดำ", "S", 1), sku("4", "กรม", "2XL", 1), sku("5", "ดำ", "XL", 1)]);
+    expect(m.sizes).toEqual(["S", "XL", "2XL"]);
+    expect(m.rows.map((r) => r.color)).toEqual(["ดำ", "กรม", "ครีม"]);
+    expect(m.rows[0]).toMatchObject({ color: "ดำ", total: 4, cells: { S: 1, XL: 3 } });
+    expect(m.sizeTotals).toEqual({ S: 1, XL: 8, "2XL": 1 });
+    expect(m.max).toBe(5);
+  });
+  it("ใช้ลำดับสีของรุ่นถ้าตั้งไว้ และเก็บรายการอ่านสี/ไซซ์ไม่ได้แยกไว้", () => {
+    const m = skuMatrix([sku("1", "ดำ", "M", 1), sku("2", "ครีม", "M", 1), { ...sku("3", "", "", 2), label: "เสื้อ Free" }], { colorOrder: ["ครีม", "ดำ"] });
+    expect(m.rows.map((r) => r.color)).toEqual(["ครีม", "ดำ"]);
+    expect(m.other.map((o) => o.key)).toEqual(["3"]);
   });
 });

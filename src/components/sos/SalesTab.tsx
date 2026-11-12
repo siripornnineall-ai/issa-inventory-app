@@ -4,12 +4,12 @@ import { useMemo } from "react";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useSosLines } from "./useSosLines";
-import { rankModels } from "@/lib/utils/sosView";
+import { rankModels, skuMatrix } from "@/lib/utils/sosView";
 import type { SosBranch, SosImportRow } from "@/lib/utils/sosAnalysis";
 import { useStore } from "@/lib/store";
 import { formatNumber, formatTHB } from "@/lib/utils/money";
 
-// ยอดขาย: "ขายอะไรไปเท่าไร" จัดอันดับรุ่น (ชิ้น ยอดเงิน สัดส่วน) กดขยายดูสี/ไซซ์ได้ ถ้าเลือกทุกสาขามีคอลัมน์แยกรายสาขา
+// ยอดขาย: "ขายอะไรไปเท่าไร" จัดอันดับรุ่น (ชิ้น ยอดเงิน สัดส่วน) กดขยายดูเป็นตารางสี × ไซซ์ (จำนวนชิ้น) ถ้าเลือกทุกสาขาแสดงยอดแยกรายสาขาใต้ตาราง
 // นับเฉพาะส่วนปกติของรายงาน (ส่วนบัตรเครดิตยังไม่นับ)
 export function SalesTab({ branches, selectedImports }: { branches: SosBranch[]; selectedImports: SosImportRow[] }) {
   const state = useStore();
@@ -53,34 +53,62 @@ export function SalesTab({ branches, selectedImports }: { branches: SosBranch[];
               </span>
             </summary>
             <div className="overflow-x-auto px-5 pb-4">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-[var(--color-surface-container)] text-left text-xs">
-                    <th className="px-3 py-2 font-medium">สี / ไซซ์</th>
-                    {showByBranch && shownBranches.map((b) => (
-                      <th key={b.id} className="px-3 py-2 text-right font-medium">
-                        {b.name}
-                      </th>
-                    ))}
-                    <th className="px-3 py-2 text-right font-medium">ชิ้น</th>
-                    <th className="px-3 py-2 text-right font-medium">ยอดเงิน</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {r.skus.map((s) => (
-                    <tr key={s.key} className="border-b border-[var(--color-border)]">
-                      <td className="px-3 py-1.5">{s.label}</td>
-                      {showByBranch && shownBranches.map((b) => (
-                        <td key={b.id} className="px-3 py-1.5 text-right tabular-nums text-[var(--color-on-surface-variant)]">
-                          {s.byBranch[b.id] ? formatNumber(s.byBranch[b.id]) : "–"}
-                        </td>
-                      ))}
-                      <td className="px-3 py-1.5 text-right font-medium tabular-nums">{formatNumber(s.qty)}</td>
-                      <td className="px-3 py-1.5 text-right tabular-nums">{formatTHB(s.net)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {(() => {
+                const product = Object.values(state.products).find((p) => p.sellingName.trim().toLowerCase() === r.model.trim().toLowerCase());
+                const m = skuMatrix(r.skus, product);
+                return (
+                  <>
+                    {m.rows.length > 0 && (
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className="bg-[var(--color-primary-container)] text-white">
+                            <th className="px-3 py-2 text-left font-medium">สี</th>
+                            {m.sizes.map((s) => (
+                              <th key={s} className="px-3 py-2 text-center font-medium">
+                                {s}
+                              </th>
+                            ))}
+                            <th className="px-3 py-2 text-center font-medium">รวม</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {m.rows.map((row) => (
+                            <tr key={row.color} className="border-b border-[var(--color-border)]">
+                              <td className="px-3 py-2 font-medium">{row.color}</td>
+                              {m.sizes.map((s) => {
+                                const n = row.cells[s];
+                                return (
+                                  <td key={s} style={n ? { backgroundColor: `color-mix(in srgb, var(--color-primary-container) ${Math.round(10 + 30 * (n / Math.max(1, m.max)))}%, transparent)` } : undefined} className={`px-3 py-2 text-center ${n ? "font-medium" : "text-[var(--color-on-surface-variant)]/50"}`}>
+                                    {n ? formatNumber(n) : "–"}
+                                  </td>
+                                );
+                              })}
+                              <td className="bg-[var(--color-surface-container)] px-3 py-2 text-center font-semibold">{formatNumber(row.total)}</td>
+                            </tr>
+                          ))}
+                          <tr className="bg-[var(--color-surface-container)] font-semibold">
+                            <td className="px-3 py-2">รวมต่อไซซ์</td>
+                            {m.sizes.map((s) => (
+                              <td key={s} className="px-3 py-2 text-center">
+                                {formatNumber(m.sizeTotals[s] ?? 0)}
+                              </td>
+                            ))}
+                            <td className="px-3 py-2 text-center">{formatNumber(r.qty)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    )}
+                    {m.other.length > 0 && (
+                      <p className="mt-2 text-xs text-[var(--color-on-surface-variant)]">
+                        รายการที่อ่านสี/ไซซ์ไม่ได้: {m.other.map((o) => `${o.label} (${o.qty})`).join(", ")}
+                      </p>
+                    )}
+                    {showByBranch && (
+                      <p className="mt-2 text-xs text-[var(--color-on-surface-variant)]">แยกตามสาขา: {shownBranches.filter((b) => r.byBranch[b.id]).map((b) => `${b.name} ${r.byBranch[b.id]} ชิ้น`).join(" · ")}</p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </details>
         </Card>
