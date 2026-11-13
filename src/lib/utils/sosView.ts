@@ -1,6 +1,6 @@
 import type { AppState } from "@/lib/store/state";
 import { modelOfDescription, type BranchMonthPnL, type SosImportRow } from "./sosAnalysis";
-import { parseSosDescription } from "./sosMapping";
+import { isSosNonProduct, parseSosDescription } from "./sosMapping";
 import { compareSizes } from "./sizes";
 import { compareColors } from "./colorOrder";
 
@@ -86,7 +86,7 @@ export function rankModels(state: AppState, lines: SaleLine[]): ModelRank[] {
   }
   const models = new Map<string, Acc>();
   for (const l of lines) {
-    if (l.qty <= 0) continue;
+    if (l.qty <= 0 || isSosNonProduct(l.description)) continue; // ค่าส่ง (EMS) ไม่ใช่สินค้า ไม่นับในอันดับ
     const info = describeLine(state, l);
     const m: Acc = models.get(info.model) ?? { qty: 0, net: 0, byBranch: {}, skus: new Map<string, SkuRank>() };
     m.qty += l.qty;
@@ -134,13 +134,13 @@ export interface SellThrough {
 export function sellThrough(state: AppState, sales: SaleLine[], stock: SaleLine[]): SellThrough[] {
   const sold = new Map<string, number>();
   for (const l of sales) {
-    if (l.qty <= 0) continue;
+    if (l.qty <= 0 || isSosNonProduct(l.description)) continue;
     const m = describeLine(state, l).model;
     sold.set(m, (sold.get(m) ?? 0) + l.qty);
   }
   const have = new Map<string, Record<string, number>>();
   for (const l of stock) {
-    if (l.qty <= 0) continue;
+    if (l.qty <= 0 || isSosNonProduct(l.description)) continue;
     const m = describeLine(state, l).model;
     const byBranch = have.get(m) ?? {};
     byBranch[l.branch_id] = (byBranch[l.branch_id] ?? 0) + l.qty;
@@ -256,4 +256,59 @@ export function skuMatrix(skus: SkuRank[], product?: { colorOrder?: string[] } |
     .map(([color, cells]) => ({ color, cells, total: Object.values(cells).reduce((a, b) => a + b, 0) }))
     .sort((a, b) => compareColors(a.color, b.color, product));
   return { sizes, rows, sizeTotals, other, max };
+}
+
+// ---------- คำแนะนำเป็นตารางเดียว (รวมเป็นรุ่น) ----------
+export type AdviceAction = "restock" | "addNew" | "remove";
+export interface AdviceTableRow {
+  action: AdviceAction;
+  model: string;
+  qty: number; // ชิ้นรวม (เติม/เพิ่ม = จำนวนที่แนะนำ, ถอน = จำนวนของที่มีอยู่)
+  cells: { label: string; qty: number }[]; // สี/ไซซ์ พร้อมจำนวน
+  reason: string;
+  strong: boolean; // เฉพาะถอน: ทั้งรุ่นไม่ขายเลย
+  notes: string[];
+  caution: boolean;
+}
+interface AdviceLike {
+  code: string;
+  description: string;
+  qty: number;
+  strength?: "strong" | "weak";
+  notes: string[];
+  caution?: string;
+}
+
+const ACTION_ORDER: Record<AdviceAction, number> = { restock: 0, addNew: 1, remove: 2 };
+const REASON: Record<string, string> = {
+  restock: "ขายได้แล้วของหมด ควรส่งเพิ่ม",
+  addNew: "ขายดีที่สาขาอื่น แต่สาขานี้ยังไม่มี",
+  "remove-strong": "ทั้งรุ่นไม่ขายเลยที่สาขานี้ ควรถอนก่อน",
+  "remove-weak": "รุ่นนี้ขายอยู่ แต่สี/ไซซ์เหล่านี้ไม่ขยับ",
+};
+
+// รวมรายการคำแนะนำ (ระดับสี/ไซซ์) เป็นแถวต่อรุ่นต่อการกระทำ ใช้ชื่อรุ่น/สีของเราเมื่อจับคู่ได้ เรียง เติม > เพิ่มใหม่ > ถอน แล้วตามจำนวนมากไปน้อย
+export function adviceRows(state: AppState, advice: { restock: AdviceLike[]; addNew: AdviceLike[]; remove: AdviceLike[] }, variantByCode: Record<string, string | null>): AdviceTableRow[] {
+  const map = new Map<string, AdviceTableRow>();
+  const add = (action: AdviceAction, items: AdviceLike[]) => {
+    for (const it of items) {
+      const info = describeLine(state, { variant_id: variantByCode[it.code] ?? null, description: it.description, sos_code: it.code });
+      const strong = action === "remove" && it.strength === "strong";
+      const key = `${action}|${strong ? "s" : "w"}|${info.model}`;
+      const row =
+        map.get(key) ??
+        ({ action, model: info.model, qty: 0, cells: [], reason: action === "remove" ? REASON[strong ? "remove-strong" : "remove-weak"] : REASON[action], strong, notes: [], caution: false } as AdviceTableRow);
+      row.qty += it.qty;
+      row.cells.push({ label: info.label, qty: it.qty });
+      for (const n of it.notes) if (!row.notes.includes(n)) row.notes.push(n);
+      if (it.caution) row.caution = true;
+      map.set(key, row);
+    }
+  };
+  add("restock", advice.restock);
+  add("addNew", advice.addNew);
+  add("remove", advice.remove);
+  const rows = [...map.values()];
+  for (const r of rows) r.cells.sort((a, b) => b.qty - a.qty || a.label.localeCompare(b.label, "th"));
+  return rows.sort((a, b) => ACTION_ORDER[a.action] - ACTION_ORDER[b.action] || Number(b.strong) - Number(a.strong) || b.qty - a.qty || a.model.localeCompare(b.model, "th"));
 }

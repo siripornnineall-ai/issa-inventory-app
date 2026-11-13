@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { emptyState } from "@/lib/store/state";
-import { skuMatrix, branchTotals, describeLine, latestImportPerBranch, periodsOf, rankModels, selectImports, selectedPeriods, sellThrough } from "./sosView";
+import { adviceRows, skuMatrix, branchTotals, describeLine, latestImportPerBranch, periodsOf, rankModels, selectImports, selectedPeriods, sellThrough } from "./sosView";
 import type { BranchMonthPnL } from "./sosAnalysis";
 
 const imp = (id: string, branch: string, start: string) => ({ id, branch_id: branch, period_start: start, period_end: start, stock_as_of: null, file_name: null });
@@ -105,5 +105,39 @@ describe("ตารางสี x ไซซ์ของยอดขายรุ�
     const m = skuMatrix([sku("1", "ดำ", "M", 1), sku("2", "ครีม", "M", 1), { ...sku("3", "", "", 2), label: "เสื้อ Free" }], { colorOrder: ["ครีม", "ดำ"] });
     expect(m.rows.map((r) => r.color)).toEqual(["ครีม", "ดำ"]);
     expect(m.other.map((o) => o.key)).toEqual(["3"]);
+  });
+});
+
+describe("คำแนะนำเป็นตารางเดียว (รวมเป็นรุ่น)", () => {
+  const item = (code: string, description: string, qty: number, extra: Record<string, unknown> = {}) => ({ code, description, qty, notes: [] as string[], ...extra });
+  it("รวมสี/ไซซ์ของรุ่นเดียวกันเป็นแถวเดียว เรียง เติม > เพิ่มใหม่ > ถอน (ถอนก่อนก่อน) และใช้ชื่อสีไทยของเรา", () => {
+    const st = {
+      ...emptyState(),
+      products: { p1: { id: "p1", sellingName: "Billie Wide", status: "active", images: [] } },
+      variants: { v1: { id: "v1", productId: "p1", color: "ดำ", size: "S", sku: "A", active: true } },
+    } as never;
+    const rows = adviceRows(
+      st,
+      {
+        restock: [item("R1", "Billie Wide ทรงกระบอกใหญ่ black S", 3), item("R2", "Billie Wide ทรงกระบอกใหญ่ black M", 1)],
+        addNew: [item("N1", "Snow Mid กระบอกกลาง khaki L", 1)],
+        remove: [item("W1", "Wendy Mid ทรงกระบอกกลาง grey S", 2, { strength: "weak" }), item("S1", "Old Model ทรงกระบอกเล็ก black M", 4, { strength: "strong", notes: ["ลูกค้าถามหา"], caution: "ตรวจก่อนถอน" })],
+      },
+      { R1: "v1" }
+    );
+    expect(rows.map((r) => [r.action, r.model, r.qty])).toEqual([
+      ["restock", "Billie Wide", 4],
+      ["addNew", "Snow Mid", 1],
+      ["remove", "Old Model", 4], // strong ก่อน weak
+      ["remove", "Wendy Mid", 2],
+    ]);
+    expect(rows[0].cells).toEqual([{ label: "ดำ / S", qty: 3 }, { label: "ดำ / M", qty: 1 }]);
+    expect(rows[2]).toMatchObject({ strong: true, caution: true, notes: ["ลูกค้าถามหา"] });
+  });
+
+  it("ค่าส่ง (EMS) ไม่นับในอันดับขายดี และไม่นับในสถานะรายรุ่น", () => {
+    const sales = [line("b1", "E1", "EMS Issa อื่นๆ", 3, 150), line("b1", "C1", "Billie Wide ทรงกระบอกใหญ่ black XL", 1, 690)];
+    expect(rankModels(state(), sales).map((r) => r.model)).toEqual(["Billie Wide"]);
+    expect(sellThrough(state(), sales, sales).map((r) => r.model)).toEqual(["Billie Wide"]);
   });
 });

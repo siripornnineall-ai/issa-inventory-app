@@ -102,15 +102,21 @@ describe("หน้าสาขาหน้าร้าน SOS", () => {
     expect(screen.getAllByText("ใกล้หมด").length).toBeGreaterThan(0); // Billie Wide ขาย 3 เหลือ 1
   });
 
-  it("จัดอันดับ/แนะนำ: ควรถอนรุ่นที่ไม่ขายเลย และมีโควตา +20 ให้ปรับ", async () => {
+  it("จัดอันดับ/แนะนำ: การ์ดสรุป 3 ช่อง + ตารางเดียวรวมเป็นรุ่น (ถอนรุ่นที่ไม่ขายเลยก่อน) และมีโควตา +20 ให้ปรับ", async () => {
     seed("admin");
     render(<SosPage />);
     await waitFor(() => expect(screen.getByRole("button", { name: "จัดอันดับ/แนะนำ" })).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "จัดอันดับ/แนะนำ" }));
-    await waitFor(() => expect(screen.getByText("ควรถอน")).toBeTruthy());
-    expect(screen.getByText(/Old Model/)).toBeTruthy();
-    expect(screen.getAllByText(/ควรถอนก่อน/).length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getByRole("button", { name: /ควรถอน.*ชิ้น/ })).toBeTruthy());
+    expect(screen.getByRole("button", { name: /ควรเติม.*ชิ้น/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /ควรเติมเพิ่มรายการใหม่|ควรเพิ่มรายการใหม่.*ชิ้น/ })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "สี / ไซซ์" })).toBeTruthy();
+    expect(screen.getByText("Old Model")).toBeTruthy(); // แถวในตาราง คำแนะนำ
+    expect(screen.getByText(/ควรถอนก่อน/)).toBeTruthy();
     expect((screen.getByLabelText("โควตาเพิ่มสุทธิ") as HTMLInputElement).value).toBe("20");
+    // กดการ์ด "ควรถอน" = กรองตาราง
+    fireEvent.click(screen.getByRole("button", { name: /ควรถอน.*ชิ้น/ }));
+    expect(screen.getByText(/เฉพาะควรถอน/)).toBeTruthy();
   });
 
   it("Feedback: มีจำนวนต่อสาขา และกรองตามสาขาได้", async () => {
