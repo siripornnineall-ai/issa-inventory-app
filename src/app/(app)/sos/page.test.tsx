@@ -95,7 +95,9 @@ describe("หน้าสาขาหน้าร้าน SOS", () => {
     render(<SosPage />);
     await waitFor(() => expect(screen.getByRole("button", { name: "สต็อก" })).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "สต็อก" }));
-    await waitFor(() => expect(screen.getByText("สถานะรายรุ่น")).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("columnheader", { name: "ขายแล้ว" })).toBeTruthy()); // ตารางเดียว: รุ่น x สาขา มีรวม ขายแล้ว สถานะ
+    expect(screen.getByRole("columnheader", { name: /SOS MEGA/ })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "รวมมีของ" })).toBeTruthy();
     expect(screen.getAllByText("ค้าง").length).toBeGreaterThan(0); // Old Model มี 6 ไม่ขาย
     expect(screen.getAllByText("ใกล้หมด").length).toBeGreaterThan(0); // Billie Wide ขาย 3 เหลือ 1
   });

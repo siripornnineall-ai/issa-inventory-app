@@ -27,7 +27,6 @@ export function StockTab({ branches, selectedImports }: { branches: SosBranch[];
   const rows = useMemo(() => sellThrough(state, saleLines, stockLines), [state, saleLines, stockLines]);
   const { matrices, other } = useMemo(() => stockMatrices(stock.map((s) => ({ code: s.sos_code, description: s.description, qty: s.qty })), compareSizes), [stock]);
   const total = stock.reduce((s, l) => s + l.qty, 0);
-  const stuck = rows.filter((r) => r.status === "stuck");
 
   if (stockImports.length === 0) {
     return (
@@ -38,49 +37,74 @@ export function StockTab({ branches, selectedImports }: { branches: SosBranch[];
   }
 
   const branchName = (id: string) => branches.find((b) => b.id === id)?.name ?? "";
+  const stuckCount = rows.filter((r) => r.status === "stuck").length;
+  const lowCount = rows.filter((r) => r.status === "low").length;
+  const hasNegative = stock.some((s) => s.qty < 0);
 
   return (
     <div className="flex flex-col gap-4">
       {error && <p role="alert" className="text-sm text-[var(--color-danger)]">{error}</p>}
-      <p role="status" className="px-1 text-sm text-[var(--color-on-surface-variant)]">
-        <span className="font-semibold text-[var(--color-on-surface)]">สต็อกที่สาขา:</span> {loading ? "กำลังโหลด..." : `${formatNumber(total)} ชิ้น`} ·{" "}
-        {stockImports.map((i) => `${branchName(i.branch_id)} ณ ${formatThaiDate(i.stock_as_of ?? i.period_end)}`).join(" · ")}
-        {stuck.length > 0 && <span className="font-medium text-[var(--color-danger)]"> · ค้าง {formatNumber(stuck.length)} รุ่น</span>}
-        {stock.some((s) => s.qty < 0) && <span className="text-[var(--color-danger)]"> · มีรายการติดลบในไฟล์ของ SOS</span>}
-      </p>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status">
+        <Card className="p-4">
+          <p className="text-xs text-[var(--color-on-surface-variant)]">สต็อกที่สาขา</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums">{loading ? "..." : formatNumber(total)} <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">ชิ้น</span></p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-[var(--color-on-surface-variant)]">จำนวนรุ่น</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums">{formatNumber(rows.filter((r) => r.stock > 0).length)}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-[var(--color-on-surface-variant)]">ค้าง (ไม่ขายเลย)</p>
+          <p className={`mt-1 text-xl font-semibold tabular-nums ${stuckCount > 0 ? "text-[var(--color-yellow)]" : ""}`}>{formatNumber(stuckCount)} <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">รุ่น</span></p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-[var(--color-on-surface-variant)]">ใกล้หมด</p>
+          <p className={`mt-1 text-xl font-semibold tabular-nums ${lowCount > 0 ? "text-[var(--color-danger)]" : ""}`}>{formatNumber(lowCount)} <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">รุ่น</span></p>
+        </Card>
+      </div>
+      {hasNegative && <p className="px-1 text-xs text-[var(--color-danger)]">มีรายการติดลบในไฟล์ของ SOS (ข้อมูลฝั่ง SOS คลาดเคลื่อน)</p>}
 
       <Card className="overflow-x-auto">
-        <div className="px-5 pt-4">
-          <h2 className="text-base font-semibold">สถานะรายรุ่น</h2>
-          <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">ค้าง = มีของตั้งแต่ 5 ชิ้นแต่ไม่ขายเลยในช่วงที่เลือก · ใกล้หมด = ของเหลือน้อยกว่าที่ขายได้</p>
-        </div>
-        <table className="mt-2 w-full border-collapse text-sm">
+        <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="bg-[var(--color-surface-container)] text-left text-xs">
-              <th className="px-5 py-2 font-medium">รุ่น</th>
-              <th className="px-3 py-2 text-right font-medium">มีของ</th>
-              <th className="px-3 py-2 text-right font-medium">ขายแล้ว</th>
-              <th className="px-5 py-2 font-medium">สถานะ</th>
+            <tr className="bg-[var(--color-primary-container)] text-white">
+              <th className="px-4 py-2.5 text-left font-medium">รุ่น</th>
+              {stockImports.map((i) => (
+                <th key={i.branch_id} className="px-3 py-2.5 text-right font-medium">
+                  {branchName(i.branch_id)}
+                  <span className="block text-[10px] font-normal opacity-80">ณ {formatThaiDate(i.stock_as_of ?? i.period_end)}</span>
+                </th>
+              ))}
+              <th className="bg-[var(--color-primary)] px-3 py-2.5 text-right font-medium">รวมมีของ</th>
+              <th className="px-3 py-2.5 text-right font-medium">ขายแล้ว</th>
+              <th className="px-4 py-2.5 text-left font-medium">สถานะ</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.model} className="border-t border-[var(--color-border)]">
-                <td className="px-5 py-2 font-medium">{r.model}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{formatNumber(r.stock)}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{formatNumber(r.sold)}</td>
-                <td className="px-5 py-2">
+              <tr key={r.model} className="border-b border-[var(--color-border)]" title={r.note || undefined}>
+                <td className="px-4 py-2 font-medium">{r.model}</td>
+                {stockImports.map((i) => (
+                  <td key={i.branch_id} className={`px-3 py-2 text-right tabular-nums ${r.stockByBranch[i.branch_id] ? "" : "text-[var(--color-on-surface-variant)]/50"}`}>
+                    {r.stockByBranch[i.branch_id] ? formatNumber(r.stockByBranch[i.branch_id]) : "–"}
+                  </td>
+                ))}
+                <td className="bg-[var(--color-surface-container)] px-3 py-2 text-right font-semibold tabular-nums">{formatNumber(r.stock)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{r.sold ? formatNumber(r.sold) : <span className="text-[var(--color-on-surface-variant)]/50">–</span>}</td>
+                <td className="px-4 py-2">
                   {r.status === "stuck" && <Badge tone="yellow">ค้าง</Badge>}
                   {r.status === "low" && <Badge tone="danger">ใกล้หมด</Badge>}
-                  {r.status === "ok" && <span className="text-xs text-[var(--color-on-surface-variant)]">ปกติ</span>}
-                  {r.note && <span className="ml-2 text-xs text-[var(--color-on-surface-variant)]">{r.note}</span>}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        <p className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-on-surface-variant)]">
+          ค้าง = มีของตั้งแต่ 5 ชิ้นแต่ไม่ขายเลยในช่วงที่เลือก · ใกล้หมด = ของเหลือน้อยกว่าที่ขายได้ · เลื่อนเมาส์ที่แถวเพื่อดูรายละเอียด · ขายแล้วนับเฉพาะส่วนปกติของรายงาน
+        </p>
       </Card>
 
+      <h2 className="px-1 text-sm font-semibold">สี / ไซซ์ รายรุ่น <span className="font-normal text-[var(--color-on-surface-variant)]">(กดที่รุ่นเพื่อดู รวมทุกสาขาที่เลือก)</span></h2>
       {matrices.map((m) => (
         <Card key={m.model} className="overflow-hidden">
           <details>

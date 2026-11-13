@@ -66,6 +66,12 @@ describe("ขายแล้ว เทียบกับของที่มี
     const out = Object.fromEntries(sellThrough(state(), sales, stock).map((r) => [r.model, r.status]));
     expect(out).toEqual({ "Billie Wide": "low", "Old Model": "stuck", "Calm Model": "ok" });
   });
+
+  it("แยกจำนวนของที่มีรายสาขา (ใช้ทำคอลัมน์ต่อสาขาในตารางสต็อก)", () => {
+    const stock = [line("b1", "C1", "Billie Wide ทรงกระบอกใหญ่ black XL", 3, 0), line("b2", "C1", "Billie Wide ทรงกระบอกใหญ่ black XL", 2, 0), line("b2", "C2", "Billie Wide ทรงกระบอกใหญ่ navy L", 4, 0)];
+    const r = sellThrough(state(), [], stock)[0];
+    expect(r).toMatchObject({ model: "Billie Wide", stock: 9, stockByBranch: { b1: 3, b2: 6 } });
+  });
 });
 
 describe("สรุปรายสาขาหลายเดือน", () => {

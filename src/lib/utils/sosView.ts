@@ -126,20 +126,32 @@ export interface SellThrough {
   model: string;
   sold: number;
   stock: number;
+  stockByBranch: Record<string, number>;
   status: "stuck" | "low" | "ok";
   note: string;
 }
 // ค้าง = มีของตั้งแต่ 5 ชิ้นแต่ไม่ขายเลย / ใกล้หมด = ขายได้ แต่ของเหลือน้อยกว่าที่ขายในช่วงที่ดู / ปกติ
 export function sellThrough(state: AppState, sales: SaleLine[], stock: SaleLine[]): SellThrough[] {
   const sold = new Map<string, number>();
-  for (const l of sales) if (l.qty > 0) sold.set(describeLine(state, l).model, (sold.get(describeLine(state, l).model) ?? 0) + l.qty);
-  const have = new Map<string, number>();
-  for (const l of stock) if (l.qty > 0) have.set(describeLine(state, l).model, (have.get(describeLine(state, l).model) ?? 0) + l.qty);
+  for (const l of sales) {
+    if (l.qty <= 0) continue;
+    const m = describeLine(state, l).model;
+    sold.set(m, (sold.get(m) ?? 0) + l.qty);
+  }
+  const have = new Map<string, Record<string, number>>();
+  for (const l of stock) {
+    if (l.qty <= 0) continue;
+    const m = describeLine(state, l).model;
+    const byBranch = have.get(m) ?? {};
+    byBranch[l.branch_id] = (byBranch[l.branch_id] ?? 0) + l.qty;
+    have.set(m, byBranch);
+  }
   const models = new Set([...sold.keys(), ...have.keys()]);
   const out: SellThrough[] = [];
   for (const model of models) {
     const s = sold.get(model) ?? 0;
-    const h = have.get(model) ?? 0;
+    const stockByBranch = have.get(model) ?? {};
+    const h = Object.values(stockByBranch).reduce((a, b) => a + b, 0);
     let status: SellThrough["status"] = "ok";
     let note = "";
     if (s === 0 && h >= 5) {
@@ -149,7 +161,7 @@ export function sellThrough(state: AppState, sales: SaleLine[], stock: SaleLine[
       status = "low";
       note = `ขายได้ ${s} ชิ้น แต่ของเหลือ ${h} ชิ้น`;
     }
-    out.push({ model, sold: s, stock: h, status, note });
+    out.push({ model, sold: s, stock: h, stockByBranch, status, note });
   }
   return out.sort((a, b) => b.stock - a.stock || b.sold - a.sold || a.model.localeCompare(b.model, "th"));
 }
