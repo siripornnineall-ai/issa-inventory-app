@@ -277,7 +277,7 @@ export const MOVEMENT_TYPE_LABEL_TH: Record<MovementType, string> = {
   adjustment: "ปรับยอด",
   size_change: "เปลี่ยนไซซ์",
   color_change: "เปลี่ยนสี",
-  send_to_store: "ส่งหน้าร้าน",
+  send_to_store: "ส่งหน้าร้าน SOS",
   cancel_restock: "คืนสต็อก (ยกเลิกออเดอร์)",
   cancel_stock_in: "ยกเลิกใบรับเข้า",
   return_rts: STOCK_RETURN_LABEL_TH.return_rts,

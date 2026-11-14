@@ -455,7 +455,7 @@ export default function StockOutPage() {
   const [round, setRound] = useState(0);
   return (
     <>
-      <Header title="เบิกสินค้าออก" description="บันทึกการเบิกสินค้าออกจากคลัง เช่น การขาย ส่งหน้าร้าน หรือสาเหตุอื่น ๆ" />
+      <Header title="เบิกสินค้าออก" description="บันทึกการเบิกสินค้าออกจากคลัง เช่น การขาย ส่งหน้าร้าน SOS หรือสาเหตุอื่น ๆ" />
       <PageContainer className="max-w-5xl">
         <RequireAccess perm="stock.out">
           <StockOutForm key={round} onAgain={() => setRound((n) => n + 1)} />

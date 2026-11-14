@@ -342,7 +342,7 @@ export function equipmentOverview(state: AppState, fromISO: string, toISO: strin
 export function reasonLabel(reason: string): string {
   const labels: Record<string, string> = {
     sale: "ขาย",
-    send_to_store: "ส่งหน้าร้าน",
+    send_to_store: "ส่งหน้าร้าน SOS",
     transfer_out: "โอนคลัง",
     size_change: "เปลี่ยนไซซ์",
     color_change: "เปลี่ยนสี",
