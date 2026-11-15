@@ -30,7 +30,7 @@ const lowStyle = { backgroundColor: "color-mix(in srgb, var(--color-danger) 18%,
 
 function ModelBlock({ m }: { m: PlanMatrix }) {
   const brand = useStore((s) => (m.brandId ? s.brands[m.brandId] : undefined));
-  const head = (label: string) => (
+  const head = (label: string, totalLabel = "รวม") => (
     <thead>
       <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
         <th className="sticky left-0 z-10 w-[4.5rem] bg-[var(--bar,var(--color-primary-container))] px-2 py-2 text-left font-medium">{label}</th>
@@ -39,7 +39,7 @@ function ModelBlock({ m }: { m: PlanMatrix }) {
             {s}
           </th>
         ))}
-        <th className="w-[3.5rem] bg-[var(--bar-strong,var(--color-primary))] px-1 py-2 text-center font-medium text-[color:var(--bar-strong-fg,#fff)]">รวม</th>
+        <th className="w-[3.5rem] bg-[var(--bar-strong,var(--color-primary))] px-1 py-2 text-center font-medium text-[color:var(--bar-strong-fg,#fff)]">{totalLabel}</th>
       </tr>
     </thead>
   );
@@ -86,9 +86,9 @@ function ModelBlock({ m }: { m: PlanMatrix }) {
             </table>
           </div>
           <div className="overflow-x-auto">
-            <p className="mb-1 text-sm font-semibold">ส่วนต่าง = (คลัง + รอเย็บ) − ยอดขาย <span className="font-normal text-[var(--color-on-surface-variant)]">· ติดลบ = ขาด</span></p>
+            <p className="mb-1 text-sm font-semibold">ส่วนต่าง = (คลัง + รอเย็บ) − ยอดขาย <span className="font-normal text-[var(--color-on-surface-variant)]">· ติดลบ = ขาด · &quot;ขาดรวม&quot; นับเฉพาะที่ขาด (ไม่หักกับของเหลือ)</span></p>
             <table className="w-full table-fixed border-collapse text-sm">
-              {head("สี")}
+              {head("สี", "ขาดรวม")}
               <tbody>
                 {m.colors.map((c) => (
                   <tr key={c.color} className="border-b border-[var(--color-border)]">
@@ -110,17 +110,17 @@ function ModelBlock({ m }: { m: PlanMatrix }) {
                         </td>
                       );
                     })}
-                    <td className={`bg-[var(--color-surface-container)] px-1 py-2 text-center font-semibold ${c.diff < 0 ? "text-[var(--color-danger)]" : ""}`}>{fmt1(c.diff)}</td>
+                    <td className={`bg-[var(--color-surface-container)] px-1 py-2 text-center font-semibold ${c.need > 0 ? "text-[var(--color-danger)]" : "text-[var(--color-on-surface-variant)]/60"}`}>{c.need > 0 ? `-${formatNumber(c.need)}` : "–"}</td>
                   </tr>
                 ))}
                 <tr className="bg-[var(--color-surface-container)] font-semibold">
-                  <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-2 py-2">รวม</td>
+                  <td className="sticky left-0 z-10 whitespace-nowrap bg-[var(--color-surface-container)] px-2 py-2 text-xs">ขาดรวม</td>
                   {m.sizes.map((s) => (
-                    <td key={s} className={`px-0.5 py-2 text-center ${(m.sizeDiff[s] ?? 0) < 0 ? "text-[var(--color-danger)]" : ""}`}>
-                      {fmt1(m.sizeDiff[s] ?? 0)}
+                    <td key={s} className={`px-0.5 py-2 text-center ${(m.sizeNeed[s] ?? 0) > 0 ? "text-[var(--color-danger)]" : "text-[var(--color-on-surface-variant)]/60"}`}>
+                      {(m.sizeNeed[s] ?? 0) > 0 ? `-${formatNumber(m.sizeNeed[s])}` : "–"}
                     </td>
                   ))}
-                  <td className={`px-1 py-2 text-center ${m.totals.diff < 0 ? "text-[var(--color-danger)]" : ""}`}>{fmt1(m.totals.diff)}</td>
+                  <td className={`px-1 py-2 text-center ${m.totals.need > 0 ? "text-[var(--color-danger)]" : ""}`}>{m.totals.need > 0 ? `-${formatNumber(m.totals.need)}` : "–"}</td>
                 </tr>
               </tbody>
             </table>
