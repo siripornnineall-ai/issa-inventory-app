@@ -47,6 +47,77 @@ function diffLabel(diff: number) {
   return diff > 0 ? `+${diff}` : String(diff);
 }
 
+// ตารางกรอกจำนวนนับ สี x ไซซ์ ต่อรุ่น: ช่องละหนึ่งตัวเลข (ว่าง = ยังไม่นับ) ใต้ช่องโชว์ยอดในระบบ และผลต่างทันทีที่กรอก กด Enter ไปช่องถัดไป
+function CountGrid({ product, rows, onChange }: { product: Product; rows: CountRow[]; onChange: (variantId: string, raw: string) => void }) {
+  const sizes = [...new Set(rows.map((r) => r.variant.size))].sort(compareSizes);
+  const colors = [...new Set(rows.map((r) => r.variant.color))].sort((a, b) => compareColors(a, b, product));
+  const byKey = new Map(rows.map((r) => [`${r.variant.color}|${r.variant.size}`, r]));
+  function nextOnEnter(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const inputs = Array.from(e.currentTarget.closest("table")?.querySelectorAll<HTMLInputElement>("input[data-count-cell]") ?? []);
+    inputs[inputs.indexOf(e.currentTarget) + 1]?.focus();
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-max border-collapse text-sm">
+        <thead>
+          <tr className="bg-[var(--color-primary-container)] text-white">
+            <th className="sticky left-0 z-10 w-28 bg-[var(--color-primary-container)] px-3 py-2 text-left font-medium">สี</th>
+            {sizes.map((sz) => (
+              <th key={sz} className="w-20 px-1 py-2 text-center font-medium">
+                {sz}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {colors.map((color) => (
+            <tr key={color} className="border-b border-[var(--color-border)]">
+              <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-2 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <ColorSwatch name={color} size={18} />
+                  {color}
+                </span>
+              </td>
+              {sizes.map((sz) => {
+                const r = byKey.get(`${color}|${sz}`);
+                if (!r) return <td key={sz} className="px-1 py-2 text-center text-[var(--color-on-surface-variant)]/40">–</td>;
+                const { variant: v, system, counted, touched, during, final, diff } = r;
+                return (
+                  <td key={sz} className={`px-1 py-1.5 text-center align-top ${touched && diff !== 0 ? "bg-[var(--color-warning-container)]" : ""}`}>
+                    <input
+                      type="number"
+                      min={0}
+                      inputMode="numeric"
+                      data-count-cell
+                      aria-label={`นับ ${v.color} ${v.size}`}
+                      title={v.sku}
+                      value={touched ? counted : ""}
+                      placeholder="–"
+                      onChange={(e) => onChange(v.id, e.target.value)}
+                      onKeyDown={nextOnEnter}
+                      className="h-9 w-16 rounded-lg border border-[var(--color-border)] bg-white px-1 text-center text-sm font-semibold focus:border-[var(--color-primary-container)] focus:outline-none"
+                    />
+                    <div className="mt-0.5 text-[10px] leading-tight text-[var(--color-on-surface-variant)]">ระบบ {system}</div>
+                    {touched && diff !== 0 && <div className={`text-[11px] font-semibold leading-tight ${diff > 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>{diffLabel(diff)}</div>}
+                    {touched && diff === 0 && <div className="text-[11px] leading-tight text-[var(--color-success)]">✓</div>}
+                    {touched && during !== 0 && (
+                      <div className="text-[10px] font-semibold leading-tight text-[var(--color-warning)]">
+                        เข้า/ออก {diffLabel(during)} → {final}
+                      </div>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function StockCountForm() {
   const state = useStore();
   const { adjustStock, mergeUnitTokens } = useActions();
@@ -529,96 +600,7 @@ function StockCountForm() {
                       )}
                     </div>
 
-                    {/* การ์ดสำหรับจอมือถือ */}
-                    <div className="flex flex-col gap-2 sm:hidden">
-                      {rows.map(({ variant: v, system, counted, touched, during, final, diff }) => (
-                        <div key={v.id} className="rounded-lg border border-[var(--color-border)] p-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-                              <ColorSwatch name={v.color} size={20} />
-                              <span className="truncate">
-                                {v.color} / {v.size}
-                              </span>
-                            </span>
-                            {touched && diff !== 0 && (
-                              <span className={`shrink-0 text-xs font-semibold ${diff > 0 ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>{diffLabel(diff)}</span>
-                            )}
-                            {touched && diff === 0 && <span className="shrink-0 text-xs text-[var(--color-on-surface-variant)]">ตรงกัน</span>}
-                          </div>
-                          <p className="truncate text-xs text-[var(--color-on-surface-variant)]">
-                            {v.sku} · ในระบบตอนนี้ {system}
-                            {touched && during !== 0 && (
-                              <span className="font-semibold text-[var(--color-warning)]">
-                                {" "}
-                                · หลังนับ {diffLabel(during)} → ยอดหลังปรับ {final}
-                              </span>
-                            )}
-                          </p>
-                          <div className="mt-1.5">
-                            <label className="mb-0.5 block text-[10px] text-[var(--color-on-surface-variant)]">นับได้</label>
-                            <Input
-                              type="number"
-                              min={0}
-                              value={touched ? counted : ""}
-                              placeholder="ยังไม่นับ"
-                              onChange={(e) => setCount(v.id, e.target.value)}
-                              className="h-8 w-24 px-2 py-1 text-sm"
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* ตารางสำหรับจอกว้าง */}
-                    <div className="hidden sm:block">
-                      <Table>
-                        <Thead>
-                          <Tr>
-                            <Th>สี</Th>
-                            <Th>ไซซ์</Th>
-                            <Th>SKU</Th>
-                            <Th>ในระบบตอนนี้</Th>
-                            <Th>นับได้</Th>
-                            <Th>หลังนับเข้า/ออก</Th>
-                            <Th>ยอดหลังปรับ</Th>
-                            <Th>ผลต่าง</Th>
-                          </Tr>
-                        </Thead>
-                        <Tbody>
-                          {rows.map(({ variant: v, system, counted, touched, during, final, diff }) => (
-                            <Tr key={v.id}>
-                              <Td>
-                                <span className="flex items-center gap-1.5">
-                                  <ColorSwatch name={v.color} size={20} />
-                                  {v.color}
-                                </span>
-                              </Td>
-                              <Td>{v.size}</Td>
-                              <Td className="font-mono text-xs">{v.sku}</Td>
-                              <Td>{system}</Td>
-                              <Td>
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  value={touched ? counted : ""}
-                                  placeholder="ยังไม่นับ"
-                                  onChange={(e) => setCount(v.id, e.target.value)}
-                                  className="w-24"
-                                />
-                              </Td>
-                              <Td className={touched && during !== 0 ? "bg-[var(--color-warning-container)] font-semibold" : undefined}>{touched ? (during !== 0 ? diffLabel(during) : "-") : ""}</Td>
-                              <Td className="font-semibold">{touched ? final : ""}</Td>
-                              <Td>
-                                {touched && diff !== 0 && (
-                                  <span className={diff > 0 ? "font-semibold text-[var(--color-success)]" : "font-semibold text-[var(--color-danger)]"}>{diffLabel(diff)}</span>
-                                )}
-                                {touched && diff === 0 && <span className="text-[var(--color-on-surface-variant)]">ตรงกัน</span>}
-                              </Td>
-                            </Tr>
-                          ))}
-                        </Tbody>
-                      </Table>
-                    </div>
+                    <CountGrid product={product} rows={rows} onChange={setCount} />
                   </section>
                 );
               })}
