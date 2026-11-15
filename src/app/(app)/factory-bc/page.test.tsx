@@ -43,7 +43,7 @@ describe("หน้าโรงงาน BC", () => {
     seed();
     render(<FactoryBcPage />);
     expect(screen.getByRole("status").textContent).toContain("130");
-    expect(screen.getByText("Billie Slim")).toBeTruthy();
+    expect(screen.getAllByText("Billie Slim").length).toBeGreaterThan(0);
     expect(screen.queryByText("ประวัติการบันทึก")).toBeNull(); // ประวัติย้ายไปหน้า ประวัติโรงงาน BC ในกลุ่มประวัติการเคลื่อนไหว
     expect(screen.getByRole("link", { name: /บันทึกตัวที่ยังไม่เย็บ/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Excel/ })).toBeTruthy();
@@ -59,7 +59,7 @@ describe("หน้าโรงงาน BC", () => {
   it("ผู้ดูอย่างเดียวเห็นข้อมูลได้ แต่ไม่มีปุ่มบันทึก", () => {
     seed("viewer");
     render(<FactoryBcPage />);
-    expect(screen.getByText("Billie Slim")).toBeTruthy();
+    expect(screen.getAllByText("Billie Slim").length).toBeGreaterThan(0);
     expect(screen.queryByRole("link", { name: /บันทึกตัวที่ยังไม่เย็บ/ })).toBeNull();
   });
 });

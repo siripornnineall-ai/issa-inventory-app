@@ -2,7 +2,18 @@ import type { AppState } from "@/lib/store/state";
 import { FACTORY_WIP_KIND_LABEL_TH, type FactoryWipKind } from "@/lib/types";
 import { compareSizes } from "@/lib/utils/sizes";
 import { compareColors } from "@/lib/utils/colorOrder";
+import { variantStockAcrossWarehouses, sourceVariantFor } from "@/lib/store/selectors";
 import { wipByProduct, type WipProductSummary } from "./factoryWip";
+
+// เกณฑ์ "ควรเย็บ": ตัวเลือกที่สต็อกคลังเหลือไม่เกินค่านี้ และยังมีชิ้นตัดรอเย็บที่โรงงาน BC (เจ้าของงานกำหนด 10 ชิ้น 15 พ.ย. 2026) ปรับที่เดียว
+export const SEW_ALERT_RULES = { maxStock: 10 } as const;
+export type SewLevel = "out" | "low"; // out = สต็อกเป็น 0 (แดงเข้ม), low = เหลือ 1..maxStock (แดงอ่อน)
+
+export function sewLevel(stock: number, wip: number): SewLevel | undefined {
+  if (wip <= 0) return undefined;
+  if (stock <= 0) return "out";
+  return stock <= SEW_ALERT_RULES.maxStock ? "low" : undefined;
+}
 
 // ข้อมูลสำหรับหน้าโรงงาน BC: ตารางสี x ไซซ์ต่อรุ่น และประวัติการบันทึก (รวมตามครั้งที่บันทึก)
 
@@ -16,14 +27,28 @@ export interface WipMatrix {
   colors: { color: string; total: number; cells: Record<string, number> }[];
   sizeTotals: Record<string, number>;
   maxCell: number;
+  // สต็อกในคลังของแต่ละช่อง (สี -> ไซซ์ -> ชิ้น) และระดับความเร่งด่วนที่ควรเย็บ
+  stockCells: Record<string, Record<string, number>>;
+  levels: Record<string, Record<string, SewLevel>>;
+  urgentCells: number;
 }
 
-function toMatrix(p: WipProductSummary, product?: { colorOrder?: string[] }): WipMatrix {
+function toMatrix(state: AppState, p: WipProductSummary, product?: { colorOrder?: string[] }): WipMatrix {
   const sizes = [...new Set(p.variants.map((v) => v.size))].sort(compareSizes);
   const byColor = new Map<string, { color: string; total: number; cells: Record<string, number> }>();
   const sizeTotals: Record<string, number> = {};
   let maxCell = 0;
+  const stockCells: Record<string, Record<string, number>> = {};
+  const levels: Record<string, Record<string, SewLevel>> = {};
+  let urgentCells = 0;
   for (const v of p.variants) {
+    const stock = variantStockAcrossWarehouses(state, v.variantId).onHand;
+    (stockCells[v.color] ??= {})[v.size] = stock;
+    const lv = sewLevel(stock, v.qty);
+    if (lv) {
+      (levels[v.color] ??= {})[v.size] = lv;
+      urgentCells += 1;
+    }
     const c = byColor.get(v.color) ?? { color: v.color, total: 0, cells: {} };
     c.cells[v.size] = (c.cells[v.size] ?? 0) + v.qty;
     c.total += v.qty;
@@ -32,14 +57,14 @@ function toMatrix(p: WipProductSummary, product?: { colorOrder?: string[] }): Wi
     maxCell = Math.max(maxCell, v.qty);
   }
   const colors = [...byColor.values()].sort((a, b) => compareColors(a.color, b.color, product));
-  return { productId: p.productId, name: p.name, brandId: p.brandId, total: p.total, negativeCells: p.negativeCells, sizes, colors, sizeTotals, maxCell };
+  return { productId: p.productId, name: p.name, brandId: p.brandId, total: p.total, negativeCells: p.negativeCells, sizes, colors, sizeTotals, maxCell, stockCells, levels, urgentCells };
 }
 
 export function wipMatrices(state: AppState, filter: { brandId?: string; search?: string } = {}): WipMatrix[] {
   const q = (filter.search ?? "").trim().toLowerCase();
   return wipByProduct(state)
     .filter((p) => (!filter.brandId || p.brandId === filter.brandId) && (!q || p.name.toLowerCase().includes(q)))
-    .map((p) => toMatrix(p, state.products[p.productId]));
+    .map((p) => toMatrix(state, p, state.products[p.productId]));
 }
 
 export interface WipBatch {
@@ -136,4 +161,47 @@ export function wipEntryRows(state: AppState, filter: { kind?: FactoryWipKind | 
 
 export function wipHistorySheetRows(rows: WipEntryRow[]): (string | number)[][] {
   return [["วันที่", "ประเภท", "รุ่น", "สี", "ไซซ์", "SKU", "จำนวน", "ผู้บันทึก", "หมายเหตุ"], ...rows.map((r) => [r.date.slice(0, 10), r.kindLabel, r.productName, r.color, r.size, r.sku, r.qtyChange, r.actorName, r.note])];
+}
+
+// รายการ "ควรเย็บก่อน": ตัวเลือกที่สต็อกคลัง <= SEW_ALERT_RULES.maxStock และมีชิ้นตัดรออยู่ เรียงจากสต็อกน้อยสุด แล้วชิ้นรอเย็บมากสุดก่อน
+export interface SewFirstRow {
+  variantId: string;
+  productId: string;
+  productName: string;
+  brandId?: string;
+  color: string;
+  size: string;
+  sku: string;
+  stock: number;
+  wip: number;
+  level: SewLevel;
+}
+
+export function sewFirstRows(state: AppState, matrices: WipMatrix[]): SewFirstRow[] {
+  const rows: SewFirstRow[] = [];
+  for (const p of wipByProduct(state)) {
+    if (!matrices.some((m) => m.productId === p.productId)) continue;
+    for (const v of p.variants) {
+      const stock = variantStockAcrossWarehouses(state, v.variantId).onHand;
+      const level = sewLevel(stock, v.qty);
+      if (!level) continue;
+      rows.push({ variantId: v.variantId, productId: p.productId, productName: p.name, brandId: p.brandId, color: v.color, size: v.size, sku: state.variants[v.variantId]?.sku ?? "", stock, wip: v.qty, level });
+    }
+  }
+  return rows.sort((a, b) => a.stock - b.stock || b.wip - a.wip || a.productName.localeCompare(b.productName, "th"));
+}
+
+// รุ่นที่ในหน้านี้ แต่สต็อกคลังหมด/ใกล้หมดและไม่มีชิ้นตัดรออยู่เลย (ต้องสั่งตัดเพิ่ม) ไม่นับตัวเลือกที่เย็บตามออเดอร์หรือปิดใช้งาน
+export function needCutRows(state: AppState, matrices: WipMatrix[]): { productName: string; color: string; size: string; sku: string; stock: number }[] {
+  const ids = new Set(matrices.map((m) => m.productId));
+  const wip = new Map(wipByProduct(state).flatMap((p) => p.variants.map((v) => [v.variantId, v.qty] as const)));
+  const rows: { productName: string; color: string; size: string; sku: string; stock: number }[] = [];
+  for (const v of Object.values(state.variants)) {
+    if (!ids.has(v.productId) || !v.active || sourceVariantFor(state, v.id)) continue;
+    if ((wip.get(v.id) ?? 0) > 0) continue;
+    const stock = variantStockAcrossWarehouses(state, v.id).onHand;
+    if (stock > SEW_ALERT_RULES.maxStock) continue;
+    rows.push({ productName: state.products[v.productId]?.sellingName ?? "", color: v.color, size: v.size, sku: v.sku, stock });
+  }
+  return rows.sort((a, b) => a.productName.localeCompare(b.productName, "th") || compareColors(a.color, b.color) || compareSizes(a.size, b.size));
 }
