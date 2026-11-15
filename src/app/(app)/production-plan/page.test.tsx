@@ -48,6 +48,8 @@ describe("หน้าวางแผนผลิต", () => {
     expect(screen.getByText(/ยอดขาย \(ชิ้น\)/)).toBeTruthy();
     expect(screen.getByText(/สต็อกปัจจุบัน \(ชิ้น\)/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "ยอดขาย" })).toBeNull(); // ไม่ใช่แท็บแล้ว
+    // สีเดียวขาย 100 = 100% ของรุ่น
+    expect(screen.getAllByText("100.0%").length).toBeGreaterThan(0);
     // ขาย 100, คลัง 30, ต้องผลิต 100 - 30 = 70
     expect(screen.getAllByText("100").length).toBeGreaterThan(0);
     expect(screen.getAllByText("30").length).toBeGreaterThan(0);
