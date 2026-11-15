@@ -7,18 +7,27 @@ import { useStore } from "@/lib/store";
 
 // แบนเนอร์ด้านบนของแดชบอร์ด: สไลด์รูปของแต่ละแบรนด์ เปลี่ยนเองทุก 6 วินาที (หยุดเมื่อเอาเมาส์ชี้ และเมื่อผู้ใช้ตั้งลดการเคลื่อนไหว) กดลูกศรหรือจุดเพื่อเลือกเองได้
 // รูป ISSA Apparel เป็นไฟล์ในแอป (public/banners) ส่วนแบรนด์อื่นดึงจากแบนเนอร์ของเว็บหน้าร้าน (ตาราง storefront_brand_banners) ถ้าดึงไม่ได้ก็โชว์เท่าที่มี
-// รูปแสดงเต็มภาพ (object-contain) บนพื้นหลังเป็นรูปเดียวกันเบลอ จึงไม่ถูกตัดทุกขนาดจอ
+// รูปขยายเต็มความกว้างจอ (object-cover) ความสูงปรับตามความกว้าง ตัดส่วนเกินบน-ล่างตามจุดโฟกัส (focus_x / focus_y ของแบนเนอร์เว็บหน้าร้าน ถ้าไม่มีใช้กลางภาพ)
 
 export interface BannerSlide {
   id: string;
   src: string;
   alt: string;
+  focusX?: number; // 0-100 (%) จุดโฟกัสแนวนอน
+  focusY?: number; // 0-100 (%) จุดโฟกัสแนวตั้ง
 }
 
-const APPAREL_SLIDE: BannerSlide = { id: "apparel-static", src: "/banners/issa-apparel.jpg", alt: "ISSA Apparel — Comfortable Confident in every situation" };
+const APPAREL_SLIDE: BannerSlide = { id: "apparel-static", src: "/banners/issa-apparel.jpg", alt: "ISSA Apparel — Comfortable Confident in every situation", focusX: 50, focusY: 40 };
 
 // รวมสไลด์: แบรนด์ที่มีแบนเนอร์ในฐานข้อมูลใช้ของฐานข้อมูล แบรนด์ ISSA Apparel (รหัส IS) ที่ไม่มีของตัวเองใช้รูปในแอป
-export function buildSlides(brands: { id: string; name: string; code: string }[], rows: { brand_id: string; image_url: string | null }[]): BannerSlide[] {
+export interface BannerRow {
+  brand_id: string;
+  image_url: string | null;
+  focus_x?: number | null;
+  focus_y?: number | null;
+}
+
+export function buildSlides(brands: { id: string; name: string; code: string }[], rows: BannerRow[]): BannerSlide[] {
   const slides: BannerSlide[] = [];
   const byBrand = new Map(brands.map((b) => [b.id, b]));
   const apparelIds = new Set(brands.filter((b) => b.code === "IS").map((b) => b.id));
@@ -27,14 +36,14 @@ export function buildSlides(brands: { id: string; name: string; code: string }[]
   for (const r of rows) {
     if (!r.image_url) continue;
     const brand = byBrand.get(r.brand_id);
-    slides.push({ id: `db-${r.brand_id}`, src: r.image_url, alt: brand?.name ?? "แบนเนอร์แบรนด์" });
+    slides.push({ id: `db-${r.brand_id}`, src: r.image_url, alt: brand?.name ?? "แบนเนอร์แบรนด์", focusX: r.focus_x ?? undefined, focusY: r.focus_y ?? undefined });
   }
   return slides;
 }
 
 export function DashboardBanner() {
   const brands = useStore((s) => s.brands);
-  const [rows, setRows] = useState<{ brand_id: string; image_url: string | null }[]>([]);
+  const [rows, setRows] = useState<BannerRow[]>([]);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
 
@@ -42,8 +51,8 @@ export function DashboardBanner() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await createClient().from("storefront_brand_banners").select("brand_id, image_url");
-        if (!cancelled && !res.error && Array.isArray(res.data)) setRows(res.data as { brand_id: string; image_url: string | null }[]);
+        const res = await createClient().from("storefront_brand_banners").select("brand_id, image_url, focus_x, focus_y");
+        if (!cancelled && !res.error && Array.isArray(res.data)) setRows(res.data as BannerRow[]);
       } catch {
         // ดึงแบนเนอร์ของแบรนด์อื่นไม่ได้ ก็โชว์เท่าที่มี
       }
@@ -75,12 +84,15 @@ export function DashboardBanner() {
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      <div className="relative h-44 sm:h-56 lg:h-72">
-        {/* พื้นหลังเบลอจากรูปเดียวกัน เติมที่ว่างข้างรูปบนจอกว้าง */}
+      <div className="relative h-[clamp(11rem,28vw,32rem)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={slide.src} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-2xl" />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img key={slide.id} src={slide.src} alt={slide.alt} className="relative z-10 mx-auto h-full w-auto max-w-full object-contain" />
+        <img
+          key={slide.id}
+          src={slide.src}
+          alt={slide.alt}
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ objectPosition: `${slide.focusX ?? 50}% ${slide.focusY ?? 50}%` }}
+        />
       </div>
       {count > 1 && (
         <>

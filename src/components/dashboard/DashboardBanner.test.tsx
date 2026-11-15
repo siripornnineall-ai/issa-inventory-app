@@ -46,6 +46,13 @@ describe("แบนเนอร์แดชบอร์ด", () => {
     expect(slides.map((s) => s.src)).toEqual(["https://x.test/apparel-new.png"]);
   });
 
+  it("รูปเต็มความกว้าง (object-cover) และใช้จุดโฟกัสของแบนเนอร์ในฐานข้อมูล", () => {
+    const slides = buildSlides(BRANDS, [{ brand_id: "f", image_url: "https://x.test/fas.png", focus_x: 30, focus_y: 70 }]);
+    expect(slides[1]).toMatchObject({ focusX: 30, focusY: 70 });
+    render(<DashboardBanner />);
+    expect(screen.getByAltText(/ISSA Apparel — Comfortable/).className).toContain("object-cover");
+  });
+
   it("โชว์รูป ISSA Apparel ก่อน แล้วโหลดของแบรนด์อื่นมาเป็นสไลด์ กดลูกศร/จุดเปลี่ยนรูปได้", async () => {
     render(<DashboardBanner />);
     expect((screen.getByAltText(/ISSA Apparel — Comfortable/) as HTMLImageElement).src).toContain("/banners/issa-apparel.jpg");
