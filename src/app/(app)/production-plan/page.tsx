@@ -33,13 +33,13 @@ function ModelBlock({ m }: { m: PlanMatrix }) {
   const head = (label: string) => (
     <thead>
       <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
-        <th className="sticky left-0 z-10 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-left font-medium">{label}</th>
+        <th className="sticky left-0 z-10 w-[4.5rem] bg-[var(--bar,var(--color-primary-container))] px-2 py-2 text-left font-medium">{label}</th>
         {m.sizes.map((s) => (
-          <th key={s} className="px-2 py-2 text-center font-medium">
+          <th key={s} className="px-0.5 py-2 text-center font-medium">
             {s}
           </th>
         ))}
-        <th className="bg-[var(--bar-strong,var(--color-primary))] px-3 py-2 text-center font-medium text-[color:var(--bar-strong-fg,#fff)]">รวม</th>
+        <th className="w-[3.5rem] bg-[var(--bar-strong,var(--color-primary))] px-1 py-2 text-center font-medium text-[color:var(--bar-strong-fg,#fff)]">รวม</th>
       </tr>
     </thead>
   );
@@ -53,74 +53,74 @@ function ModelBlock({ m }: { m: PlanMatrix }) {
             {m.totals.urgent > 0 && <span className="font-semibold text-[var(--color-danger)]"> · ขาด {formatNumber(m.totals.urgent)} ช่อง</span>}
           </span>
         </summary>
-        <div className="grid gap-5 px-5 pb-5 2xl:grid-cols-[max-content_minmax(0,1fr)]">
+        <div className="grid gap-5 px-5 pb-5 2xl:grid-cols-2">
           <div className="overflow-x-auto">
             <p className="mb-1 text-sm font-semibold">ยอดขาย</p>
-            <table className="w-full border-collapse text-sm">
+            <table className="w-full table-fixed border-collapse text-sm">
               {head("สี")}
               <tbody>
                 {m.colors.map((c) => (
                   <tr key={c.color} className="border-b border-[var(--color-border)]">
-                    <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-2 font-medium">{c.color}</td>
+                    <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-2 py-2 text-xs font-medium">{c.color}</td>
                     {m.sizes.map((s) => {
                       const cell = c.cells[s];
                       return (
-                        <td key={s} className={`px-2 py-2 text-center ${cell && cell.demand > 0 ? "" : "text-[var(--color-on-surface-variant)]/50"}`}>
+                        <td key={s} className={`px-0.5 py-2 text-center ${cell && cell.demand > 0 ? "" : "text-[var(--color-on-surface-variant)]/50"}`}>
                           {cell && cell.demand > 0 ? fmt1(cell.demand) : "–"}
                         </td>
                       );
                     })}
-                    <td className="bg-[var(--color-surface-container)] px-3 py-2 text-center font-semibold">{fmt1(c.demand)}</td>
+                    <td className="bg-[var(--color-surface-container)] px-1 py-2 text-center font-semibold">{fmt1(c.demand)}</td>
                   </tr>
                 ))}
                 <tr className="bg-[var(--color-surface-container)] font-semibold">
-                  <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-3 py-2">รวม</td>
+                  <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-2 py-2">รวม</td>
                   {m.sizes.map((s) => (
-                    <td key={s} className="px-2 py-2 text-center">
+                    <td key={s} className="px-0.5 py-2 text-center">
                       {fmt1(m.sizeDemand[s] ?? 0)}
                     </td>
                   ))}
-                  <td className="px-3 py-2 text-center">{fmt1(m.totals.demand)}</td>
+                  <td className="px-1 py-2 text-center">{fmt1(m.totals.demand)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
           <div className="overflow-x-auto">
             <p className="mb-1 text-sm font-semibold">ส่วนต่าง = (คลัง + รอเย็บ) − ยอดขาย <span className="font-normal text-[var(--color-on-surface-variant)]">· ติดลบ = ขาด</span></p>
-            <table className="w-full border-collapse text-sm">
+            <table className="w-full table-fixed border-collapse text-sm">
               {head("สี")}
               <tbody>
                 {m.colors.map((c) => (
                   <tr key={c.color} className="border-b border-[var(--color-border)]">
-                    <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-2 font-medium">{c.color}</td>
+                    <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-2 py-2 text-xs font-medium">{c.color}</td>
                     {m.sizes.map((s) => {
                       const cell = c.cells[s];
-                      if (!cell) return <td key={s} className="px-2 py-2 text-center text-[var(--color-on-surface-variant)]/50">–</td>;
+                      if (!cell) return <td key={s} className="px-0.5 py-2 text-center text-[var(--color-on-surface-variant)]/50">–</td>;
                       const cover = cell.coverDays === null ? "ไม่มียอดขาย" : `อยู่ได้ ~${formatNumber(Math.round(cell.coverDays))} วัน`;
                       return (
                         <td
                           key={s}
                           title={`ยอดขาย ${fmt1(cell.demand)} · ${cover} · ควรผลิต ${cell.need}`}
-                          className={`min-w-[4.25rem] px-2 py-2 text-center ${cell.level === "out" ? "bg-[var(--color-danger)] text-white" : cell.level === "low" ? "text-[var(--color-danger)]" : ""}`}
+                          className={`px-0.5 py-2 text-center ${cell.level === "out" ? "bg-[var(--color-danger)] text-white" : cell.level === "low" ? "text-[var(--color-danger)]" : ""}`}
                           style={cell.level === "low" ? lowStyle : undefined}
                         >
                           <div className="whitespace-nowrap font-bold">{fmt1(cell.diff)}</div>
-                          <div className="whitespace-nowrap text-[11px] font-normal leading-snug opacity-90">คลัง {formatNumber(cell.stock)}</div>
-                          <div className="whitespace-nowrap text-[11px] font-normal leading-snug opacity-90">รอเย็บ {formatNumber(cell.wip)}</div>
+                          <div className="whitespace-nowrap text-[10px] font-normal leading-snug opacity-90">คลัง {formatNumber(cell.stock)}</div>
+                          <div className="whitespace-nowrap text-[10px] font-normal leading-snug opacity-90">รอเย็บ {formatNumber(cell.wip)}</div>
                         </td>
                       );
                     })}
-                    <td className={`bg-[var(--color-surface-container)] px-3 py-2 text-center font-semibold ${c.diff < 0 ? "text-[var(--color-danger)]" : ""}`}>{fmt1(c.diff)}</td>
+                    <td className={`bg-[var(--color-surface-container)] px-1 py-2 text-center font-semibold ${c.diff < 0 ? "text-[var(--color-danger)]" : ""}`}>{fmt1(c.diff)}</td>
                   </tr>
                 ))}
                 <tr className="bg-[var(--color-surface-container)] font-semibold">
-                  <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-3 py-2">รวม</td>
+                  <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-2 py-2">รวม</td>
                   {m.sizes.map((s) => (
-                    <td key={s} className={`px-2 py-2 text-center ${(m.sizeDiff[s] ?? 0) < 0 ? "text-[var(--color-danger)]" : ""}`}>
+                    <td key={s} className={`px-0.5 py-2 text-center ${(m.sizeDiff[s] ?? 0) < 0 ? "text-[var(--color-danger)]" : ""}`}>
                       {fmt1(m.sizeDiff[s] ?? 0)}
                     </td>
                   ))}
-                  <td className={`px-3 py-2 text-center ${m.totals.diff < 0 ? "text-[var(--color-danger)]" : ""}`}>{fmt1(m.totals.diff)}</td>
+                  <td className={`px-1 py-2 text-center ${m.totals.diff < 0 ? "text-[var(--color-danger)]" : ""}`}>{fmt1(m.totals.diff)}</td>
                 </tr>
               </tbody>
             </table>
