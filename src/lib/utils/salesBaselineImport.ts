@@ -104,6 +104,9 @@ const MODEL_ALIAS: Record<string, string> = {
 // สีที่เขียนต่างจากในระบบ
 const COLOR_ALIAS: Record<string, string> = { โอวันติน: "โอวัลติน", ช็อคโกแล็ต: "ช็อกโกแลต", ช็อกโกแล็ต: "ช็อกโกแลต" };
 
+// ใช้เมื่อรุ่นนั้นไม่มีสีชื่อตรงกับในไฟล์เลย (เช่น Justin Wide มี "ฟ้าอ่อน" กับ "ฟ้าเข้ม" แต่ไม่มี "ฟ้า")
+const COLOR_FALLBACK: Record<string, string> = { ฟ้า: "ฟ้าอ่อน" };
+
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");
 const normColor = (s: string) => {
   const n = s.trim().replace(/\s+/g, "");
@@ -140,7 +143,9 @@ export function matchBaseline(state: AppState, blocks: BaselineBlock[]): Baselin
     }
     const variants = Object.values(state.variants).filter((v) => v.productId === product.id);
     for (const r of b.rows) {
-      const v = variants.find((x) => normColor(x.color) === normColor(r.color) && x.size.toUpperCase() === r.size.toUpperCase());
+      const bySize = (x: { size: string }) => x.size.toUpperCase() === r.size.toUpperCase();
+      const fb = COLOR_FALLBACK[normColor(r.color)];
+      const v = variants.find((x) => normColor(x.color) === normColor(r.color) && bySize(x)) ?? (fb ? variants.find((x) => normColor(x.color) === fb && bySize(x)) : undefined);
       if (!v) {
         out.unmatchedCells.push({ model: product.sellingName, color: r.color, size: r.size, qty: r.qty });
         continue;

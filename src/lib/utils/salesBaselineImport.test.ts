@@ -39,11 +39,12 @@ function seed() {
     const justin = mk("Justin Wide");
     const v = (p: string, color: string, size: string) => engine.addVariant(d, p, { color, size, purchasePrice: 400, sellingPrice: 1000 });
     v(slim, "ดำ", "S");
+    v(slim, "ฟ้า", "M"); // รุ่นที่มีสี "ฟ้า" จริง ไม่ถูกแปลง
     ids.slimBlkM = v(slim, "ดำ", "M");
     v(slim, "โอวัลติน", "S");
     ids.slimOvaM = v(slim, "โอวัลติน", "M");
     ids.wendyBlkM = v(wendy, "ดำ", "M");
-    ids.justinBlueM = v(justin, "ฟ้า", "M");
+    ids.justinBlueM = v(justin, "ฟ้าอ่อน", "M"); // ในไฟล์เขียน "ฟ้า"
   });
   return { state, ...ids };
 }
@@ -74,7 +75,7 @@ describe("อ่านไฟล์ยอดขายรายเดือน (CS
     expect(get("Billie Slim", "ดำ", "M")).toBe(85);
     expect(get("Billie Slim", "โอวัลติน", "M")).toBe(7); // โอวันติน -> โอวัลติน
     expect(get("Wendy Mid", "ดำ", "M")).toBe(10);
-    expect(get("Justin Wide", "ฟ้า", "M")).toBe(2); // 14 ชิ้น / 7 เดือน
+    expect(get("Justin Wide", "ฟ้าอ่อน", "M")).toBe(2); // "ฟ้า" ในไฟล์ -> ฟ้าอ่อน, 14 ชิ้น / 7 เดือน
     expect(m.unmatchedModels).toEqual(["Unknown Model"]);
     expect(m.unmatchedCells.map((c) => `${c.color}${c.size}`)).toEqual(["เขียวขี้ม้าM", "ฟ้าS"]);
   });
