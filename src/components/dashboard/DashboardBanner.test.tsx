@@ -46,12 +46,11 @@ describe("แบนเนอร์แดชบอร์ด", () => {
     expect(slides.map((s) => s.src)).toEqual(["https://x.test/apparel-new.png"]);
   });
 
-  it("รูปแสดงเต็มความกว้างด้วยสัดส่วนจริง ไม่ตัดภาพ (ไม่ใช้ object-cover)", () => {
+  it("รูปแสดงเต็มภาพไม่ตัด (object-contain) ในกรอบความสูงคงที่", () => {
     render(<DashboardBanner />);
     const cls = screen.getByAltText(/ISSA Apparel — Comfortable/).className;
-    expect(cls).toContain("w-full");
-    expect(cls).toContain("h-auto");
-    expect(cls).not.toContain("object-cover");
+    expect(cls).toContain("object-contain");
+    expect(cls).toContain("h-full");
   });
 
   it("โชว์รูป ISSA Apparel ก่อน แล้วโหลดของแบรนด์อื่นมาเป็นสไลด์ กดลูกศร/จุดเปลี่ยนรูปได้", async () => {
