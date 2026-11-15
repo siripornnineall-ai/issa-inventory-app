@@ -8,6 +8,7 @@ import { RequireAccess } from "@/components/layout/RequireAccess";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
+import { Tabs } from "@/components/ui/Tabs";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useStore } from "@/lib/store";
 import { useCurrentUser } from "@/lib/auth/session";
@@ -17,7 +18,7 @@ import { toastError, toastSuccess } from "@/lib/toast";
 import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
-import { planSheetRows, productionPlan, type BaselineInput, type PlanMatrix } from "@/lib/utils/productionPlan";
+import { planSheetRows, productionPlan, type BaselineInput, type PlanCell, type PlanMatrix } from "@/lib/utils/productionPlan";
 import { matchBaseline, parseBaselineCsv, type BaselineMatch } from "@/lib/utils/salesBaselineImport";
 
 function lastMonthStart(): string {
@@ -28,21 +29,23 @@ function lastMonthStart(): string {
 const fmt1 = (n: number) => formatNumber(Math.round(n));
 const lowStyle = { backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" };
 
-function ModelBlock({ m }: { m: PlanMatrix }) {
+type Metric = "demand" | "stock" | "need";
+const METRIC_TITLE: Record<Metric, string> = {
+  demand: "ยอดขาย (ชิ้น)",
+  stock: "สต็อกปัจจุบัน (ชิ้น) · คลัง และรอเย็บที่ BC แยกกัน",
+  need: "ที่ต้องผลิตเพิ่ม (ชิ้น) = ยอดขาย − (คลัง + รอเย็บ) เฉพาะช่องที่ขาด",
+};
+
+// ตารางเดียวต่อรุ่น ช่องละหนึ่งตัวเลข: ยอดขาย / สต็อกปัจจุบัน / ที่ต้องผลิต (แท็บบนหน้า เลือกดูทีละก้อนเหมือนชีต)
+function ModelBlock({ m, metric }: { m: PlanMatrix; metric: Metric }) {
   const brand = useStore((s) => (m.brandId ? s.brands[m.brandId] : undefined));
-  const head = (label: string, totalLabel = "รวม") => (
-    <thead>
-      <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
-        <th className="sticky left-0 z-10 w-[4.5rem] bg-[var(--bar,var(--color-primary-container))] px-2 py-2 text-left font-medium">{label}</th>
-        {m.sizes.map((s) => (
-          <th key={s} className="px-0.5 py-2 text-center font-medium">
-            {s}
-          </th>
-        ))}
-        <th className="w-[3.5rem] bg-[var(--bar-strong,var(--color-primary))] px-1 py-2 text-center font-medium text-[color:var(--bar-strong-fg,#fff)]">{totalLabel}</th>
-      </tr>
-    </thead>
-  );
+  const value = (c: { demand: number; stock: number; need: number }) => (metric === "demand" ? c.demand : metric === "stock" ? c.stock : c.need);
+  const rowSum = (cells: Record<string, PlanCell>) => Object.values(cells).reduce((t, c) => t + value(c), 0);
+  const colSum = (size: string) => m.colors.reduce((t, c) => t + (c.cells[size] ? value(c.cells[size]) : 0), 0);
+  const wipSum = (cells: Record<string, PlanCell>) => Object.values(cells).reduce((t, c) => t + c.wip, 0);
+  const grand = m.colors.reduce((t, c) => t + rowSum(c.cells), 0);
+  const grandWip = m.colors.reduce((t, c) => t + wipSum(c.cells), 0);
+  const sub = metric === "stock";
   return (
     <Card className="overflow-hidden" style={brandBarStyle(brand)}>
       <details open>
@@ -53,78 +56,60 @@ function ModelBlock({ m }: { m: PlanMatrix }) {
             {m.totals.urgent > 0 && <span className="font-semibold text-[var(--color-danger)]"> · ขาด {formatNumber(m.totals.urgent)} ช่อง</span>}
           </span>
         </summary>
-        <div className="grid gap-5 px-5 pb-5 2xl:grid-cols-2">
-          <div className="overflow-x-auto">
-            <p className="mb-1 text-sm font-semibold">ยอดขาย</p>
-            <table className="w-full table-fixed border-collapse text-sm">
-              {head("สี")}
-              <tbody>
-                {m.colors.map((c) => (
-                  <tr key={c.color} className="border-b border-[var(--color-border)]">
-                    <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-2 py-2 text-xs font-medium">{c.color}</td>
-                    {m.sizes.map((s) => {
-                      const cell = c.cells[s];
-                      return (
-                        <td key={s} className={`px-0.5 py-2 text-center ${cell && cell.demand > 0 ? "" : "text-[var(--color-on-surface-variant)]/50"}`}>
-                          {cell && cell.demand > 0 ? fmt1(cell.demand) : "–"}
-                        </td>
-                      );
-                    })}
-                    <td className="bg-[var(--color-surface-container)] px-1 py-2 text-center font-semibold">{fmt1(c.demand)}</td>
-                  </tr>
+        <div className="overflow-x-auto px-5 pb-5">
+          <table className="w-full table-fixed border-collapse text-sm">
+            <thead>
+              <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
+                <th className="sticky left-0 z-10 w-24 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-left font-medium">สี</th>
+                {m.sizes.map((s) => (
+                  <th key={s} className="px-1 py-2 text-center font-medium">
+                    {s}
+                  </th>
                 ))}
-                <tr className="bg-[var(--color-surface-container)] font-semibold">
-                  <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-2 py-2">รวม</td>
-                  {m.sizes.map((s) => (
-                    <td key={s} className="px-0.5 py-2 text-center">
-                      {fmt1(m.sizeDemand[s] ?? 0)}
-                    </td>
-                  ))}
-                  <td className="px-1 py-2 text-center">{fmt1(m.totals.demand)}</td>
+                <th className="w-20 bg-[var(--bar-strong,var(--color-primary))] px-2 py-2 text-center font-medium text-[color:var(--bar-strong-fg,#fff)]">รวม</th>
+              </tr>
+            </thead>
+            <tbody>
+              {m.colors.map((c) => (
+                <tr key={c.color} className="border-b border-[var(--color-border)]">
+                  <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-2 font-medium">{c.color}</td>
+                  {m.sizes.map((s) => {
+                    const cell = c.cells[s];
+                    if (!cell) return <td key={s} className="px-1 py-2 text-center text-[var(--color-on-surface-variant)]/40">–</td>;
+                    const v = value(cell);
+                    const shortage = metric === "need" && cell.need > 0;
+                    return (
+                      <td
+                        key={s}
+                        title={`ยอดขาย ${fmt1(cell.demand)} · คลัง ${cell.stock} · รอเย็บ ${cell.wip} · ควรผลิต ${cell.need}`}
+                        className={`px-1 py-2 text-center ${shortage ? (cell.level === "out" ? "bg-[var(--color-danger)] font-bold text-white" : "font-bold text-[var(--color-danger)]") : v === 0 ? "text-[var(--color-on-surface-variant)]/40" : ""}`}
+                        style={shortage && cell.level !== "out" ? lowStyle : undefined}
+                      >
+                        {v === 0 && metric !== "stock" ? "–" : fmt1(v)}
+                        {sub && cell.wip > 0 && <div className="text-[10px] font-normal leading-tight text-[var(--color-on-surface-variant)]">+{formatNumber(cell.wip)} รอเย็บ</div>}
+                      </td>
+                    );
+                  })}
+                  <td className="bg-[var(--color-surface-container)] px-2 py-2 text-center font-semibold">
+                    {fmt1(rowSum(c.cells))}
+                    {sub && wipSum(c.cells) > 0 && <div className="text-[10px] font-normal leading-tight text-[var(--color-on-surface-variant)]">+{formatNumber(wipSum(c.cells))} รอเย็บ</div>}
+                  </td>
                 </tr>
-              </tbody>
-            </table>
-          </div>
-          <div className="overflow-x-auto">
-            <p className="mb-1 text-sm font-semibold">ส่วนต่าง = (คลัง + รอเย็บ) − ยอดขาย <span className="font-normal text-[var(--color-on-surface-variant)]">· ติดลบ = ขาด · &quot;ขาดรวม&quot; นับเฉพาะที่ขาด (ไม่หักกับของเหลือ)</span></p>
-            <table className="w-full table-fixed border-collapse text-sm">
-              {head("สี", "ขาดรวม")}
-              <tbody>
-                {m.colors.map((c) => (
-                  <tr key={c.color} className="border-b border-[var(--color-border)]">
-                    <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-2 py-2 text-xs font-medium">{c.color}</td>
-                    {m.sizes.map((s) => {
-                      const cell = c.cells[s];
-                      if (!cell) return <td key={s} className="px-0.5 py-2 text-center text-[var(--color-on-surface-variant)]/50">–</td>;
-                      const cover = cell.coverDays === null ? "ไม่มียอดขาย" : `อยู่ได้ ~${formatNumber(Math.round(cell.coverDays))} วัน`;
-                      return (
-                        <td
-                          key={s}
-                          title={`ยอดขาย ${fmt1(cell.demand)} · ${cover} · ควรผลิต ${cell.need}`}
-                          className={`px-0.5 py-2 text-center ${cell.level === "out" ? "bg-[var(--color-danger)] text-white" : cell.level === "low" ? "text-[var(--color-danger)]" : ""}`}
-                          style={cell.level === "low" ? lowStyle : undefined}
-                        >
-                          <div className="whitespace-nowrap font-bold">{fmt1(cell.diff)}</div>
-                          <div className="whitespace-nowrap text-[10px] font-normal leading-snug opacity-90">คลัง {formatNumber(cell.stock)}</div>
-                          <div className="whitespace-nowrap text-[10px] font-normal leading-snug opacity-90">รอเย็บ {formatNumber(cell.wip)}</div>
-                        </td>
-                      );
-                    })}
-                    <td className={`bg-[var(--color-surface-container)] px-1 py-2 text-center font-semibold ${c.need > 0 ? "text-[var(--color-danger)]" : "text-[var(--color-on-surface-variant)]/60"}`}>{c.need > 0 ? `-${formatNumber(c.need)}` : "–"}</td>
-                  </tr>
+              ))}
+              <tr className="bg-[var(--color-surface-container)] font-semibold">
+                <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-3 py-2">รวม</td>
+                {m.sizes.map((s) => (
+                  <td key={s} className="px-1 py-2 text-center">
+                    {fmt1(colSum(s))}
+                  </td>
                 ))}
-                <tr className="bg-[var(--color-surface-container)] font-semibold">
-                  <td className="sticky left-0 z-10 whitespace-nowrap bg-[var(--color-surface-container)] px-2 py-2 text-xs">ขาดรวม</td>
-                  {m.sizes.map((s) => (
-                    <td key={s} className={`px-0.5 py-2 text-center ${(m.sizeNeed[s] ?? 0) > 0 ? "text-[var(--color-danger)]" : "text-[var(--color-on-surface-variant)]/60"}`}>
-                      {(m.sizeNeed[s] ?? 0) > 0 ? `-${formatNumber(m.sizeNeed[s])}` : "–"}
-                    </td>
-                  ))}
-                  <td className={`px-1 py-2 text-center ${m.totals.need > 0 ? "text-[var(--color-danger)]" : ""}`}>{m.totals.need > 0 ? `-${formatNumber(m.totals.need)}` : "–"}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                <td className="px-2 py-2 text-center">
+                  {fmt1(grand)}
+                  {sub && grandWip > 0 && <div className="text-[10px] font-normal leading-tight text-[var(--color-on-surface-variant)]">+{formatNumber(grandWip)} รอเย็บ</div>}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </details>
     </Card>
@@ -212,6 +197,7 @@ function PlanContent() {
   const [brandId, setBrandId] = useState("");
   const [search, setSearch] = useState("");
   const [months, setMonths] = useState("1");
+  const [tab, setTab] = useState<Metric>("need");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -298,16 +284,25 @@ function PlanContent() {
               <span className="text-sm text-[var(--color-on-surface-variant)]">ช่อง (สี/ไซซ์)</span>
             </Card>
           </div>
+          <Tabs
+            tabs={[
+              { id: "demand", label: "ยอดขาย" },
+              { id: "stock", label: "สต็อกปัจจุบัน" },
+              { id: "need", label: "ที่ต้องผลิต" },
+            ]}
+            active={tab}
+            onChange={(id) => setTab(id as Metric)}
+          />
           <p className="px-1 text-sm text-[var(--color-on-surface-variant)]">
-            ยอดขายอ้างอิงล่าสุด: {baseline.months.map((m) => m.slice(0, 7)).join(", ")} · ดูล่วงหน้า {months} เดือน (ยอดขายคูณ {months}) · ตารางขวา: ติดลบ = ของไม่พอขาย จำนวนที่ติดลบคือที่ต้องผลิตเพิ่ม · ในแต่ละช่องโชว์ <b>คลัง</b> และ <b>รอเย็บที่ BC</b> แยกกัน ·{" "}
-            <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> ไม่มีของเลย ·{" "}
-            <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={lowStyle}>
-              แดงอ่อน
-            </span>{" "}
-            ขาด
+            <b className="text-[var(--color-on-surface)]">{METRIC_TITLE[tab]}</b> · ยอดขายอ้างอิง {baseline.months.map((m) => m.slice(0, 7)).join(", ")} · ดูล่วงหน้า {months} เดือน
+            {tab === "need" && (
+              <>
+                {" "}· <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> ไม่มีของเลย <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={lowStyle}>แดงอ่อน</span> ขาดบางส่วน
+              </>
+            )}
           </p>
           {matrices.map((m) => (
-            <ModelBlock key={m.productId} m={m} />
+            <ModelBlock key={m.productId} m={m} metric={tab} />
           ))}
         </>
       )}
