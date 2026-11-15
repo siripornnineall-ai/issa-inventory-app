@@ -46,11 +46,12 @@ describe("แบนเนอร์แดชบอร์ด", () => {
     expect(slides.map((s) => s.src)).toEqual(["https://x.test/apparel-new.png"]);
   });
 
-  it("รูปเต็มความกว้าง (object-cover) และใช้จุดโฟกัสของแบนเนอร์ในฐานข้อมูล", () => {
-    const slides = buildSlides(BRANDS, [{ brand_id: "f", image_url: "https://x.test/fas.png", focus_x: 30, focus_y: 70 }]);
-    expect(slides[1]).toMatchObject({ focusX: 30, focusY: 70 });
+  it("รูปแสดงเต็มความกว้างด้วยสัดส่วนจริง ไม่ตัดภาพ (ไม่ใช้ object-cover)", () => {
     render(<DashboardBanner />);
-    expect(screen.getByAltText(/ISSA Apparel — Comfortable/).className).toContain("object-cover");
+    const cls = screen.getByAltText(/ISSA Apparel — Comfortable/).className;
+    expect(cls).toContain("w-full");
+    expect(cls).toContain("h-auto");
+    expect(cls).not.toContain("object-cover");
   });
 
   it("โชว์รูป ISSA Apparel ก่อน แล้วโหลดของแบรนด์อื่นมาเป็นสไลด์ กดลูกศร/จุดเปลี่ยนรูปได้", async () => {
