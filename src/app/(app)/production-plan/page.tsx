@@ -125,7 +125,10 @@ function ModelBlock({ m }: { m: PlanMatrix }) {
     <Card className="overflow-hidden" style={brandBarStyle(brand)}>
       <details open>
         <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-5 py-4">
-          <span className="text-base font-semibold">{m.name}</span>
+          <span className="text-base font-semibold">
+            {m.name}
+            {m.shape && <span className="ml-2 text-sm font-normal text-[var(--color-on-surface-variant)]">{m.shape}</span>}
+          </span>
           <span className="text-sm text-[var(--color-on-surface-variant)]">
             ควรผลิตเพิ่ม <span className="font-semibold text-[var(--color-on-surface)]">{formatNumber(m.totals.need)} ชิ้น</span>
             {m.totals.urgent > 0 && <span className="font-semibold text-[var(--color-danger)]"> · ขาด {formatNumber(m.totals.urgent)} ช่อง</span>}

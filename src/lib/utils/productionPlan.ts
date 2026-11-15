@@ -31,6 +31,7 @@ export interface PlanCell {
 export interface PlanMatrix {
   productId: string;
   name: string;
+  shape?: string; // ทรงสินค้า (ต่อท้ายชื่อรุ่นบนหน้าจอ)
   brandId?: string;
   sizes: string[];
   colors: { color: string; cells: Record<string, PlanCell>; need: number; demand: number; diff: number }[];
@@ -103,7 +104,7 @@ export function productionPlan(state: AppState, baseline: BaselineInput[], opts:
     }
     const colors = [...byColor.values()].sort((a, b) => compareColors(a.color, b.color, p));
     const usedSizes = sizes.filter((s) => colors.some((c) => c.cells[s]));
-    result.push({ productId, name: p.sellingName, brandId: p.brandId, sizes: usedSizes, colors, sizeNeed, sizeDemand, sizeDiff, totals });
+    result.push({ productId, name: p.sellingName, shape: p.shape, brandId: p.brandId, sizes: usedSizes, colors, sizeNeed, sizeDemand, sizeDiff, totals });
   }
   return result.sort((a, b) => b.totals.need - a.totals.need || a.name.localeCompare(b.name, "th"));
 }
