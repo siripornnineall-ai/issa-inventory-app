@@ -145,9 +145,9 @@ function FactoryContent() {
 
       <div role="status" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <Card className="col-span-2 flex flex-col justify-center bg-[var(--color-primary-container)] p-4 sm:col-span-1">
-          <span className="text-sm font-medium text-[var(--color-on-surface-variant)]">ยังไม่เย็บรวมทุกรุ่น</span>
-          <span className="text-3xl font-bold text-[var(--color-on-surface)]">{formatNumber(total)}</span>
-          <span className="text-sm text-[var(--color-on-surface-variant)]">ชิ้น จาก {formatNumber(matrices.length)} รุ่น</span>
+          <span className="text-sm font-medium text-white/85">ยังไม่เย็บรวมทุกรุ่น</span>
+          <span className="text-3xl font-bold text-white">{formatNumber(total)}</span>
+          <span className="text-sm text-white/85">ชิ้น จาก {formatNumber(matrices.length)} รุ่น</span>
         </Card>
         {matrices.map((m) => (
           <Card key={m.productId} className="flex flex-col justify-center p-4">
