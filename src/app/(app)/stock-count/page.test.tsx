@@ -43,7 +43,7 @@ async function openProduct() {
   render(<StockCountPage />);
   fireEvent.change(screen.getByPlaceholderText("พิมพ์ชื่อรุ่นสินค้า..."), { target: { value: "Flow" } });
   fireEvent.click(await screen.findByRole("button", { name: "Flow Wide" }));
-  await screen.findByText("ในระบบตอนนี้");
+  await screen.findAllByRole("spinbutton");
 }
 
 describe("นับสต็อก: เทียบยอดตอนเริ่มนับกับยอดปัจจุบัน", () => {
@@ -92,7 +92,7 @@ function otherDeviceMove(delta: number, offsetMs: number, qtyAfter: number) {
     seed(5, 3);
     await openProduct();
     // นับ S ได้ 5 (ตอนนั้นระบบมี 5)
-    const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
+    const countInputs = screen.getAllByRole("spinbutton");
     fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "5" } });
     expect(screen.queryByText(/หลังจากที่นับ มีของเข้า\/ออก/)).toBeNull();
 
@@ -116,7 +116,7 @@ function otherDeviceMove(delta: number, offsetMs: number, qtyAfter: number) {
   it("นับได้ต่างจากระบบ และหลังนับมีคนขายเพิ่ม: ตั้งเป็น นับได้ − ที่ขายหลังนับ", async () => {
     seed(10, 3);
     await openProduct();
-    const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
+    const countInputs = screen.getAllByRole("spinbutton");
     fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "8" } }); // นับได้ 8 ระบบ 10
     otherDeviceMove(-3, 60_000, 7); // ขายหลังนับ 3
     fireEvent.click(screen.getByRole("button", { name: /บันทึกผลการนับ/ }));
@@ -127,7 +127,7 @@ function otherDeviceMove(delta: number, offsetMs: number, qtyAfter: number) {
   it("ขายออกก่อนนับ (เครื่องที่นับยังมีข้อมูลเก่า เพิ่งเห็นตอนรีเฟรช): ของบนชั้นไม่มีชิ้นนั้นแล้ว ไม่หักซ้ำ ตั้งเท่าที่นับ", async () => {
     seed(5, 3);
     await openProduct();
-    const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
+    const countInputs = screen.getAllByRole("spinbutton");
     fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "3" } }); // ชั้นเหลือ 3 จริง (ขายไป 2 ก่อนนับ)
     otherDeviceMove(-2, -60_000, 3); // รายการขายนั้นเกิด "ก่อน" เวลานับ แต่เครื่องนี้เพิ่งเห็น
     expect(screen.queryByText(/หลังจากที่นับ มีของเข้า\/ออก/)).toBeNull();
@@ -139,7 +139,7 @@ function otherDeviceMove(delta: number, offsetMs: number, qtyAfter: number) {
   it("มีของรับเข้าหลังนับ: ตั้งเป็น นับได้ + ที่รับเข้าหลังนับ", async () => {
     seed(5, 3);
     await openProduct();
-    const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
+    const countInputs = screen.getAllByRole("spinbutton");
     fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "5" } });
     otherDeviceMove(+10, 60_000, 15); // รับเข้า 10 หลังนับ
     fireEvent.click(screen.getByRole("button", { name: /บันทึกผลการนับ/ }));
@@ -150,7 +150,7 @@ function otherDeviceMove(delta: number, offsetMs: number, qtyAfter: number) {
   it("บันทึกแล้วตั้งสต็อกให้เท่ากับที่นับ (ไม่ใช่บวกเพิ่ม) และมีประวัติปรับยอด", async () => {
     seed(5, 3);
     await openProduct();
-    const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
+    const countInputs = screen.getAllByRole("spinbutton");
     fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "4" } });
     fireEvent.click(screen.getByRole("button", { name: /บันทึกผลการนับ/ }));
     fireEvent.click(await screen.findByRole("button", { name: "ยืนยันบันทึก" }));
@@ -172,7 +172,7 @@ function otherDeviceMove(delta: number, offsetMs: number, qtyAfter: number) {
     await openProduct();
     expect(screen.getByText(/ยังไม่ได้นับรายการไหนเลย/)).toBeTruthy();
     expect((screen.getByRole("button", { name: /บันทึกผลการนับ \(0\)/ }) as HTMLButtonElement).disabled).toBe(true);
-    const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
+    const countInputs = screen.getAllByRole("spinbutton");
     fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "5" } }); // S ระบบ 5 นับได้ 5 = ตรงกัน
     const btn = screen.getByRole("button", { name: /บันทึกผลการนับ \(1\)/ }) as HTMLButtonElement;
     expect(btn.disabled).toBe(false);
@@ -206,8 +206,8 @@ function otherDeviceMove(delta: number, offsetMs: number, qtyAfter: number) {
     // แต่ละรุ่นเป็นส่วนของตัวเอง (ช่องกรอกซ้ำกันทั้งการ์ดมือถือและตาราง ใช้ช่องแรกของแต่ละส่วน)
     const flow = screen.getByRole("region", { name: "Flow Wide" });
     const billie = screen.getByRole("region", { name: "Billie Slim" });
-    fireEvent.change(within(flow).getAllByPlaceholderText("ยังไม่นับ")[0], { target: { value: "4" } }); // Flow Wide ดำ S 5 -> 4
-    fireEvent.change(within(billie).getAllByPlaceholderText("ยังไม่นับ")[0], { target: { value: "6" } }); // Billie ครีม L 2 -> 6
+    fireEvent.change(within(flow).getAllByRole("spinbutton")[0], { target: { value: "4" } }); // Flow Wide ดำ S 5 -> 4
+    fireEvent.change(within(billie).getAllByRole("spinbutton")[0], { target: { value: "6" } }); // Billie ครีม L 2 -> 6
     fireEvent.click(screen.getByRole("button", { name: /บันทึกผลการนับ \(2\)/ }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Flow Wide")).toBeTruthy();
@@ -263,12 +263,29 @@ function otherDeviceMove(delta: number, offsetMs: number, qtyAfter: number) {
   it("ปุ่ม 'ตั้งรายการที่ยังไม่นับเป็น 0' ทำให้รายการที่ไม่ได้สแกนถูกปรับเป็น 0 ตอนบันทึก", async () => {
     seed(5, 3);
     await openProduct();
-    const countInputs = screen.getAllByPlaceholderText("ยังไม่นับ");
+    const countInputs = screen.getAllByRole("spinbutton");
     fireEvent.change(countInputs[countInputs.length - 2], { target: { value: "5" } }); // S นับได้ 5 (ตรงกัน)
     fireEvent.click(screen.getByRole("button", { name: "ตั้งรายการที่ยังไม่นับเป็น 0" }));
     fireEvent.click(screen.getByRole("button", { name: /บันทึกผลการนับ \(2\)/ }));
     fireEvent.click(await screen.findByRole("button", { name: "ยืนยันบันทึก" }));
     await waitFor(() => expect(useStore.getState().variantStock["vM::w1"].qtyOnHand).toBe(0));
     expect(useStore.getState().variantStock["vS::w1"].qtyOnHand).toBe(5);
+  });
+
+  it("ตารางกรอก สี x ไซซ์: ช่องเดียวต่อสี/ไซซ์ มียอดระบบใต้ช่อง ผลต่างขึ้นในช่อง และกด Enter ไปช่องถัดไป", async () => {
+    seed(5, 3);
+    await openProduct();
+    const inputs = screen.getAllByRole("spinbutton");
+    expect(inputs).toHaveLength(2); // ดำ S และ ดำ M อย่างละหนึ่งช่อง (ไม่ซ้ำเป็นการ์ดกับตาราง)
+    expect(inputs[0].getAttribute("aria-label")).toBe("นับ ดำ S");
+    expect(screen.getByText("ระบบ 5")).toBeTruthy();
+    expect(screen.getByText("ระบบ 3")).toBeTruthy();
+    fireEvent.change(inputs[0], { target: { value: "4" } });
+    expect(screen.getAllByText("-1").length).toBeGreaterThan(0); // นับได้ 4 ระบบ 5 (ขึ้นทั้งในช่องและในสรุป)
+    fireEvent.change(inputs[1], { target: { value: "3" } });
+    expect(screen.getByText("✓")).toBeTruthy(); // ตรงกับระบบ
+    inputs[0].focus();
+    fireEvent.keyDown(inputs[0], { key: "Enter" });
+    expect(document.activeElement).toBe(inputs[1]);
   });
 });
