@@ -15,7 +15,7 @@ import { useCan } from "@/lib/auth/session";
 import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
-import { wipMatrices, wipSheetRows, type WipMatrix } from "@/lib/utils/factoryWipView";
+import { SEW_ALERT_RULES, needCutRows, sewFirstRows, wipMatrices, wipSheetRows, type WipMatrix } from "@/lib/utils/factoryWipView";
 
 function cellStyle(value: number, max: number): React.CSSProperties | undefined {
   if (value <= 0 || max <= 0) return undefined;
@@ -32,6 +32,7 @@ function ModelBlock({ m }: { m: WipMatrix }) {
           <span className="text-base font-semibold text-[var(--color-on-surface)]">{m.name}</span>
           <span className="text-sm text-[var(--color-on-surface-variant)]">
             ยังไม่เย็บ <span className={`font-semibold ${m.total < 0 ? "text-[var(--color-danger)]" : "text-[var(--color-on-surface)]"}`}>{formatNumber(m.total)} ชิ้น</span>
+            {m.urgentCells > 0 && <span className="font-semibold text-[var(--color-danger)]"> · ควรเย็บ {m.urgentCells} ช่อง</span>}
             {m.negativeCells > 0 && <span className="text-[var(--color-danger)]"> · ติดลบ {m.negativeCells} ช่อง</span>}
           </span>
         </summary>
@@ -54,6 +55,21 @@ function ModelBlock({ m }: { m: WipMatrix }) {
                   <td className="sticky left-0 z-10 bg-white px-3 py-2 font-medium">{c.color}</td>
                   {m.sizes.map((s) => {
                     const n = c.cells[s];
+                    const lv = m.levels[c.color]?.[s];
+                    const stock = m.stockCells[c.color]?.[s];
+                    if (lv) {
+                      return (
+                        <td
+                          key={s}
+                          title={`สต็อกในคลัง ${stock} ชิ้น · ควรเย็บ`}
+                          className={`px-3 py-2 text-center font-semibold ${lv === "out" ? "bg-[var(--color-danger)] text-white" : "text-[var(--color-danger)]"}`}
+                          style={lv === "low" ? { backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" } : undefined}
+                        >
+                          {formatNumber(n ?? 0)}
+                          <div className="text-[10px] font-normal opacity-90">คลัง {formatNumber(stock ?? 0)}</div>
+                        </td>
+                      );
+                    }
                     return (
                       <td key={s} style={n === undefined ? undefined : cellStyle(n, m.maxCell)} className={`px-3 py-2 text-center ${n !== undefined && n < 0 ? "font-semibold text-[var(--color-danger)]" : !n ? "text-[var(--color-on-surface-variant)]/50" : ""}`}>
                         {n === undefined ? "–" : formatNumber(n)}
@@ -85,9 +101,13 @@ function FactoryContent() {
   const canRecord = useCan("stock.in");
   const [brandId, setBrandId] = useState("");
   const [search, setSearch] = useState("");
+  const [onlyUrgent, setOnlyUrgent] = useState(false);
 
   const brands = useMemo(() => Object.values(state.brands).sort((a, b) => a.name.localeCompare(b.name, "th")), [state.brands]);
-  const matrices = useMemo(() => wipMatrices(state, { brandId, search }), [state, brandId, search]);
+  const allMatrices = useMemo(() => wipMatrices(state, { brandId, search }), [state, brandId, search]);
+  const sewFirst = useMemo(() => sewFirstRows(state, allMatrices), [state, allMatrices]);
+  const needCut = useMemo(() => needCutRows(state, allMatrices), [state, allMatrices]);
+  const matrices = useMemo(() => (onlyUrgent ? allMatrices.filter((m) => m.urgentCells > 0) : allMatrices), [allMatrices, onlyUrgent]);
   const total = matrices.reduce((s, m) => s + m.total, 0);
   const negative = matrices.reduce((s, m) => s + m.negativeCells, 0);
 
@@ -106,6 +126,10 @@ function FactoryContent() {
             </option>
           ))}
         </Select>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={onlyUrgent} onChange={(e) => setOnlyUrgent(e.target.checked)} />
+          ดูเฉพาะที่ควรเย็บ
+        </label>
         <div className="ml-auto flex flex-wrap gap-2">
           <Button variant="ghost" onClick={() => downloadWorkbook("โรงงาน-BC-ยังไม่เย็บ.xlsx", [{ name: "ยังไม่เย็บ", rows: wipSheetRows(state, matrices) }])} disabled={matrices.length === 0}>
             <Download className="h-4 w-4" /> Excel
@@ -123,6 +147,34 @@ function FactoryContent() {
       <p role="status" className="px-1 text-sm text-[var(--color-on-surface-variant)]">
         <span className="font-semibold text-[var(--color-on-surface)]">ยังไม่เย็บรวม:</span> {formatNumber(total)} ชิ้น จาก {matrices.length} รุ่น · ตัวที่ตัดเป็นชิ้นแล้วแต่ยังไม่ได้เย็บ ไม่รวมในสต็อกสินค้า ขายไม่ได้ ตอนเย็บเสร็จให้รับเข้าที่หน้า &quot;รับสินค้าเข้า&quot; แล้วเลือก &quot;เย็บเสร็จจากโรงงาน BC&quot; ยอดนี้จะลดลงให้เอง
       </p>
+      {sewFirst.length > 0 && (
+        <Card className="border-[var(--color-danger)] p-5">
+          <h2 className="text-base font-semibold text-[var(--color-danger)]">ควรเย็บก่อน ({formatNumber(sewFirst.length)} รายการ)</h2>
+          <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">สต็อกในคลังเหลือไม่เกิน {SEW_ALERT_RULES.maxStock} ชิ้น และมีชิ้นตัดรอเย็บอยู่ที่โรงงาน เรียงจากสต็อกน้อยสุดก่อน แดงเข้ม = หมดเกลี้ยง</p>
+          <ul className="mt-3 flex flex-col gap-1.5">
+            {sewFirst.map((r) => (
+              <li key={r.variantId} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${r.level === "out" ? "bg-[var(--color-danger)] text-white" : "text-[var(--color-danger)]"}`} style={r.level === "low" ? { backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" } : undefined}>
+                  {r.level === "out" ? "หมด" : "ใกล้หมด"}
+                </span>
+                <span className="font-medium">{r.productName}</span>
+                <span>{r.color} · {r.size}</span>
+                <span className="text-[var(--color-on-surface-variant)]">คลัง {formatNumber(r.stock)} · รอเย็บ {formatNumber(r.wip)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+      {needCut.length > 0 && (
+        <details className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <summary className="cursor-pointer font-medium">หมด/ใกล้หมด แต่ไม่มีชิ้นตัดรออยู่ ({formatNumber(needCut.length)} รายการ) อาจต้องสั่งตัดเพิ่ม</summary>
+          <ul className="mt-2 flex flex-col gap-1">
+            {needCut.map((r) => (
+              <li key={r.sku || `${r.productName}${r.color}${r.size}`}>{r.productName} · {r.color} · {r.size} · คลัง {formatNumber(r.stock)}</li>
+            ))}
+          </ul>
+        </details>
+      )}
       {negative > 0 && (
         <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           มี {formatNumber(negative)} ช่องที่ยอดติดลบ แปลว่ารับเข้า &quot;เย็บเสร็จ&quot; มากกว่าที่บันทึกว่าตัดไว้ ควรบันทึก &quot;ตัดเข้า&quot; หรือ &quot;ปรับยอด&quot; ให้ตรงกับของจริง
