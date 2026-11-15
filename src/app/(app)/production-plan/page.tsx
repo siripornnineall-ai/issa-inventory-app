@@ -53,7 +53,7 @@ function ModelBlock({ m }: { m: PlanMatrix }) {
             {m.totals.urgent > 0 && <span className="font-semibold text-[var(--color-danger)]"> · ขาด {formatNumber(m.totals.urgent)} ช่อง</span>}
           </span>
         </summary>
-        <div className="grid gap-5 px-5 pb-5 xl:grid-cols-[2fr_3fr]">
+        <div className="grid gap-5 px-5 pb-5 2xl:grid-cols-[max-content_minmax(0,1fr)]">
           <div className="overflow-x-auto">
             <p className="mb-1 text-sm font-semibold">ยอดขาย</p>
             <table className="w-full border-collapse text-sm">
@@ -61,7 +61,7 @@ function ModelBlock({ m }: { m: PlanMatrix }) {
               <tbody>
                 {m.colors.map((c) => (
                   <tr key={c.color} className="border-b border-[var(--color-border)]">
-                    <td className="sticky left-0 z-10 bg-white px-3 py-2 font-medium">{c.color}</td>
+                    <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-2 font-medium">{c.color}</td>
                     {m.sizes.map((s) => {
                       const cell = c.cells[s];
                       return (
@@ -92,7 +92,7 @@ function ModelBlock({ m }: { m: PlanMatrix }) {
               <tbody>
                 {m.colors.map((c) => (
                   <tr key={c.color} className="border-b border-[var(--color-border)]">
-                    <td className="sticky left-0 z-10 bg-white px-3 py-2 font-medium">{c.color}</td>
+                    <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-2 font-medium">{c.color}</td>
                     {m.sizes.map((s) => {
                       const cell = c.cells[s];
                       if (!cell) return <td key={s} className="px-2 py-2 text-center text-[var(--color-on-surface-variant)]/50">–</td>;
@@ -319,7 +319,7 @@ export default function ProductionPlanPage() {
   return (
     <>
       <Header title="วางแผนผลิต" description="เทียบยอดขายรายเดือนกับของที่มี (คลัง + รอเย็บที่ BC) เพื่อดูว่ารุ่น/สี/ไซซ์ไหนควรผลิตเพิ่ม" />
-      <PageContainer className="max-w-6xl">
+      <PageContainer className="max-w-none">
         <RequireAccess perm="report.view">
           <div className="flex flex-col gap-5">
             <PlanContent />
