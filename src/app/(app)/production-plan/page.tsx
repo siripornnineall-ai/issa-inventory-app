@@ -62,13 +62,12 @@ function ModelBlock({ m }: { m: PlanMatrix }) {
                       <td
                         key={s}
                         title={`ขาย ~${formatNumber(cell.demand)}/เดือน · ${cover} · คลัง ${cell.stock} + รอเย็บ ${cell.wip}`}
-                        className={`px-2 py-2 text-center ${cell.level === "out" ? "bg-[var(--color-danger)] text-white" : cell.level === "low" ? "text-[var(--color-danger)]" : ""}`}
+                        className={`min-w-[4.5rem] px-2 py-2 text-center ${cell.level === "out" ? "bg-[var(--color-danger)] text-white" : cell.level === "low" ? "text-[var(--color-danger)]" : ""}`}
                         style={cell.level === "low" ? { backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" } : undefined}
                       >
-                        <div className="font-bold">{cell.need > 0 ? `ผลิต ${formatNumber(cell.need)}` : "พอ"}</div>
-                        <div className="text-[10px] font-normal leading-tight opacity-90">
-                          คลัง {formatNumber(cell.stock)} · รอเย็บ {formatNumber(cell.wip)}
-                        </div>
+                        <div className="whitespace-nowrap font-bold">{cell.need > 0 ? `ผลิต ${formatNumber(cell.need)}` : "พอ"}</div>
+                        <div className="whitespace-nowrap text-[11px] font-normal leading-snug opacity-90">คลัง {formatNumber(cell.stock)}</div>
+                        <div className="whitespace-nowrap text-[11px] font-normal leading-snug opacity-90">รอเย็บ {formatNumber(cell.wip)}</div>
                       </td>
                     );
                   })}
