@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import { produce } from "immer";
 import ProductionPlanPage from "./page";
 import { useStore } from "@/lib/store";
@@ -42,16 +42,15 @@ describe("หน้าวางแผนผลิต", () => {
     seed();
   });
 
-  it("มีสามแท็บ ยอดขาย / สต็อกปัจจุบัน / ที่ต้องผลิต และเปลี่ยนตัวเลขในตารางตามแท็บ", async () => {
+  it("แต่ละรุ่นมีสามตารางเรียงข้างกัน ยอดขาย / สต็อกปัจจุบัน / ที่ต้องผลิต พร้อมตัวเลขถูกต้อง", async () => {
     render(<ProductionPlanPage />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "ที่ต้องผลิต" })).toBeTruthy());
-    expect(screen.getByRole("button", { name: "ยอดขาย" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "สต็อกปัจจุบัน" })).toBeTruthy();
-    // ตั้งต้นที่แท็บ "ที่ต้องผลิต": ขาย 100 - คลัง 30 = 70
-    expect(screen.getAllByText("70").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "ยอดขาย" }));
+    await waitFor(() => expect(screen.getByText(/ที่ต้องผลิตเพิ่ม \(ชิ้น\)/)).toBeTruthy());
+    expect(screen.getByText(/ยอดขาย \(ชิ้น\)/)).toBeTruthy();
+    expect(screen.getByText(/สต็อกปัจจุบัน \(ชิ้น\)/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "ยอดขาย" })).toBeNull(); // ไม่ใช่แท็บแล้ว
+    // ขาย 100, คลัง 30, ต้องผลิต 100 - 30 = 70
     expect(screen.getAllByText("100").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "สต็อกปัจจุบัน" }));
     expect(screen.getAllByText("30").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("70").length).toBeGreaterThan(0);
   });
 });

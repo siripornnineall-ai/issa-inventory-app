@@ -8,7 +8,6 @@ import { RequireAccess } from "@/components/layout/RequireAccess";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
-import { Tabs } from "@/components/ui/Tabs";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useStore } from "@/lib/store";
 import { useCurrentUser } from "@/lib/auth/session";
@@ -32,13 +31,18 @@ const lowStyle = { backgroundColor: "color-mix(in srgb, var(--color-danger) 18%,
 type Metric = "demand" | "stock" | "need";
 const METRIC_TITLE: Record<Metric, string> = {
   demand: "ยอดขาย (ชิ้น)",
-  stock: "สต็อกปัจจุบัน (ชิ้น) · คลัง และรอเย็บที่ BC แยกกัน",
-  need: "ที่ต้องผลิตเพิ่ม (ชิ้น) = ยอดขาย − (คลัง + รอเย็บ) เฉพาะช่องที่ขาด",
+  stock: "สต็อกปัจจุบัน (ชิ้น)",
+  need: "ที่ต้องผลิตเพิ่ม (ชิ้น)",
 };
+const METRIC_HINT: Record<Metric, string> = {
+  demand: "ยอดขายต่อเดือน × จำนวนเดือนที่เลือก",
+  stock: "คลัง · ถ้ามีชิ้นรอเย็บที่ BC ขึ้นบรรทัดเล็ก +N รอเย็บ แยกไว้",
+  need: "ยอดขาย − (คลัง + รอเย็บ) เฉพาะช่องที่ขาด",
+};
+const METRICS: Metric[] = ["demand", "stock", "need"];
 
-// ตารางเดียวต่อรุ่น ช่องละหนึ่งตัวเลข: ยอดขาย / สต็อกปัจจุบัน / ที่ต้องผลิต (แท็บบนหน้า เลือกดูทีละก้อนเหมือนชีต)
-function ModelBlock({ m, metric }: { m: PlanMatrix; metric: Metric }) {
-  const brand = useStore((s) => (m.brandId ? s.brands[m.brandId] : undefined));
+// หนึ่งตารางต่อหนึ่งตัวชี้วัด ความกว้างคอลัมน์คงที่ วางเรียงข้างกันในแถวเดียวของรุ่น เลื่อนซ้าย-ขวาดูได้เหมือนชีต
+function MetricTable({ m, metric }: { m: PlanMatrix; metric: Metric }) {
   const value = (c: { demand: number; stock: number; need: number }) => (metric === "demand" ? c.demand : metric === "stock" ? c.stock : c.need);
   const rowSum = (cells: Record<string, PlanCell>) => Object.values(cells).reduce((t, c) => t + value(c), 0);
   const colSum = (size: string) => m.colors.reduce((t, c) => t + (c.cells[size] ? value(c.cells[size]) : 0), 0);
@@ -46,6 +50,71 @@ function ModelBlock({ m, metric }: { m: PlanMatrix; metric: Metric }) {
   const grand = m.colors.reduce((t, c) => t + rowSum(c.cells), 0);
   const grandWip = m.colors.reduce((t, c) => t + wipSum(c.cells), 0);
   const sub = metric === "stock";
+  const wipNote = (n: number) => (sub && n > 0 ? <div className="text-[10px] font-normal leading-tight text-[var(--color-on-surface-variant)]">+{formatNumber(n)} รอเย็บ</div> : null);
+  return (
+    <div className="shrink-0">
+      <p className="mb-1 text-sm font-semibold">
+        {METRIC_TITLE[metric]} <span className="font-normal text-[var(--color-on-surface-variant)]">· {METRIC_HINT[metric]}</span>
+      </p>
+      <table className="w-max border-collapse text-sm">
+        <thead>
+          <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
+            <th className="w-24 px-3 py-2 text-left font-medium">สี</th>
+            {m.sizes.map((s) => (
+              <th key={s} className="w-14 px-1 py-2 text-center font-medium">
+                {s}
+              </th>
+            ))}
+            <th className="w-20 bg-[var(--bar-strong,var(--color-primary))] px-2 py-2 text-center font-medium text-[color:var(--bar-strong-fg,#fff)]">รวม</th>
+          </tr>
+        </thead>
+        <tbody>
+          {m.colors.map((c) => (
+            <tr key={c.color} className="border-b border-[var(--color-border)]">
+              <td className="whitespace-nowrap px-3 py-2 font-medium">{c.color}</td>
+              {m.sizes.map((s) => {
+                const cell = c.cells[s];
+                if (!cell) return <td key={s} className="px-1 py-2 text-center text-[var(--color-on-surface-variant)]/40">–</td>;
+                const v = value(cell);
+                const shortage = metric === "need" && cell.need > 0;
+                return (
+                  <td
+                    key={s}
+                    title={`ยอดขาย ${fmt1(cell.demand)} · คลัง ${cell.stock} · รอเย็บ ${cell.wip} · ควรผลิต ${cell.need}`}
+                    className={`px-1 py-2 text-center ${shortage ? (cell.level === "out" ? "bg-[var(--color-danger)] font-bold text-white" : "font-bold text-[var(--color-danger)]") : v === 0 ? "text-[var(--color-on-surface-variant)]/40" : ""}`}
+                    style={shortage && cell.level !== "out" ? lowStyle : undefined}
+                  >
+                    {v === 0 && metric !== "stock" ? "–" : fmt1(v)}
+                    {wipNote(cell.wip)}
+                  </td>
+                );
+              })}
+              <td className="bg-[var(--color-surface-container)] px-2 py-2 text-center font-semibold">
+                {fmt1(rowSum(c.cells))}
+                {wipNote(wipSum(c.cells))}
+              </td>
+            </tr>
+          ))}
+          <tr className="bg-[var(--color-surface-container)] font-semibold">
+            <td className="px-3 py-2">รวม</td>
+            {m.sizes.map((s) => (
+              <td key={s} className="px-1 py-2 text-center">
+                {fmt1(colSum(s))}
+              </td>
+            ))}
+            <td className="px-2 py-2 text-center">
+              {fmt1(grand)}
+              {wipNote(grandWip)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ModelBlock({ m }: { m: PlanMatrix }) {
+  const brand = useStore((s) => (m.brandId ? s.brands[m.brandId] : undefined));
   return (
     <Card className="overflow-hidden" style={brandBarStyle(brand)}>
       <details open>
@@ -56,60 +125,10 @@ function ModelBlock({ m, metric }: { m: PlanMatrix; metric: Metric }) {
             {m.totals.urgent > 0 && <span className="font-semibold text-[var(--color-danger)]"> · ขาด {formatNumber(m.totals.urgent)} ช่อง</span>}
           </span>
         </summary>
-        <div className="overflow-x-auto px-5 pb-5">
-          <table className="w-full table-fixed border-collapse text-sm">
-            <thead>
-              <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
-                <th className="sticky left-0 z-10 w-24 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-left font-medium">สี</th>
-                {m.sizes.map((s) => (
-                  <th key={s} className="px-1 py-2 text-center font-medium">
-                    {s}
-                  </th>
-                ))}
-                <th className="w-20 bg-[var(--bar-strong,var(--color-primary))] px-2 py-2 text-center font-medium text-[color:var(--bar-strong-fg,#fff)]">รวม</th>
-              </tr>
-            </thead>
-            <tbody>
-              {m.colors.map((c) => (
-                <tr key={c.color} className="border-b border-[var(--color-border)]">
-                  <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-2 font-medium">{c.color}</td>
-                  {m.sizes.map((s) => {
-                    const cell = c.cells[s];
-                    if (!cell) return <td key={s} className="px-1 py-2 text-center text-[var(--color-on-surface-variant)]/40">–</td>;
-                    const v = value(cell);
-                    const shortage = metric === "need" && cell.need > 0;
-                    return (
-                      <td
-                        key={s}
-                        title={`ยอดขาย ${fmt1(cell.demand)} · คลัง ${cell.stock} · รอเย็บ ${cell.wip} · ควรผลิต ${cell.need}`}
-                        className={`px-1 py-2 text-center ${shortage ? (cell.level === "out" ? "bg-[var(--color-danger)] font-bold text-white" : "font-bold text-[var(--color-danger)]") : v === 0 ? "text-[var(--color-on-surface-variant)]/40" : ""}`}
-                        style={shortage && cell.level !== "out" ? lowStyle : undefined}
-                      >
-                        {v === 0 && metric !== "stock" ? "–" : fmt1(v)}
-                        {sub && cell.wip > 0 && <div className="text-[10px] font-normal leading-tight text-[var(--color-on-surface-variant)]">+{formatNumber(cell.wip)} รอเย็บ</div>}
-                      </td>
-                    );
-                  })}
-                  <td className="bg-[var(--color-surface-container)] px-2 py-2 text-center font-semibold">
-                    {fmt1(rowSum(c.cells))}
-                    {sub && wipSum(c.cells) > 0 && <div className="text-[10px] font-normal leading-tight text-[var(--color-on-surface-variant)]">+{formatNumber(wipSum(c.cells))} รอเย็บ</div>}
-                  </td>
-                </tr>
-              ))}
-              <tr className="bg-[var(--color-surface-container)] font-semibold">
-                <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-3 py-2">รวม</td>
-                {m.sizes.map((s) => (
-                  <td key={s} className="px-1 py-2 text-center">
-                    {fmt1(colSum(s))}
-                  </td>
-                ))}
-                <td className="px-2 py-2 text-center">
-                  {fmt1(grand)}
-                  {sub && grandWip > 0 && <div className="text-[10px] font-normal leading-tight text-[var(--color-on-surface-variant)]">+{formatNumber(grandWip)} รอเย็บ</div>}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="flex gap-8 overflow-x-auto px-5 pb-5">
+          {METRICS.map((metric) => (
+            <MetricTable key={metric} m={m} metric={metric} />
+          ))}
         </div>
       </details>
     </Card>
@@ -197,7 +216,6 @@ function PlanContent() {
   const [brandId, setBrandId] = useState("");
   const [search, setSearch] = useState("");
   const [months, setMonths] = useState("1");
-  const [tab, setTab] = useState<Metric>("need");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -284,25 +302,12 @@ function PlanContent() {
               <span className="text-sm text-[var(--color-on-surface-variant)]">ช่อง (สี/ไซซ์)</span>
             </Card>
           </div>
-          <Tabs
-            tabs={[
-              { id: "demand", label: "ยอดขาย" },
-              { id: "stock", label: "สต็อกปัจจุบัน" },
-              { id: "need", label: "ที่ต้องผลิต" },
-            ]}
-            active={tab}
-            onChange={(id) => setTab(id as Metric)}
-          />
           <p className="px-1 text-sm text-[var(--color-on-surface-variant)]">
-            <b className="text-[var(--color-on-surface)]">{METRIC_TITLE[tab]}</b> · ยอดขายอ้างอิง {baseline.months.map((m) => m.slice(0, 7)).join(", ")} · ดูล่วงหน้า {months} เดือน
-            {tab === "need" && (
-              <>
-                {" "}· <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> ไม่มีของเลย <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={lowStyle}>แดงอ่อน</span> ขาดบางส่วน
-              </>
-            )}
+            ยอดขายอ้างอิง {baseline.months.map((m) => m.slice(0, 7)).join(", ")} · ดูล่วงหน้า {months} เดือน · แต่ละรุ่นมีสามตารางเรียงข้างกัน (ยอดขาย → สต็อกปัจจุบัน → ที่ต้องผลิต) เลื่อนซ้าย-ขวาดูได้ · ในตารางที่ต้องผลิต{" "}
+            <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> ไม่มีของเลย <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={lowStyle}>แดงอ่อน</span> ขาดบางส่วน
           </p>
           {matrices.map((m) => (
-            <ModelBlock key={m.productId} m={m} metric={tab} />
+            <ModelBlock key={m.productId} m={m} />
           ))}
         </>
       )}
