@@ -61,6 +61,9 @@ describe("หน้าวางแผนผลิต", () => {
     expect(screen.getByRole("button", { name: /ดูล่วงหน้า 1 เดือน/ }).textContent).toContain("70");
     expect(screen.getByRole("button", { name: /ดูล่วงหน้า 2 เดือน/ }).textContent).toContain("170");
     expect(screen.getByRole("button", { name: /ดูล่วงหน้า 3 เดือน/ }).textContent).toContain("270");
+    // มีปุ่มถึง 8 เดือน: ขาย 100 x 8 - คลัง 30 = 770
+    expect(screen.getByRole("button", { name: /ดูล่วงหน้า 8 เดือน/ }).textContent).toContain("770");
+    expect(screen.queryByRole("button", { name: /ดูล่วงหน้า 9 เดือน/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /ดูล่วงหน้า 2 เดือน/ }));
     expect(screen.getAllByText("200").length).toBeGreaterThan(0); // ยอดขาย 100 x 2
     expect(screen.getAllByText("170").length).toBeGreaterThan(0);
