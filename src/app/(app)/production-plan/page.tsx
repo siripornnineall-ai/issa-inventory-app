@@ -14,6 +14,7 @@ import { useCurrentUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/client";
 import { loadBaseline, saveBaseline } from "@/lib/supabase/salesBaseline";
 import { toastError, toastSuccess } from "@/lib/toast";
+import { REAL_DATA_START, monthRange, netSalesByVariant } from "@/lib/utils/salesMatrix";
 import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
@@ -210,12 +211,13 @@ function ImportCard({ onSaved }: { onSaved: () => void }) {
 
 function PlanContent() {
   const state = useStore();
-  const [baseline, setBaseline] = useState<{ rows: BaselineInput[]; months: string[] }>({ rows: [], months: [] });
+  const [baseline, setBaseline] = useState<{ rows: (BaselineInput & { month: string })[]; months: string[] }>({ rows: [], months: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [brandId, setBrandId] = useState("");
   const [search, setSearch] = useState("");
   const [months, setMonths] = useState("1");
+  const [source, setSource] = useState("");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -234,7 +236,44 @@ function PlanContent() {
   }, [reload]);
 
   const brands = useMemo(() => Object.values(state.brands).sort((a, b) => a.name.localeCompare(b.name, "th")), [state.brands]);
-  const matrices = useMemo(() => productionPlan(state, baseline.rows, { months: Number(months), brandId, search }), [state, baseline.rows, months, brandId, search]);
+  // ยอดขายที่ใช้เป็นฐาน: ไฟล์ที่นำเข้าของเดือนนั้น หรือยอดขายที่บันทึกในระบบของเดือนที่จบแล้ว (ตั้งแต่ต้นเดือนที่ระบบเริ่มใช้จริง)
+  const sourceOptions = useMemo(() => {
+    const opts: { value: string; month: string; label: string }[] = baseline.months.map((m) => ({ value: `file:${m}`, month: m, label: `${m} · จากไฟล์ที่นำเข้า` }));
+    const now = new Date();
+    const start = new Date(REAL_DATA_START);
+    let y = start.getFullYear();
+    let m0 = start.getMonth();
+    while (y < now.getFullYear() || (y === now.getFullYear() && m0 < now.getMonth())) {
+      const key = `${y}-${String(m0 + 1).padStart(2, "0")}`;
+      opts.push({ value: `sys:${key}`, month: key, label: `${key} · ยอดขายที่บันทึกในระบบ` });
+      m0 += 1;
+      if (m0 > 11) {
+        m0 = 0;
+        y += 1;
+      }
+    }
+    return opts.sort((a, b) => b.month.localeCompare(a.month) || a.value.localeCompare(b.value));
+  }, [baseline.months]);
+  const activeSource = sourceOptions.find((o) => o.value === source) ?? sourceOptions.find((o) => o.value.startsWith("file:")) ?? sourceOptions[0];
+  const baseRows = useMemo<BaselineInput[]>(() => {
+    if (!activeSource) return [];
+    if (activeSource.value.startsWith("file:")) return baseline.rows.filter((r) => r.month === activeSource.month);
+    const [y, m] = activeSource.month.split("-").map(Number);
+    const r = monthRange(y, m - 1);
+    const rows: BaselineInput[] = [];
+    for (const [variantId, qty] of netSalesByVariant(state, r.from, r.to)) {
+      const v = state.variants[variantId];
+      if (v) rows.push({ productId: v.productId, color: v.color, size: v.size, qty });
+    }
+    return rows;
+  }, [activeSource, baseline.rows, state]);
+
+  const matrices = useMemo(() => productionPlan(state, baseRows, { months: Number(months), brandId, search }), [state, baseRows, months, brandId, search]);
+  // ขาดรวมถ้าดูล่วงหน้า 1 / 2 / 3 เดือน (ใช้บนปุ่มเลือก)
+  const shortageByMonths = useMemo(
+    () => [1, 2, 3].map((n) => ({ n, need: productionPlan(state, baseRows, { months: n, brandId, search }).reduce((t, m) => t + m.totals.need, 0) })),
+    [state, baseRows, brandId, search]
+  );
   const sum = matrices.reduce(
     (s, m) => ({ stock: s.stock + m.totals.stock, wip: s.wip + m.totals.wip, have: s.have + m.totals.have, need: s.need + m.totals.need, urgent: s.urgent + m.totals.urgent }),
     { stock: 0, wip: 0, have: 0, need: 0, urgent: 0 }
@@ -255,13 +294,15 @@ function PlanContent() {
             </option>
           ))}
         </Select>
-        <Select value={months} onChange={(e) => setMonths(e.target.value)} aria-label="ดูล่วงหน้า" className="w-44">
-          {[1, 2, 3].map((n) => (
-            <option key={n} value={String(n)}>
-              ดูล่วงหน้า {n} เดือน
-            </option>
-          ))}
-        </Select>
+        {sourceOptions.length > 0 && (
+          <Select value={activeSource?.value ?? ""} onChange={(e) => setSource(e.target.value)} aria-label="ยอดขายอ้างอิงเดือน" className="w-72">
+            {sourceOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                ยอดขายเดือน {o.label}
+              </option>
+            ))}
+          </Select>
+        )}
         <Button className="ml-auto" variant="ghost" onClick={() => downloadWorkbook("วางแผนผลิต.xlsx", [{ name: "วางแผนผลิต", rows: planSheetRows(state, matrices) }])} disabled={matrices.length === 0}>
           <Download className="h-4 w-4" /> Excel
         </Button>
@@ -283,6 +324,20 @@ function PlanContent() {
         </Card>
       ) : (
         <>
+          <div role="group" aria-label="ดูล่วงหน้า" className="flex flex-wrap items-stretch gap-2">
+            {shortageByMonths.map(({ n, need }) => (
+              <button
+                key={n}
+                type="button"
+                aria-pressed={months === String(n)}
+                onClick={() => setMonths(String(n))}
+                className={`rounded-xl border px-4 py-2 text-left ${months === String(n) ? "border-[var(--color-primary-container)] bg-[var(--color-primary-container)] text-white" : "border-[var(--color-border)] bg-white hover:bg-[var(--color-surface-container)]"}`}
+              >
+                <span className="block text-sm font-semibold">ดูล่วงหน้า {n} เดือน</span>
+                <span className="block text-xs">ขาดรวม {formatNumber(need)} ชิ้น</span>
+              </button>
+            ))}
+          </div>
           <div role="status" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             <Card className="col-span-2 flex flex-col justify-center bg-[var(--color-primary-container)] p-4 sm:col-span-1">
               <span className="text-sm font-medium text-white/85">ควรผลิตเพิ่มรวม</span>
@@ -303,7 +358,7 @@ function PlanContent() {
             </Card>
           </div>
           <p className="px-1 text-sm text-[var(--color-on-surface-variant)]">
-            ยอดขายอ้างอิง {baseline.months.map((m) => m.slice(0, 7)).join(", ")} · ดูล่วงหน้า {months} เดือน · แต่ละรุ่นมีสามตารางเรียงข้างกัน (ยอดขาย → สต็อกปัจจุบัน → ที่ต้องผลิต) เลื่อนซ้าย-ขวาดูได้ · ในตารางที่ต้องผลิต{" "}
+            ยอดขายเดือน {activeSource?.label} · ดูล่วงหน้า {months} เดือน · แต่ละรุ่นมีสามตารางเรียงข้างกัน (ยอดขาย → สต็อกปัจจุบัน → ที่ต้องผลิต) เลื่อนซ้าย-ขวาดูได้ · ในตารางที่ต้องผลิต{" "}
             <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> ไม่มีของเลย <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={lowStyle}>แดงอ่อน</span> ขาดบางส่วน
           </p>
           {matrices.map((m) => (

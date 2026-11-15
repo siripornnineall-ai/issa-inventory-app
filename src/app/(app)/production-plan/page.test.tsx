@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
 import { produce } from "immer";
 import ProductionPlanPage from "./page";
 import { useStore } from "@/lib/store";
@@ -52,5 +52,25 @@ describe("หน้าวางแผนผลิต", () => {
     expect(screen.getAllByText("100").length).toBeGreaterThan(0);
     expect(screen.getAllByText("30").length).toBeGreaterThan(0);
     expect(screen.getAllByText("70").length).toBeGreaterThan(0);
+  });
+
+  it("ปุ่มดูล่วงหน้า 1/2/3 เดือนบอกยอดขาดรวมของแต่ละกรณี และกดแล้วตารางเปลี่ยนตาม", async () => {
+    render(<ProductionPlanPage />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /ดูล่วงหน้า 1 เดือน/ })).toBeTruthy());
+    // ขายเดือนละ 100 คลัง 30: 1 เดือนขาด 70, 2 เดือนขาด 170, 3 เดือนขาด 270
+    expect(screen.getByRole("button", { name: /ดูล่วงหน้า 1 เดือน/ }).textContent).toContain("70");
+    expect(screen.getByRole("button", { name: /ดูล่วงหน้า 2 เดือน/ }).textContent).toContain("170");
+    expect(screen.getByRole("button", { name: /ดูล่วงหน้า 3 เดือน/ }).textContent).toContain("270");
+    fireEvent.click(screen.getByRole("button", { name: /ดูล่วงหน้า 2 เดือน/ }));
+    expect(screen.getAllByText("200").length).toBeGreaterThan(0); // ยอดขาย 100 x 2
+    expect(screen.getAllByText("170").length).toBeGreaterThan(0);
+  });
+
+  it("เลือกเดือนของยอดขายอ้างอิงได้ (ไฟล์ที่นำเข้า และยอดขายที่บันทึกในระบบ)", async () => {
+    render(<ProductionPlanPage />);
+    const sel = (await screen.findByLabelText("ยอดขายอ้างอิงเดือน")) as HTMLSelectElement;
+    const labels = Array.from(sel.options).map((o) => o.textContent);
+    expect(labels.some((t) => t?.includes("จากไฟล์ที่นำเข้า"))).toBe(true);
+    expect(labels.some((t) => t?.includes("ยอดขายที่บันทึกในระบบ"))).toBe(true);
   });
 });

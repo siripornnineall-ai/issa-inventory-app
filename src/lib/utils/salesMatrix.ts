@@ -75,6 +75,16 @@ function tally(state: AppState, from: number, to: number): Map<string, Tally> {
   return map;
 }
 
+// ยอดขายสุทธิต่อตัวเลือกของช่วง [from, to) (ขาย - ของคืนที่หักได้) เฉพาะตัวที่มียอดมากกว่า 0 ใช้เป็นฐานวางแผนผลิต
+export function netSalesByVariant(state: AppState, from: number, to: number): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [variantId, t] of tally(state, from, to)) {
+    const net = t.sold - t.returned;
+    if (net > 0) out.set(variantId, net);
+  }
+  return out;
+}
+
 export interface SalesColorRow {
   color: string;
   cells: Record<string, number>;
