@@ -23,6 +23,7 @@ import { DateRangePicker, useDateRange } from "@/components/ui/DateRangePicker";
 import { Badge } from "@/components/ui/Badge";
 import { DrillDownDialog, type DrillKind } from "@/components/dashboard/DrillDownDialog";
 import { SlowStockCards } from "@/components/dashboard/SlowStockCards";
+import { DashboardBanner } from "@/components/dashboard/DashboardBanner";
 import { useStore } from "@/lib/store";
 import {
   dailySeries,
@@ -95,6 +96,7 @@ export default function DashboardPage() {
       <PageContainer>
         {/* ตัวเลขรวมทุกแบรนด์อยู่การ์ดแรกของแต่ละกลุ่ม ตามด้วยของแต่ละแบรนด์ กดการ์ดเพื่อดูรายละเอียด */}
         <div className="flex flex-col gap-5">
+          <DashboardBanner />
           {kpiGroups.map((g) => (
             <section key={g.kind} aria-label={g.title}>
               <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--color-on-surface)]">
