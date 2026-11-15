@@ -7,24 +7,21 @@ import { useStore } from "@/lib/store";
 
 // แบนเนอร์ด้านบนของแดชบอร์ด: สไลด์รูปของแต่ละแบรนด์ เปลี่ยนเองทุก 6 วินาที (หยุดเมื่อเอาเมาส์ชี้ และเมื่อผู้ใช้ตั้งลดการเคลื่อนไหว) กดลูกศรหรือจุดเพื่อเลือกเองได้
 // รูป ISSA Apparel เป็นไฟล์ในแอป (public/banners) ส่วนแบรนด์อื่นดึงจากแบนเนอร์ของเว็บหน้าร้าน (ตาราง storefront_brand_banners) ถ้าดึงไม่ได้ก็โชว์เท่าที่มี
-// รูปขยายเต็มความกว้างจอ (object-cover) ความสูงปรับตามความกว้าง ตัดส่วนเกินบน-ล่างตามจุดโฟกัส (focus_x / focus_y ของแบนเนอร์เว็บหน้าร้าน ถ้าไม่มีใช้กลางภาพ)
+// รูปแสดงเต็มความกว้างจอด้วยสัดส่วนจริงของรูป ไม่ตัดส่วนไหนเลย (ความสูงเปลี่ยนตามรูป) จึงไม่เปลี่ยนสไลด์เอง เพื่อไม่ให้หน้าเลื่อนขึ้นลง กดลูกศรหรือจุดเพื่อเลือกรูป
+// แนะนำให้ทำรูปสัดส่วนกว้างประมาณ 2.4:1 (เช่น 2400x1000) จะไม่สูงเกินไปบนจอกว้าง
 
 export interface BannerSlide {
   id: string;
   src: string;
   alt: string;
-  focusX?: number; // 0-100 (%) จุดโฟกัสแนวนอน
-  focusY?: number; // 0-100 (%) จุดโฟกัสแนวตั้ง
 }
 
-const APPAREL_SLIDE: BannerSlide = { id: "apparel-static", src: "/banners/issa-apparel.jpg", alt: "ISSA Apparel — Comfortable Confident in every situation", focusX: 50, focusY: 40 };
+const APPAREL_SLIDE: BannerSlide = { id: "apparel-static", src: "/banners/issa-apparel.jpg", alt: "ISSA Apparel — Comfortable Confident in every situation" };
 
 // รวมสไลด์: แบรนด์ที่มีแบนเนอร์ในฐานข้อมูลใช้ของฐานข้อมูล แบรนด์ ISSA Apparel (รหัส IS) ที่ไม่มีของตัวเองใช้รูปในแอป
 export interface BannerRow {
   brand_id: string;
   image_url: string | null;
-  focus_x?: number | null;
-  focus_y?: number | null;
 }
 
 export function buildSlides(brands: { id: string; name: string; code: string }[], rows: BannerRow[]): BannerSlide[] {
@@ -36,7 +33,7 @@ export function buildSlides(brands: { id: string; name: string; code: string }[]
   for (const r of rows) {
     if (!r.image_url) continue;
     const brand = byBrand.get(r.brand_id);
-    slides.push({ id: `db-${r.brand_id}`, src: r.image_url, alt: brand?.name ?? "แบนเนอร์แบรนด์", focusX: r.focus_x ?? undefined, focusY: r.focus_y ?? undefined });
+    slides.push({ id: `db-${r.brand_id}`, src: r.image_url, alt: brand?.name ?? "แบนเนอร์แบรนด์" });
   }
   return slides;
 }
@@ -45,13 +42,12 @@ export function DashboardBanner() {
   const brands = useStore((s) => s.brands);
   const [rows, setRows] = useState<BannerRow[]>([]);
   const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await createClient().from("storefront_brand_banners").select("brand_id, image_url, focus_x, focus_y");
+        const res = await createClient().from("storefront_brand_banners").select("brand_id, image_url");
         if (!cancelled && !res.error && Array.isArray(res.data)) setRows(res.data as BannerRow[]);
       } catch {
         // ดึงแบนเนอร์ของแบรนด์อื่นไม่ได้ ก็โชว์เท่าที่มี
@@ -67,13 +63,6 @@ export function DashboardBanner() {
   const current = count > 0 ? index % count : 0;
   const go = useCallback((delta: number) => setIndex((i) => (count > 0 ? (i + delta + count) % count : 0)), [count]);
 
-  useEffect(() => {
-    if (count < 2 || paused) return;
-    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const t = setInterval(() => setIndex((i) => i + 1), 6000);
-    return () => clearInterval(t);
-  }, [count, paused]);
-
   if (count === 0) return null;
   const slide = slides[current];
   return (
@@ -81,19 +70,9 @@ export function DashboardBanner() {
       aria-roledescription="carousel"
       aria-label="แบนเนอร์แบรนด์"
       className="relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-container)]"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
     >
-      <div className="relative h-[clamp(11rem,28vw,32rem)]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          key={slide.id}
-          src={slide.src}
-          alt={slide.alt}
-          className="absolute inset-0 h-full w-full object-cover"
-          style={{ objectPosition: `${slide.focusX ?? 50}% ${slide.focusY ?? 50}%` }}
-        />
-      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img key={slide.id} src={slide.src} alt={slide.alt} className="block h-auto w-full" />
       {count > 1 && (
         <>
           <button type="button" aria-label="แบนเนอร์ก่อนหน้า" onClick={() => go(-1)} className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/80 p-1.5 shadow hover:bg-white">
