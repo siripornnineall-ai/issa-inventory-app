@@ -143,8 +143,24 @@ function FactoryContent() {
         </div>
       </div>
 
-      <p role="status" className="px-1 text-sm text-[var(--color-on-surface-variant)]">
-        <span className="font-semibold text-[var(--color-on-surface)]">ยังไม่เย็บรวม:</span> {formatNumber(total)} ชิ้น จาก {matrices.length} รุ่น · ตัวที่ตัดเป็นชิ้นแล้วแต่ยังไม่ได้เย็บ ไม่รวมในสต็อกสินค้า ขายไม่ได้ ตอนเย็บเสร็จให้รับเข้าที่หน้า &quot;รับสินค้าเข้า&quot; แล้วเลือก &quot;เย็บเสร็จจากโรงงาน BC&quot; ยอดนี้จะลดลงให้เอง
+      <div role="status" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <Card className="col-span-2 flex flex-col justify-center bg-[var(--color-primary-container)] p-4 sm:col-span-1">
+          <span className="text-sm font-medium text-[var(--color-on-surface-variant)]">ยังไม่เย็บรวมทุกรุ่น</span>
+          <span className="text-3xl font-bold text-[var(--color-on-surface)]">{formatNumber(total)}</span>
+          <span className="text-sm text-[var(--color-on-surface-variant)]">ชิ้น จาก {formatNumber(matrices.length)} รุ่น</span>
+        </Card>
+        {matrices.map((m) => (
+          <Card key={m.productId} className="flex flex-col justify-center p-4">
+            <span className="truncate text-sm font-medium text-[var(--color-on-surface-variant)]">{m.name}</span>
+            <span className={`text-2xl font-bold ${m.total < 0 ? "text-[var(--color-danger)]" : "text-[var(--color-on-surface)]"}`}>{formatNumber(m.total)}</span>
+            <span className="text-sm text-[var(--color-on-surface-variant)]">
+              ชิ้น{m.urgentCells > 0 && <span className="font-semibold text-[var(--color-danger)]"> · ควรเย็บ {formatNumber(m.urgentCells)} ช่อง</span>}
+            </span>
+          </Card>
+        ))}
+      </div>
+      <p className="px-1 text-sm text-[var(--color-on-surface-variant)]">
+        ตัวที่ตัดเป็นชิ้นแล้วแต่ยังไม่ได้เย็บ ไม่รวมในสต็อกสินค้า ขายไม่ได้ ตอนเย็บเสร็จให้รับเข้าที่หน้า &quot;รับสินค้าเข้า&quot; แล้วเลือก &quot;เย็บเสร็จจากโรงงาน BC&quot; ยอดนี้จะลดลงให้เอง
       </p>
       <p className="px-1 text-sm text-[var(--color-on-surface-variant)]">
         ช่องสีแดงในตาราง = ควรเย็บก่อน (สต็อกคลังเหลือไม่เกิน 10 ชิ้น และมีชิ้นรอเย็บ) · <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> คลังหมดเกลี้ยง ·{" "}
