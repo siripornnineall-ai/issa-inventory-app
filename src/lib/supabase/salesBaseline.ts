@@ -12,20 +12,15 @@ export interface BaselineDbRow {
   qty: number;
 }
 
-// ยอดล่าสุดต่อ (รุ่น, สี, ไซซ์) คือแถวของเดือนใหม่สุดที่มี และคืนรายชื่อเดือนที่เคยนำเข้า
-export async function loadBaseline(supabase: SupabaseClient): Promise<{ rows: BaselineInput[]; months: string[] }> {
+// ยอดขายอ้างอิงทุกเดือนที่เคยนำเข้า (แถวต่อ เดือน-รุ่น-สี-ไซซ์) และรายชื่อเดือน (ใหม่ไปเก่า)
+export async function loadBaseline(supabase: SupabaseClient): Promise<{ rows: (BaselineInput & { month: string })[]; months: string[] }> {
   const res = await supabase.from("sales_baseline").select("month, product_id, color, size, qty").order("month", { ascending: false }).limit(20000);
   if (res.error) throw new Error(res.error.message);
   const data = (res.data ?? []) as BaselineDbRow[];
-  const seen = new Set<string>();
-  const rows: BaselineInput[] = [];
-  for (const r of data) {
-    const key = `${r.product_id}|${r.color}|${r.size}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    rows.push({ productId: r.product_id, color: r.color, size: r.size, qty: Number(r.qty) });
-  }
-  return { rows, months: [...new Set(data.map((r) => r.month))] };
+  return {
+    rows: data.map((r) => ({ month: r.month.slice(0, 7), productId: r.product_id, color: r.color, size: r.size, qty: Number(r.qty) })),
+    months: [...new Set(data.map((r) => r.month.slice(0, 7)))],
+  };
 }
 
 export async function saveBaseline(supabase: SupabaseClient, rows: BaselineRow[], ctx: { month: string; fileName: string; userId: string; userName: string }): Promise<number> {
