@@ -251,7 +251,7 @@ export function CurrentStockTab({ brandId, setBrandId }: { brandId: string; setB
                     <Link href={"/products/" + product.id} className="text-base font-semibold hover:text-[var(--color-primary-container)]">
                       {product.sellingName}
                     </Link>
-                    {product.brandId && state.brands[product.brandId] && <BrandTag brandId={product.brandId} variant="chip" />}
+                    {product.brandId && state.brands[product.brandId] && <BrandTag brandId={product.brandId} variant="logo" />}
                     {matrix.negativeCells > 0 && <Badge tone="danger">ติดลบ {matrix.negativeCells} ช่อง</Badge>}
                   </div>
                   <p className="text-sm text-[var(--color-on-surface-variant)]">

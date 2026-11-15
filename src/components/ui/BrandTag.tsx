@@ -13,7 +13,7 @@ export function BrandTag({
   className,
 }: {
   brandId?: string | null;
-  variant?: "chip" | "dot";
+  variant?: "chip" | "dot" | "logo";
   fallback?: string;
   className?: string;
 }) {
@@ -21,7 +21,20 @@ export function BrandTag({
   if (!brand) return <span className={className}>{fallback}</span>;
   const color = brandColor(brand);
   const dot = <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />;
-  if (variant === "chip") {
+  if (variant === "logo" && brand.logoUrl) {
+    // โลโก้แบรนด์แทนป้ายชื่อ (ไม่มีโลโก้จะตกไปใช้ป้ายแบบ chip ด้านล่าง)
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={brand.logoUrl}
+        alt={brand.name}
+        title={brand.name}
+        className={cn("h-8 w-8 shrink-0 rounded-lg border object-cover", className)}
+        style={{ borderColor: brandTint(color, 45) }}
+      />
+    );
+  }
+  if (variant === "chip" || variant === "logo") {
     return (
       <span
         className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold text-[var(--color-on-surface)]", className)}
