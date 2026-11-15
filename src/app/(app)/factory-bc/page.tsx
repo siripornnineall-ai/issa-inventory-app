@@ -29,7 +29,10 @@ function ModelBlock({ m }: { m: WipMatrix }) {
     <Card className="overflow-hidden" style={brandBarStyle(brand)}>
       <details open>
         <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-5 py-4">
-          <span className="text-base font-semibold text-[var(--color-on-surface)]">{m.name}</span>
+          <span className="text-base font-semibold text-[var(--color-on-surface)]">
+            {m.name}
+            {m.shape && <span className="ml-2 text-sm font-normal text-[var(--color-on-surface-variant)]">{m.shape}</span>}
+          </span>
           <span className="text-sm text-[var(--color-on-surface-variant)]">
             ยังไม่เย็บ <span className={`font-semibold ${m.total < 0 ? "text-[var(--color-danger)]" : "text-[var(--color-on-surface)]"}`}>{formatNumber(m.total)} ชิ้น</span>
             {m.urgentCells > 0 && <span className="font-semibold text-[var(--color-danger)]"> · ควรเย็บ {m.urgentCells} ช่อง</span>}

@@ -71,4 +71,12 @@ describe("วางแผนผลิต", () => {
     expect(m2.sizeDiff.M).toBe(-60);
     expect(m2.totals).toMatchObject({ demand: 160, diff: -60 });
   });
+
+  it("ทรงสินค้าส่งมากับรุ่นในแผนผลิต", () => {
+    const { state, p } = seed();
+    const next = produce(state, (d) => {
+      d.products[p].shape = "ทรงกระบอกใหญ่";
+    });
+    expect(productionPlan(next, [{ productId: p, color: "ดำ", size: "M", qty: 10 }])[0].shape).toBe("ทรงกระบอกใหญ่");
+  });
 });

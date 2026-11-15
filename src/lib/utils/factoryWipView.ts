@@ -20,6 +20,7 @@ export function sewLevel(stock: number, wip: number): SewLevel | undefined {
 export interface WipMatrix {
   productId: string;
   name: string;
+  shape?: string; // ทรงสินค้า (ต่อท้ายชื่อรุ่นบนหน้าจอ)
   brandId?: string;
   total: number;
   negativeCells: number;
@@ -57,7 +58,7 @@ function toMatrix(state: AppState, p: WipProductSummary, product?: { colorOrder?
     maxCell = Math.max(maxCell, v.qty);
   }
   const colors = [...byColor.values()].sort((a, b) => compareColors(a.color, b.color, product));
-  return { productId: p.productId, name: p.name, brandId: p.brandId, total: p.total, negativeCells: p.negativeCells, sizes, colors, sizeTotals, maxCell, stockCells, levels, urgentCells };
+  return { productId: p.productId, name: p.name, shape: state.products[p.productId]?.shape, brandId: p.brandId, total: p.total, negativeCells: p.negativeCells, sizes, colors, sizeTotals, maxCell, stockCells, levels, urgentCells };
 }
 
 export function wipMatrices(state: AppState, filter: { brandId?: string; search?: string } = {}): WipMatrix[] {

@@ -59,4 +59,14 @@ describe("โรงงาน BC: ควรเย็บก่อน", () => {
     expect(cut).not.toContain("ดำM"); // มีชิ้นรอเย็บ อยู่ในควรเย็บแทน
     expect(w).toBeTruthy();
   });
+
+  it("ทรงสินค้าส่งมากับรุ่น เพื่อต่อท้ายชื่อรุ่นบนหน้าจอ", () => {
+    const { state, m } = seed();
+    const next = produce(state, (d) => {
+      engine.recordFactoryWip(d, { ...base, kind: "opening", lines: [{ variantId: m, qty: 5 }] });
+      const pid = Object.keys(d.products)[0];
+      d.products[pid].shape = "ทรงกระบอกเล็ก";
+    });
+    expect(wipMatrices(next)[0].shape).toBe("ทรงกระบอกเล็ก");
+  });
 });
