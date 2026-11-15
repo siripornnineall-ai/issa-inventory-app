@@ -17,7 +17,7 @@ import { toastError, toastSuccess } from "@/lib/toast";
 import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
-import { PLAN_RULES, planSheetRows, productionPlan, type BaselineInput, type PlanMatrix } from "@/lib/utils/productionPlan";
+import { planSheetRows, productionPlan, type BaselineInput, type PlanMatrix } from "@/lib/utils/productionPlan";
 import { matchBaseline, parseBaselineCsv, type BaselineMatch } from "@/lib/utils/salesBaselineImport";
 
 function lastMonthStart(): string {
@@ -25,8 +25,24 @@ function lastMonthStart(): string {
   return new Date(d.getFullYear(), d.getMonth() - 1, 1).toLocaleDateString("sv-SE").slice(0, 8) + "01";
 }
 
+const fmt1 = (n: number) => formatNumber(Math.round(n));
+const lowStyle = { backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" };
+
 function ModelBlock({ m }: { m: PlanMatrix }) {
   const brand = useStore((s) => (m.brandId ? s.brands[m.brandId] : undefined));
+  const head = (label: string) => (
+    <thead>
+      <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
+        <th className="sticky left-0 z-10 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-left font-medium">{label}</th>
+        {m.sizes.map((s) => (
+          <th key={s} className="px-2 py-2 text-center font-medium">
+            {s}
+          </th>
+        ))}
+        <th className="bg-[var(--bar-strong,var(--color-primary))] px-3 py-2 text-center font-medium text-[color:var(--bar-strong-fg,#fff)]">รวม</th>
+      </tr>
+    </thead>
+  );
   return (
     <Card className="overflow-hidden" style={brandBarStyle(brand)}>
       <details open>
@@ -34,57 +50,81 @@ function ModelBlock({ m }: { m: PlanMatrix }) {
           <span className="text-base font-semibold">{m.name}</span>
           <span className="text-sm text-[var(--color-on-surface-variant)]">
             ควรผลิตเพิ่ม <span className="font-semibold text-[var(--color-on-surface)]">{formatNumber(m.totals.need)} ชิ้น</span>
-            {m.totals.urgent > 0 && <span className="font-semibold text-[var(--color-danger)]"> · เสี่ยงหมด {formatNumber(m.totals.urgent)} ช่อง</span>}
+            {m.totals.urgent > 0 && <span className="font-semibold text-[var(--color-danger)]"> · ขาด {formatNumber(m.totals.urgent)} ช่อง</span>}
           </span>
         </summary>
-        <div className="overflow-x-auto px-5 pb-5">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
-                <th className="sticky left-0 z-10 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-left font-medium">สี</th>
-                {m.sizes.map((s) => (
-                  <th key={s} className="px-3 py-2 text-center font-medium">
-                    {s}
-                  </th>
+        <div className="grid gap-5 px-5 pb-5 xl:grid-cols-[2fr_3fr]">
+          <div className="overflow-x-auto">
+            <p className="mb-1 text-sm font-semibold">ยอดขาย</p>
+            <table className="w-full border-collapse text-sm">
+              {head("สี")}
+              <tbody>
+                {m.colors.map((c) => (
+                  <tr key={c.color} className="border-b border-[var(--color-border)]">
+                    <td className="sticky left-0 z-10 bg-white px-3 py-2 font-medium">{c.color}</td>
+                    {m.sizes.map((s) => {
+                      const cell = c.cells[s];
+                      return (
+                        <td key={s} className={`px-2 py-2 text-center ${cell && cell.demand > 0 ? "" : "text-[var(--color-on-surface-variant)]/50"}`}>
+                          {cell && cell.demand > 0 ? fmt1(cell.demand) : "–"}
+                        </td>
+                      );
+                    })}
+                    <td className="bg-[var(--color-surface-container)] px-3 py-2 text-center font-semibold">{fmt1(c.demand)}</td>
+                  </tr>
                 ))}
-                <th className="bg-[var(--bar-strong,var(--color-primary))] px-3 py-2 text-center font-medium text-[color:var(--bar-strong-fg,#fff)]">รวมต่อสี</th>
-              </tr>
-            </thead>
-            <tbody>
-              {m.colors.map((c) => (
-                <tr key={c.color} className="border-b border-[var(--color-border)]">
-                  <td className="sticky left-0 z-10 bg-white px-3 py-2 font-medium">{c.color}</td>
-                  {m.sizes.map((s) => {
-                    const cell = c.cells[s];
-                    if (!cell) return <td key={s} className="px-3 py-2 text-center text-[var(--color-on-surface-variant)]/50">–</td>;
-                    const cover = cell.coverDays === null ? "ไม่มียอดขาย" : `อยู่ได้ ~${formatNumber(Math.round(cell.coverDays))} วัน`;
-                    return (
-                      <td
-                        key={s}
-                        title={`ขาย ~${formatNumber(cell.demand)}/เดือน · ${cover} · คลัง ${cell.stock} + รอเย็บ ${cell.wip}`}
-                        className={`min-w-[4.5rem] px-2 py-2 text-center ${cell.level === "out" ? "bg-[var(--color-danger)] text-white" : cell.level === "low" ? "text-[var(--color-danger)]" : ""}`}
-                        style={cell.level === "low" ? { backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" } : undefined}
-                      >
-                        <div className="whitespace-nowrap font-bold">{cell.need > 0 ? `ผลิต ${formatNumber(cell.need)}` : "พอ"}</div>
-                        <div className="whitespace-nowrap text-[11px] font-normal leading-snug opacity-90">คลัง {formatNumber(cell.stock)}</div>
-                        <div className="whitespace-nowrap text-[11px] font-normal leading-snug opacity-90">รอเย็บ {formatNumber(cell.wip)}</div>
-                      </td>
-                    );
-                  })}
-                  <td className="bg-[var(--color-surface-container)] px-3 py-2 text-center font-semibold">{formatNumber(c.need)}</td>
+                <tr className="bg-[var(--color-surface-container)] font-semibold">
+                  <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-3 py-2">รวม</td>
+                  {m.sizes.map((s) => (
+                    <td key={s} className="px-2 py-2 text-center">
+                      {fmt1(m.sizeDemand[s] ?? 0)}
+                    </td>
+                  ))}
+                  <td className="px-3 py-2 text-center">{fmt1(m.totals.demand)}</td>
                 </tr>
-              ))}
-              <tr className="bg-[var(--color-surface-container)] font-semibold">
-                <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-3 py-2">รวมต่อไซซ์</td>
-                {m.sizes.map((s) => (
-                  <td key={s} className="px-3 py-2 text-center">
-                    {formatNumber(m.sizeNeed[s] ?? 0)}
-                  </td>
+              </tbody>
+            </table>
+          </div>
+          <div className="overflow-x-auto">
+            <p className="mb-1 text-sm font-semibold">ส่วนต่าง = (คลัง + รอเย็บ) − ยอดขาย <span className="font-normal text-[var(--color-on-surface-variant)]">· ติดลบ = ขาด</span></p>
+            <table className="w-full border-collapse text-sm">
+              {head("สี")}
+              <tbody>
+                {m.colors.map((c) => (
+                  <tr key={c.color} className="border-b border-[var(--color-border)]">
+                    <td className="sticky left-0 z-10 bg-white px-3 py-2 font-medium">{c.color}</td>
+                    {m.sizes.map((s) => {
+                      const cell = c.cells[s];
+                      if (!cell) return <td key={s} className="px-2 py-2 text-center text-[var(--color-on-surface-variant)]/50">–</td>;
+                      const cover = cell.coverDays === null ? "ไม่มียอดขาย" : `อยู่ได้ ~${formatNumber(Math.round(cell.coverDays))} วัน`;
+                      return (
+                        <td
+                          key={s}
+                          title={`ยอดขาย ${fmt1(cell.demand)} · ${cover} · ควรผลิต ${cell.need}`}
+                          className={`min-w-[4.25rem] px-2 py-2 text-center ${cell.level === "out" ? "bg-[var(--color-danger)] text-white" : cell.level === "low" ? "text-[var(--color-danger)]" : ""}`}
+                          style={cell.level === "low" ? lowStyle : undefined}
+                        >
+                          <div className="whitespace-nowrap font-bold">{fmt1(cell.diff)}</div>
+                          <div className="whitespace-nowrap text-[11px] font-normal leading-snug opacity-90">คลัง {formatNumber(cell.stock)}</div>
+                          <div className="whitespace-nowrap text-[11px] font-normal leading-snug opacity-90">รอเย็บ {formatNumber(cell.wip)}</div>
+                        </td>
+                      );
+                    })}
+                    <td className={`bg-[var(--color-surface-container)] px-3 py-2 text-center font-semibold ${c.diff < 0 ? "text-[var(--color-danger)]" : ""}`}>{fmt1(c.diff)}</td>
+                  </tr>
                 ))}
-                <td className="px-3 py-2 text-center">{formatNumber(m.totals.need)}</td>
-              </tr>
-            </tbody>
-          </table>
+                <tr className="bg-[var(--color-surface-container)] font-semibold">
+                  <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-3 py-2">รวม</td>
+                  {m.sizes.map((s) => (
+                    <td key={s} className={`px-2 py-2 text-center ${(m.sizeDiff[s] ?? 0) < 0 ? "text-[var(--color-danger)]" : ""}`}>
+                      {fmt1(m.sizeDiff[s] ?? 0)}
+                    </td>
+                  ))}
+                  <td className={`px-3 py-2 text-center ${m.totals.diff < 0 ? "text-[var(--color-danger)]" : ""}`}>{fmt1(m.totals.diff)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </details>
     </Card>
@@ -171,7 +211,7 @@ function PlanContent() {
   const [error, setError] = useState<string | null>(null);
   const [brandId, setBrandId] = useState("");
   const [search, setSearch] = useState("");
-  const [buffer, setBuffer] = useState(String(PLAN_RULES.defaultBuffer));
+  const [months, setMonths] = useState("1");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -190,7 +230,7 @@ function PlanContent() {
   }, [reload]);
 
   const brands = useMemo(() => Object.values(state.brands).sort((a, b) => a.name.localeCompare(b.name, "th")), [state.brands]);
-  const matrices = useMemo(() => productionPlan(state, baseline.rows, { buffer: Number(buffer), brandId, search }), [state, baseline.rows, buffer, brandId, search]);
+  const matrices = useMemo(() => productionPlan(state, baseline.rows, { months: Number(months), brandId, search }), [state, baseline.rows, months, brandId, search]);
   const sum = matrices.reduce(
     (s, m) => ({ stock: s.stock + m.totals.stock, wip: s.wip + m.totals.wip, have: s.have + m.totals.have, need: s.need + m.totals.need, urgent: s.urgent + m.totals.urgent }),
     { stock: 0, wip: 0, have: 0, need: 0, urgent: 0 }
@@ -211,10 +251,10 @@ function PlanContent() {
             </option>
           ))}
         </Select>
-        <Select value={buffer} onChange={(e) => setBuffer(e.target.value)} aria-label="เผื่อสำรอง" className="w-44">
-          {[0, 0.1, 0.15, 0.2, 0.3].map((b) => (
-            <option key={b} value={String(b)}>
-              เผื่อสำรอง {Math.round(b * 100)}%
+        <Select value={months} onChange={(e) => setMonths(e.target.value)} aria-label="ดูล่วงหน้า" className="w-44">
+          {[1, 2, 3].map((n) => (
+            <option key={n} value={String(n)}>
+              ดูล่วงหน้า {n} เดือน
             </option>
           ))}
         </Select>
@@ -253,18 +293,18 @@ function PlanContent() {
               </span>
             </Card>
             <Card className="flex flex-col justify-center p-4">
-              <span className="text-sm font-medium text-[var(--color-on-surface-variant)]">เสี่ยงหมดภายใน {PLAN_RULES.coverDaysAlert} วัน</span>
+              <span className="text-sm font-medium text-[var(--color-on-surface-variant)]">ช่องที่ของไม่พอขาย</span>
               <span className="text-2xl font-bold text-[var(--color-danger)]">{formatNumber(sum.urgent)}</span>
               <span className="text-sm text-[var(--color-on-surface-variant)]">ช่อง (สี/ไซซ์)</span>
             </Card>
           </div>
           <p className="px-1 text-sm text-[var(--color-on-surface-variant)]">
-            ยอดขายอ้างอิงล่าสุด: {baseline.months.map((m) => m.slice(0, 7)).join(", ")} · <b>ผลิต N</b> = ยอดขายต่อเดือน (บวกเผื่อสำรอง) − (คลัง + รอเย็บที่ BC) · ในแต่ละช่องโชว์ <b>คลัง</b> และ <b>รอเย็บ</b> แยกกัน ·{" "}
+            ยอดขายอ้างอิงล่าสุด: {baseline.months.map((m) => m.slice(0, 7)).join(", ")} · ดูล่วงหน้า {months} เดือน (ยอดขายคูณ {months}) · ตารางขวา: ติดลบ = ของไม่พอขาย จำนวนที่ติดลบคือที่ต้องผลิตเพิ่ม · ในแต่ละช่องโชว์ <b>คลัง</b> และ <b>รอเย็บที่ BC</b> แยกกัน ·{" "}
             <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> ไม่มีของเลย ·{" "}
-            <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={{ backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" }}>
+            <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={lowStyle}>
               แดงอ่อน
             </span>{" "}
-            อยู่ได้ไม่ถึง {PLAN_RULES.coverDaysAlert} วัน
+            ขาด
           </p>
           {matrices.map((m) => (
             <ModelBlock key={m.productId} m={m} />

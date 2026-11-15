@@ -54,4 +54,21 @@ describe("วางแผนผลิต", () => {
     expect(productionPlan(state, base, { search: "slim" })).toHaveLength(1);
     expect(productionPlan(state, [])).toHaveLength(0);
   });
+
+  it("ส่วนต่าง = (คลัง+รอเย็บ) - ยอดขาย ติดลบ = ขาด และดูล่วงหน้าหลายเดือนคูณยอดขาย", () => {
+    expect(planCell(100, 60, 10, 0)).toMatchObject({ diff: -30, need: 30, level: "low" });
+    expect(planCell(100, 150, 0, 0)).toMatchObject({ diff: 50, need: 0 });
+    const { state, wh, p, blkM } = seed();
+    const next = produce(state, (d) => {
+      engine.stockIn(d, { itemType: "product", date: DATE, warehouseId: wh, receivedBy: "u1", receivedByName: "รับ", lines: [{ itemId: blkM, qty: 100 }] });
+    });
+    const base = [{ productId: p, color: "ดำ", size: "M", qty: 80 }];
+    const one = productionPlan(next, base, { months: 1 })[0].colors[0].cells.M;
+    const two = productionPlan(next, base, { months: 2 })[0].colors[0].cells.M;
+    expect(one).toMatchObject({ demand: 80, diff: 20, need: 0 });
+    expect(two).toMatchObject({ demand: 160, diff: -60, need: 60, level: "low" });
+    const m2 = productionPlan(next, base, { months: 2 })[0];
+    expect(m2.sizeDiff.M).toBe(-60);
+    expect(m2.totals).toMatchObject({ demand: 160, diff: -60 });
+  });
 });

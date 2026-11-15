@@ -18,11 +18,12 @@ export interface BaselineInput {
 
 export interface PlanCell {
   variantId: string;
-  demand: number; // ยอดขายต่อเดือน
+  demand: number; // ยอดขายตามจำนวนเดือนที่เลือกดู
   stock: number; // คลัง
   wip: number; // ตัดแล้วรอเย็บที่ BC
   have: number; // คลัง + รอเย็บ
-  need: number; // ควรผลิตเพิ่ม (ชิ้น, ปัดขึ้น)
+  diff: number; // ส่วนต่าง = รวมที่มี - ยอดขาย (ติดลบ = ขาด)
+  need: number; // ควรผลิตเพิ่ม (ชิ้น, ปัดขึ้น) = ส่วนที่ขาด (+ เผื่อสำรองถ้ามี)
   coverDays: number | null; // อยู่ได้อีกกี่วัน (null = ไม่มียอดขาย)
   level?: PlanLevel;
 }
@@ -32,25 +33,29 @@ export interface PlanMatrix {
   name: string;
   brandId?: string;
   sizes: string[];
-  colors: { color: string; cells: Record<string, PlanCell>; need: number }[];
+  colors: { color: string; cells: Record<string, PlanCell>; need: number; demand: number; diff: number }[];
   sizeNeed: Record<string, number>;
-  totals: { demand: number; stock: number; wip: number; have: number; need: number; urgent: number };
+  sizeDemand: Record<string, number>;
+  sizeDiff: Record<string, number>;
+  totals: { demand: number; stock: number; wip: number; have: number; diff: number; need: number; urgent: number };
 }
 
-export function planCell(demand: number, stock: number, wip: number, buffer: number): Omit<PlanCell, "variantId"> {
+export function planCell(demand: number, stock: number, wip: number, buffer: number, months = 1): Omit<PlanCell, "variantId"> {
   const have = stock + wip;
   const need = Math.max(0, Math.ceil(Math.round((demand * (1 + buffer) - have) * 1e6) / 1e6)); // ปัดเศษทศนิยมลอยก่อน (100 x 1.1 ได้ 110.00000000000001)
-  const coverDays = demand > 0 ? (have / demand) * PLAN_RULES.daysPerMonth : null;
+  const diff = Math.round((have - demand) * 100) / 100;
+  const coverDays = demand > 0 ? (have / (demand / months)) * PLAN_RULES.daysPerMonth : null;
   let level: PlanLevel | undefined;
   if (demand > 0) {
     if (have <= 0) level = "out";
-    else if (coverDays !== null && coverDays < PLAN_RULES.coverDaysAlert) level = "low";
+    else if (diff < 0) level = "low"; // ของที่มีไม่พอขายตามจำนวนเดือนที่เลือก
   }
-  return { demand, stock, wip, have, need, coverDays, level };
+  return { demand, stock, wip, have, diff, need, coverDays, level };
 }
 
-export function productionPlan(state: AppState, baseline: BaselineInput[], opts: { buffer?: number; brandId?: string; search?: string } = {}): PlanMatrix[] {
-  const buffer = opts.buffer ?? PLAN_RULES.defaultBuffer;
+export function productionPlan(state: AppState, baseline: BaselineInput[], opts: { buffer?: number; months?: number; brandId?: string; search?: string } = {}): PlanMatrix[] {
+  const buffer = opts.buffer ?? 0;
+  const months = opts.months ?? 1;
   const q = (opts.search ?? "").trim().toLowerCase();
   const wip = wipBalances(state);
   const demandByKey = new Map<string, number>();
@@ -69,42 +74,49 @@ export function productionPlan(state: AppState, baseline: BaselineInput[], opts:
     const sizes = [...new Set(variants.map((v) => v.size))].sort(compareSizes);
     const byColor = new Map<string, PlanMatrix["colors"][number]>();
     const sizeNeed: Record<string, number> = {};
-    const totals = { demand: 0, stock: 0, wip: 0, have: 0, need: 0, urgent: 0 };
+    const sizeDemand: Record<string, number> = {};
+    const sizeDiff: Record<string, number> = {};
+    const totals = { demand: 0, stock: 0, wip: 0, have: 0, diff: 0, need: 0, urgent: 0 };
     for (const v of variants) {
-      const demand = demandByKey.get(`${productId}|${v.color}|${v.size}`) ?? 0;
+      const demand = Math.round((demandByKey.get(`${productId}|${v.color}|${v.size}`) ?? 0) * months * 100) / 100;
       const stock = variantStockAcrossWarehouses(state, v.id).onHand;
       const w = Math.max(0, wip.get(v.id) ?? 0);
       // ช่องที่ไม่มียอดขายอ้างอิงและไม่มีของเลย ไม่ต้องโชว์
       if (demand === 0 && stock === 0 && w === 0) continue;
-      const c = planCell(demand, stock, w, buffer);
-      const row = byColor.get(v.color) ?? { color: v.color, cells: {}, need: 0 };
+      const c = planCell(demand, stock, w, buffer, months);
+      const row = byColor.get(v.color) ?? { color: v.color, cells: {}, need: 0, demand: 0, diff: 0 };
       row.cells[v.size] = { variantId: v.id, ...c };
       row.need += c.need;
+      row.demand += demand;
+      row.diff += c.diff;
       byColor.set(v.color, row);
       sizeNeed[v.size] = (sizeNeed[v.size] ?? 0) + c.need;
+      sizeDemand[v.size] = (sizeDemand[v.size] ?? 0) + demand;
+      sizeDiff[v.size] = (sizeDiff[v.size] ?? 0) + c.diff;
       totals.demand += demand;
       totals.stock += stock;
       totals.wip += w;
       totals.have += c.have;
+      totals.diff += c.diff;
       totals.need += c.need;
       if (c.level) totals.urgent += 1;
     }
     const colors = [...byColor.values()].sort((a, b) => compareColors(a.color, b.color, p));
     const usedSizes = sizes.filter((s) => colors.some((c) => c.cells[s]));
-    result.push({ productId, name: p.sellingName, brandId: p.brandId, sizes: usedSizes, colors, sizeNeed, totals });
+    result.push({ productId, name: p.sellingName, brandId: p.brandId, sizes: usedSizes, colors, sizeNeed, sizeDemand, sizeDiff, totals });
   }
   return result.sort((a, b) => b.totals.need - a.totals.need || a.name.localeCompare(b.name, "th"));
 }
 
 export function planSheetRows(state: AppState, matrices: PlanMatrix[]): (string | number)[][] {
-  const rows: (string | number)[][] = [["แบรนด์", "รุ่น", "สี", "ไซซ์", "SKU", "ยอดขาย/เดือน", "คลัง", "รอเย็บที่ BC", "รวมที่มี", "อยู่ได้ (วัน)", "ควรผลิตเพิ่ม"]];
+  const rows: (string | number)[][] = [["แบรนด์", "รุ่น", "สี", "ไซซ์", "SKU", "ยอดขาย", "คลัง", "รอเย็บที่ BC", "รวมที่มี", "ส่วนต่าง (ติดลบ = ขาด)", "อยู่ได้ (วัน)", "ควรผลิตเพิ่ม"]];
   for (const m of matrices) {
     const brand = m.brandId ? (state.brands[m.brandId]?.name ?? "") : "";
     for (const c of m.colors) {
       for (const size of m.sizes) {
         const cell = c.cells[size];
         if (!cell) continue;
-        rows.push([brand, m.name, c.color, size, state.variants[cell.variantId]?.sku ?? "", cell.demand, cell.stock, cell.wip, cell.have, cell.coverDays === null ? "" : Math.round(cell.coverDays), cell.need]);
+        rows.push([brand, m.name, c.color, size, state.variants[cell.variantId]?.sku ?? "", cell.demand, cell.stock, cell.wip, cell.have, cell.diff, cell.coverDays === null ? "" : Math.round(cell.coverDays), cell.need]);
       }
     }
   }
