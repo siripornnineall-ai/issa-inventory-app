@@ -36,7 +36,7 @@ const METRIC_TITLE: Record<Metric, string> = {
   need: "ที่ต้องผลิตเพิ่ม (ชิ้น)",
 };
 const METRIC_HINT: Record<Metric, string> = {
-  demand: "ยอดขายต่อเดือน × จำนวนเดือนที่เลือก",
+  demand: "ยอดขายต่อเดือน × จำนวนเดือนที่เลือก · % = สัดส่วนของแต่ละสีในยอดขายรุ่นนี้",
   stock: "คลัง · ถ้ามีชิ้นรอเย็บที่ BC ขึ้นบรรทัดเล็ก +N รอเย็บ แยกไว้",
   need: "ยอดขาย − (คลัง + รอเย็บ) เฉพาะช่องที่ขาด",
 };
@@ -67,6 +67,7 @@ function MetricTable({ m, metric }: { m: PlanMatrix; metric: Metric }) {
               </th>
             ))}
             <th className="w-20 bg-[var(--bar-strong,var(--color-primary))] px-2 py-2 text-center font-medium text-[color:var(--bar-strong-fg,#fff)]">รวม</th>
+            {metric === "demand" && <th className="w-16 px-2 py-2 text-center font-medium">%</th>}
           </tr>
         </thead>
         <tbody>
@@ -94,6 +95,9 @@ function MetricTable({ m, metric }: { m: PlanMatrix; metric: Metric }) {
                 {fmt1(rowSum(c.cells))}
                 {wipNote(wipSum(c.cells))}
               </td>
+              {metric === "demand" && (
+                <td className="px-2 py-2 text-center text-[var(--color-on-surface-variant)]">{grand > 0 ? `${(Math.round((rowSum(c.cells) / grand) * 1000) / 10).toFixed(1)}%` : "–"}</td>
+              )}
             </tr>
           ))}
           <tr className="bg-[var(--color-surface-container)] font-semibold">
@@ -107,6 +111,7 @@ function MetricTable({ m, metric }: { m: PlanMatrix; metric: Metric }) {
               {fmt1(grand)}
               {wipNote(grandWip)}
             </td>
+            {metric === "demand" && <td className="px-2 py-2 text-center">{grand > 0 ? "100%" : "–"}</td>}
           </tr>
         </tbody>
       </table>
