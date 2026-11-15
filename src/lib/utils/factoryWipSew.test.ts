@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { produce } from "immer";
 import { emptyState } from "@/lib/store/state";
 import * as engine from "@/lib/store/engine";
-import { needCutRows, sewFirstRows, sewLevel, wipMatrices } from "./factoryWipView";
+import { needCutRows, sewLevel, wipMatrices } from "./factoryWipView";
 
 const DATE = "2026-11-10T00:00:00.000Z";
 const base = { date: DATE, actorId: "u1", actorName: "คุณ" };
@@ -32,7 +32,7 @@ describe("โรงงาน BC: ควรเย็บก่อน", () => {
     expect(sewLevel(0, 0)).toBeUndefined();
   });
 
-  it("ช่องที่สต็อกคลัง <= 10 และมีชิ้นรอเย็บ ถูกทำเครื่องหมาย เรียงหมดก่อนใกล้หมด; ไม่ไปเปลี่ยนสต็อก", () => {
+  it("ช่องที่สต็อกคลัง <= 10 และมีชิ้นรอเย็บ ถูกทำเครื่องหมายในตาราง (หมด = out, ใกล้หมด = low)", () => {
     const { state, wh, m, l, xl } = seed();
     const next = produce(state, (d) => {
       engine.recordFactoryWip(d, { ...base, kind: "opening", lines: [{ variantId: m, qty: 20 }, { variantId: l, qty: 15 }, { variantId: xl, qty: 30 }] });
@@ -42,11 +42,7 @@ describe("โรงงาน BC: ควรเย็บก่อน", () => {
     const mats = wipMatrices(next);
     expect(mats[0].urgentCells).toBe(2);
     expect(mats[0].levels["ดำ"]).toEqual({ M: "out", L: "low" });
-    const rows = sewFirstRows(next, mats);
-    expect(rows.map((r) => [r.size, r.level, r.stock, r.wip])).toEqual([
-      ["M", "out", 0, 20],
-      ["L", "low", 8, 15],
-    ]);
+    expect(mats[0].stockCells["ดำ"]).toMatchObject({ M: 0, L: 8, XL: 50 });
   });
 
   it("หมดแต่ไม่มีชิ้นตัดรอ → อยู่ในรายการ 'อาจต้องสั่งตัดเพิ่ม' ไม่อยู่ในควรเย็บ", () => {

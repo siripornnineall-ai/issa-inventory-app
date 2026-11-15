@@ -163,34 +163,6 @@ export function wipHistorySheetRows(rows: WipEntryRow[]): (string | number)[][] 
   return [["วันที่", "ประเภท", "รุ่น", "สี", "ไซซ์", "SKU", "จำนวน", "ผู้บันทึก", "หมายเหตุ"], ...rows.map((r) => [r.date.slice(0, 10), r.kindLabel, r.productName, r.color, r.size, r.sku, r.qtyChange, r.actorName, r.note])];
 }
 
-// รายการ "ควรเย็บก่อน": ตัวเลือกที่สต็อกคลัง <= SEW_ALERT_RULES.maxStock และมีชิ้นตัดรออยู่ เรียงจากสต็อกน้อยสุด แล้วชิ้นรอเย็บมากสุดก่อน
-export interface SewFirstRow {
-  variantId: string;
-  productId: string;
-  productName: string;
-  brandId?: string;
-  color: string;
-  size: string;
-  sku: string;
-  stock: number;
-  wip: number;
-  level: SewLevel;
-}
-
-export function sewFirstRows(state: AppState, matrices: WipMatrix[]): SewFirstRow[] {
-  const rows: SewFirstRow[] = [];
-  for (const p of wipByProduct(state)) {
-    if (!matrices.some((m) => m.productId === p.productId)) continue;
-    for (const v of p.variants) {
-      const stock = variantStockAcrossWarehouses(state, v.variantId).onHand;
-      const level = sewLevel(stock, v.qty);
-      if (!level) continue;
-      rows.push({ variantId: v.variantId, productId: p.productId, productName: p.name, brandId: p.brandId, color: v.color, size: v.size, sku: state.variants[v.variantId]?.sku ?? "", stock, wip: v.qty, level });
-    }
-  }
-  return rows.sort((a, b) => a.stock - b.stock || b.wip - a.wip || a.productName.localeCompare(b.productName, "th"));
-}
-
 // รุ่นที่ในหน้านี้ แต่สต็อกคลังหมด/ใกล้หมดและไม่มีชิ้นตัดรออยู่เลย (ต้องสั่งตัดเพิ่ม) ไม่นับตัวเลือกที่เย็บตามออเดอร์หรือปิดใช้งาน
 export function needCutRows(state: AppState, matrices: WipMatrix[]): { productName: string; color: string; size: string; sku: string; stock: number }[] {
   const ids = new Set(matrices.map((m) => m.productId));

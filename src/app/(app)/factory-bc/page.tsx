@@ -12,12 +12,10 @@ import { Input, Select } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useStore } from "@/lib/store";
 import { useCan } from "@/lib/auth/session";
-import { compareColors } from "@/lib/utils/colorOrder";
-import { compareSizes } from "@/lib/utils/sizes";
 import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
-import { SEW_ALERT_RULES, needCutRows, sewFirstRows, wipMatrices, wipSheetRows, type SewFirstRow, type WipMatrix } from "@/lib/utils/factoryWipView";
+import { needCutRows, wipMatrices, wipSheetRows, type WipMatrix } from "@/lib/utils/factoryWipView";
 
 function cellStyle(value: number, max: number): React.CSSProperties | undefined {
   if (value <= 0 || max <= 0) return undefined;
@@ -98,75 +96,6 @@ function ModelBlock({ m }: { m: WipMatrix }) {
   );
 }
 
-// ควรเย็บก่อน: จัดกลุ่มตามรุ่น > สี แล้วแสดงแต่ละไซซ์เป็นป้ายแดง (แดงเข้ม = คลังหมด, แดงอ่อน = ใกล้หมด) รุ่นที่หมดเยอะอยู่บนสุด
-function SewFirstPanel({ rows }: { rows: SewFirstRow[] }) {
-  const products = useStore((s) => s.products);
-  const groups = useMemo(() => {
-    const byProduct = new Map<string, { name: string; out: number; colors: Map<string, SewFirstRow[]> }>();
-    for (const r of rows) {
-      const g = byProduct.get(r.productId) ?? { name: r.productName, out: 0, colors: new Map<string, SewFirstRow[]>() };
-      if (r.level === "out") g.out += 1;
-      g.colors.set(r.color, [...(g.colors.get(r.color) ?? []), r]);
-      byProduct.set(r.productId, g);
-    }
-    return [...byProduct.entries()]
-      .map(([productId, g]) => ({
-        productId,
-        name: g.name,
-        out: g.out,
-        count: [...g.colors.values()].reduce((n, x) => n + x.length, 0),
-        colors: [...g.colors.entries()]
-          .sort((a, b) => compareColors(a[0], b[0], products[productId]))
-          .map(([color, items]) => ({ color, items: [...items].sort((a, b) => compareSizes(a.size, b.size)) })),
-      }))
-      .sort((a, b) => b.out - a.out || b.count - a.count || a.name.localeCompare(b.name, "th"));
-  }, [rows, products]);
-
-  return (
-    <Card className="border-[var(--color-danger)] p-5">
-      <h2 className="text-base font-semibold text-[var(--color-danger)]">ควรเย็บก่อน ({formatNumber(rows.length)} รายการ)</h2>
-      <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-        สต็อกในคลังเหลือไม่เกิน {SEW_ALERT_RULES.maxStock} ชิ้น และมีชิ้นตัดรอเย็บอยู่ที่โรงงาน ·{" "}
-        <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> = คลังหมดเกลี้ยง ·{" "}
-        <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={{ backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" }}>
-          แดงอ่อน
-        </span>{" "}
-        = ใกล้หมด
-      </p>
-      <div className="mt-4 flex flex-col gap-4">
-        {groups.map((g) => (
-          <section key={g.productId}>
-            <h3 className="text-sm font-semibold text-[var(--color-on-surface)]">
-              {g.name} <span className="font-normal text-[var(--color-on-surface-variant)]">· {formatNumber(g.count)} รายการ{g.out > 0 ? ` (หมด ${formatNumber(g.out)})` : ""}</span>
-            </h3>
-            <div className="mt-2 flex flex-col gap-2">
-              {g.colors.map((c) => (
-                <div key={c.color} className="flex flex-wrap items-start gap-x-3 gap-y-1.5">
-                  <span className="w-24 shrink-0 pt-1 text-sm font-medium">{c.color}</span>
-                  <div className="flex flex-1 flex-wrap gap-1.5">
-                    {c.items.map((r) => (
-                      <span
-                        key={r.variantId}
-                        title={`${g.name} ${c.color} ${r.size}: คลัง ${r.stock} ชิ้น · รอเย็บ ${r.wip} ชิ้น`}
-                        className={`min-w-[3.5rem] rounded-lg px-2 py-1 text-center ${r.level === "out" ? "bg-[var(--color-danger)] text-white" : "text-[var(--color-danger)]"}`}
-                        style={r.level === "low" ? { backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" } : undefined}
-                      >
-                        <span className="block text-sm font-bold leading-tight">{r.size}</span>
-                        <span className="block text-[11px] leading-tight">เย็บ {formatNumber(r.wip)}</span>
-                        <span className="block text-[10px] leading-tight opacity-80">คลัง {formatNumber(r.stock)}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
 function FactoryContent() {
   const state = useStore();
   const canRecord = useCan("stock.in");
@@ -176,7 +105,6 @@ function FactoryContent() {
 
   const brands = useMemo(() => Object.values(state.brands).sort((a, b) => a.name.localeCompare(b.name, "th")), [state.brands]);
   const allMatrices = useMemo(() => wipMatrices(state, { brandId, search }), [state, brandId, search]);
-  const sewFirst = useMemo(() => sewFirstRows(state, allMatrices), [state, allMatrices]);
   const needCut = useMemo(() => needCutRows(state, allMatrices), [state, allMatrices]);
   const matrices = useMemo(() => (onlyUrgent ? allMatrices.filter((m) => m.urgentCells > 0) : allMatrices), [allMatrices, onlyUrgent]);
   const total = matrices.reduce((s, m) => s + m.total, 0);
@@ -218,7 +146,10 @@ function FactoryContent() {
       <p role="status" className="px-1 text-sm text-[var(--color-on-surface-variant)]">
         <span className="font-semibold text-[var(--color-on-surface)]">ยังไม่เย็บรวม:</span> {formatNumber(total)} ชิ้น จาก {matrices.length} รุ่น · ตัวที่ตัดเป็นชิ้นแล้วแต่ยังไม่ได้เย็บ ไม่รวมในสต็อกสินค้า ขายไม่ได้ ตอนเย็บเสร็จให้รับเข้าที่หน้า &quot;รับสินค้าเข้า&quot; แล้วเลือก &quot;เย็บเสร็จจากโรงงาน BC&quot; ยอดนี้จะลดลงให้เอง
       </p>
-      {sewFirst.length > 0 && <SewFirstPanel rows={sewFirst} />}
+      <p className="px-1 text-sm text-[var(--color-on-surface-variant)]">
+        ช่องสีแดงในตาราง = ควรเย็บก่อน (สต็อกคลังเหลือไม่เกิน 10 ชิ้น และมีชิ้นรอเย็บ) · <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> คลังหมดเกลี้ยง ·{" "}
+        <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={{ backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" }}>แดงอ่อน</span> ใกล้หมด
+      </p>
       {needCut.length > 0 && (
         <details className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <summary className="cursor-pointer font-medium">หมด/ใกล้หมด แต่ไม่มีชิ้นตัดรออยู่ ({formatNumber(needCut.length)} รายการ) อาจต้องสั่งตัดเพิ่ม</summary>
