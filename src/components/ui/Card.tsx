@@ -40,7 +40,7 @@ export function KpiCard({
   accent,
 }: {
   icon?: React.ReactNode;
-  label: string;
+  label: React.ReactNode; // ข้อความ หรือโลโก้แบรนด์
   value: React.ReactNode;
   unit?: string;
   trend?: { value: string; positive: boolean };
