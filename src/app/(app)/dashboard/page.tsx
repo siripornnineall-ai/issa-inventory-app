@@ -23,6 +23,7 @@ import { DateRangePicker, useDateRange } from "@/components/ui/DateRangePicker";
 import { Badge } from "@/components/ui/Badge";
 import { DrillDownDialog, type DrillKind } from "@/components/dashboard/DrillDownDialog";
 import { SlowStockCards } from "@/components/dashboard/SlowStockCards";
+import { BrandTag } from "@/components/ui/BrandTag";
 import { DashboardBanner } from "@/components/dashboard/DashboardBanner";
 import { useStore } from "@/lib/store";
 import {
@@ -108,7 +109,7 @@ export default function DashboardPage() {
                 {g.brands.map((b) => (
                   <KpiCard
                     key={b.brandId ?? "none"}
-                    label={b.name}
+                    label={b.brandId ? <BrandTag brandId={b.brandId} variant="logo" fallback={b.name} className="h-11 w-11" /> : b.name}
                     accent={b.brandId ? brandColor(state.brands[b.brandId]) : undefined}
                     value={formatNumber(b.qty)}
                     unit={b.unit}
