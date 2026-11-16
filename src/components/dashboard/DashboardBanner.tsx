@@ -7,7 +7,7 @@ import { useStore } from "@/lib/store";
 
 // แบนเนอร์ด้านบนของแดชบอร์ด: สไลด์รูปของแต่ละแบรนด์ เปลี่ยนเองทุก 6 วินาที (หยุดเมื่อเอาเมาส์ชี้ และเมื่อผู้ใช้ตั้งลดการเคลื่อนไหว) กดลูกศรหรือจุดเพื่อเลือกเองได้
 // รูป ISSA Apparel เป็นไฟล์ในแอป (public/banners) ส่วนแบรนด์อื่นดึงจากแบนเนอร์ของเว็บหน้าร้าน (ตาราง storefront_brand_banners) ถ้าดึงไม่ได้ก็โชว์เท่าที่มี
-// กรอบแบนเนอร์เต็มความกว้างจอ ความสูงคงที่ตามความกว้างจอ (176-512 พิกเซล) รูปแสดงเต็มภาพไม่ตัด (object-contain) อยู่กลางกรอบ ที่เหลือข้างๆ เป็นรูปเดียวกันเบลอ
+// กรอบแบนเนอร์เต็มความกว้างจอ ความสูงคงที่ตามความกว้างจอ (176-512 พิกเซล) รูปแสดงเต็มภาพไม่ตัด (object-contain) อยู่กลางกรอบ ที่เหลือข้างๆ เป็นรูปเดียวกันเบลอสีสด และขอบรูปจริงจางกลืนกับพื้นหลัง
 // เปลี่ยนสไลด์เองทุก 6 วินาที (ความสูงคงที่ หน้าไม่กระโดด) หยุดเมื่อเอาเมาส์ชี้ และเมื่อผู้ใช้ตั้งลดการเคลื่อนไหว กดลูกศรหรือจุดเพื่อเลือกเองได้
 
 export interface BannerSlide {
@@ -84,9 +84,16 @@ export function DashboardBanner() {
       <div className="relative h-[clamp(11rem,28vw,32rem)]">
         {/* พื้นหลังเบลอจากรูปเดียวกัน เติมที่ว่างข้างรูป */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={slide.src} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-2xl" />
+        <img src={slide.src} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-125 object-cover blur-2xl saturate-125" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img key={slide.id} src={slide.src} alt={slide.alt} className="relative z-10 mx-auto h-full w-auto max-w-full object-contain" />
+        <img
+          key={slide.id}
+          src={slide.src}
+          alt={slide.alt}
+          className="relative z-10 mx-auto h-full w-auto max-w-full object-contain"
+          // ขอบซ้าย-ขวาของรูปจริงค่อยๆ จางกลืนกับพื้นหลังเบลอ ให้ดูเป็นภาพต่อเนื่องเต็มขอบ (รูปครบทั้งภาพ ไม่ยืด ไม่ตัด)
+          style={{ maskImage: "linear-gradient(to right, transparent 0, black 4%, black 96%, transparent 100%)", WebkitMaskImage: "linear-gradient(to right, transparent 0, black 4%, black 96%, transparent 100%)" }}
+        />
       </div>
       {count > 1 && (
         <>
