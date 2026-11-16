@@ -23,14 +23,14 @@ vi.mock("@/lib/supabase/client", () => ({
   }),
 }));
 
-function seed() {
+function seed(role: "admin" | "warehouse" | "sales" = "admin") {
   const state = produce(emptyState(), (d) => {
     const wh = engine.upsertWarehouse(d, { name: "คลังหลัก", type: "main" });
     const brand = engine.upsertBrand(d, { name: "ISSA Apparel", code: "IS" });
     productId = engine.createProduct(d, { sellingName: "Billie Slim", sellingPrice: 1000, category: "กางเกง", status: "active", images: [], brandId: brand });
     const v = engine.addVariant(d, productId, { color: "ดำ", size: "M", purchasePrice: 400, sellingPrice: 1000 });
     engine.stockIn(d, { itemType: "product", date: "2026-11-10T00:00:00.000Z", warehouseId: wh, receivedBy: "u1", receivedByName: "รับ", lines: [{ itemId: v, qty: 30 }] });
-    d.users.u1 = { id: "u1", name: "ผู้ใช้", email: "a@x.com", role: "admin", active: true, createdAt: "2026-11-01T00:00:00.000Z" } as never;
+    d.users.u1 = { id: "u1", name: "ผู้ใช้", email: "a@x.com", role, active: true, createdAt: "2026-11-01T00:00:00.000Z" } as never;
     d.currentUserId = "u1";
   });
   useStore.getState().actions.hydrate(state as never);
@@ -77,5 +77,20 @@ describe("หน้าวางแผนผลิต", () => {
     const labels = Array.from(sel.options).map((o) => o.textContent);
     expect(labels.some((t) => t?.includes("จากไฟล์ที่นำเข้า"))).toBe(true);
     expect(labels.some((t) => t?.includes("ยอดขายที่บันทึกในระบบ"))).toBe(true);
+  });
+
+  it("ทุกคนที่ดูสินค้าได้ (พนักงานคลัง/ฝ่ายขาย) เห็นแผนผลิต แต่ไม่เห็นช่องนำเข้าไฟล์ยอดขาย", async () => {
+    for (const role of ["warehouse", "sales"] as const) {
+      cleanup();
+      seed(role);
+      render(<ProductionPlanPage />);
+      await waitFor(() => expect(screen.getByText(/ที่ต้องผลิตเพิ่ม \(ชิ้น\)/)).toBeTruthy());
+      expect(screen.queryByText(/นำเข้ายอดขายรายเดือนจากไฟล์/)).toBeNull();
+    }
+  });
+
+  it("ผู้มีสิทธิ์ดูรายงาน (admin) เห็นช่องนำเข้าไฟล์ยอดขายด้วย", async () => {
+    render(<ProductionPlanPage />);
+    expect(await screen.findByText(/นำเข้ายอดขายรายเดือนจากไฟล์/)).toBeTruthy();
   });
 });

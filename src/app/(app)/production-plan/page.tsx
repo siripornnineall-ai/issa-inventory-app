@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useStore } from "@/lib/store";
-import { useCurrentUser } from "@/lib/auth/session";
+import { useCan, useCurrentUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/client";
 import { loadBaseline, saveBaseline } from "@/lib/supabase/salesBaseline";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -219,6 +219,7 @@ function ImportCard({ onSaved }: { onSaved: () => void }) {
 
 function PlanContent() {
   const state = useStore();
+  const canImport = useCan("report.view"); // ทุกคนที่ดูสินค้าได้เห็นแผน แต่นำเข้าไฟล์ยอดขายได้เฉพาะผู้มีสิทธิ์ดูรายงาน
   const [baseline, setBaseline] = useState<{ rows: (BaselineInput & { month: string })[]; months: string[] }>({ rows: [], months: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -316,7 +317,7 @@ function PlanContent() {
         </Button>
       </div>
 
-      <ImportCard onSaved={() => void reload()} />
+      {canImport && <ImportCard onSaved={() => void reload()} />}
 
       {error && (
         <p role="alert" className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
@@ -383,7 +384,7 @@ export default function ProductionPlanPage() {
     <>
       <Header title="วางแผนผลิต" description="เทียบยอดขายรายเดือนกับของที่มี (คลัง + รอเย็บที่ BC) เพื่อดูว่ารุ่น/สี/ไซซ์ไหนควรผลิตเพิ่ม" />
       <PageContainer className="max-w-none">
-        <RequireAccess perm="report.view">
+        <RequireAccess perm="view.products">
           <div className="flex flex-col gap-5">
             <PlanContent />
           </div>
