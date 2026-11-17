@@ -11,6 +11,7 @@ import { Input, Select, Textarea, FormField } from "@/components/ui/Field";
 import { Table, Thead, Tbody, Tr, Th, Td, Pagination } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { OrderStatusBadge } from "@/components/ui/Badge";
+import { releaseScannedTokens } from "@/lib/supabase/scanLog";
 import { BrandTag } from "@/components/ui/BrandTag";
 import { Dialog } from "@/components/ui/Dialog";
 import { DateRangePicker, useDateRange } from "@/components/ui/DateRangePicker";
@@ -129,6 +130,11 @@ export default function OrdersPage() {
       } else {
         cancelOrder(cancelTarget.id, cancelReason.trim(), user.id, user.name);
         toastSuccess("ยกเลิกคำสั่งซื้อและคืนสต็อกเรียบร้อยแล้ว");
+        // ล้างสถานะ "ออกแล้ว" ของป้ายที่สแกนไว้ในใบนี้ ให้สแกนออกใหม่ได้ทันที (ทำเบื้องหลัง ไม่ขวางการยกเลิก)
+        const target = cancelTarget;
+        void releaseScannedTokens({ docNo: target.stockOutDocNo, notAfterIso: new Date(new Date(target.createdAt).getTime() + 10 * 60 * 1000).toISOString() }).then((n) => {
+          if (n > 0) toastSuccess(`ล้างสถานะป้ายที่สแกนออกไว้ ${n} ใบ สแกนออกใหม่ได้เลย`);
+        });
       }
       setCancelTarget(null);
     } catch (e) {
