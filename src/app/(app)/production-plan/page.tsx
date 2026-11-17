@@ -51,18 +51,18 @@ function MetricTable({ m, metric }: { m: PlanMatrix; metric: Metric }) {
   const grand = m.colors.reduce((t, c) => t + rowSum(c.cells), 0);
   const grandWip = m.colors.reduce((t, c) => t + wipSum(c.cells), 0);
   const sub = metric === "stock";
-  const wipNote = (n: number) => (sub && n > 0 ? <div className="text-[10px] font-normal leading-tight text-[var(--color-on-surface-variant)]">+{formatNumber(n)} รอเย็บ</div> : null);
+  const wipNote = (n: number) => (sub && n > 0 ? <div className="whitespace-nowrap text-[10px] font-normal leading-tight text-[var(--color-on-surface-variant)]">+{formatNumber(n)} รอเย็บ</div> : null);
   return (
-    <div className="shrink-0">
-      <p className="mb-1 text-sm font-semibold">
+    <div className="w-[56rem] shrink-0">
+      <p className="mb-1 min-h-10 text-sm font-semibold">
         {METRIC_TITLE[metric]} <span className="font-normal text-[var(--color-on-surface-variant)]">· {METRIC_HINT[metric]}</span>
       </p>
-      <table className="w-max border-collapse text-sm">
+      <table className="w-full table-fixed border-collapse text-sm">
         <thead>
-          <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
+          <tr className="h-10 bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
             <th className="w-24 px-3 py-2 text-left font-medium">สี</th>
             {m.sizes.map((s) => (
-              <th key={s} className="w-14 px-1 py-2 text-center font-medium">
+              <th key={s} className="w-12 px-0.5 py-2 text-center font-medium">
                 {s}
               </th>
             ))}
@@ -72,7 +72,7 @@ function MetricTable({ m, metric }: { m: PlanMatrix; metric: Metric }) {
         </thead>
         <tbody>
           {m.colors.map((c) => (
-            <tr key={c.color} className="border-b border-[var(--color-border)]">
+            <tr key={c.color} className="h-14 border-b border-[var(--color-border)]">
               <td className="whitespace-nowrap px-3 py-2 font-medium">{c.color}</td>
               {m.sizes.map((s) => {
                 const cell = c.cells[s];
@@ -100,7 +100,7 @@ function MetricTable({ m, metric }: { m: PlanMatrix; metric: Metric }) {
               )}
             </tr>
           ))}
-          <tr className="bg-[var(--color-surface-container)] font-semibold">
+          <tr className="h-14 bg-[var(--color-surface-container)] font-semibold">
             <td className="px-3 py-2">รวม</td>
             {m.sizes.map((s) => (
               <td key={s} className="px-1 py-2 text-center">
