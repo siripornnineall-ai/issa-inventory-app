@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { produce } from "immer";
 import { emptyState } from "@/lib/store/state";
 import * as engine from "@/lib/store/engine";
-import { planCell, productionPlan } from "./productionPlan";
+import { addMonthsClamped, formatPlanDate, planCell, productionPlan } from "./productionPlan";
 
 const DATE = "2026-11-10T00:00:00.000Z";
 
@@ -104,5 +104,14 @@ describe("วางแผนผลิต", () => {
     expect(colors).not.toContain("ม่วง");
     // ของสีที่ซ่อน (ม่วง 7) ไม่ถูกนับในยอดรวมสต็อกของรุ่น
     expect(plan[0].totals.stock).toBe(0 + 5 + 6 + 3); // ดำ 0 + น้ำเงิน 5 + ฟ้า 6 + สีใหม่ 3 (ไม่มีม่วง)
+  });
+
+  it("วันที่ปลายทาง: วันนี้ + n เดือน (วันเดียวกัน ถ้าไม่มีวันนั้นใช้วันสุดท้ายของเดือน) รูปแบบ dd/mm/yyyy", () => {
+    const today = new Date(2026, 10, 17); // 17 พ.ย. 2026
+    expect(formatPlanDate(addMonthsClamped(today, 1))).toBe("17/12/2026");
+    expect(formatPlanDate(addMonthsClamped(today, 2))).toBe("17/01/2027"); // ข้ามปี
+    expect(formatPlanDate(addMonthsClamped(today, 8))).toBe("17/07/2027");
+    expect(formatPlanDate(addMonthsClamped(new Date(2026, 0, 31), 1))).toBe("28/02/2026"); // ก.พ. ไม่มีวันที่ 31
+    expect(formatPlanDate(addMonthsClamped(new Date(2027, 11, 31), 2))).toBe("29/02/2028"); // ปีอธิกสุรทิน
   });
 });

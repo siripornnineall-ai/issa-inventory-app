@@ -134,3 +134,16 @@ export function planSheetRows(state: AppState, matrices: PlanMatrix[]): (string 
   }
   return rows;
 }
+
+// วันที่ปลายทางของการดูล่วงหน้า n เดือนจากวันนี้ (วันเดียวกันของเดือนนั้น ถ้าเดือนนั้นไม่มีวันนี้ ใช้วันสุดท้ายของเดือน เช่น 31 ม.ค. + 1 เดือน = 28/29 ก.พ.)
+export function addMonthsClamped(from: Date, n: number): Date {
+  const y = from.getFullYear();
+  const m = from.getMonth() + n;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  return new Date(y, m, Math.min(from.getDate(), lastDay));
+}
+
+// dd/mm/yyyy (ปี ค.ศ. ตามที่เจ้าของงานใช้ เช่น 17/12/2026)
+export function formatPlanDate(d: Date): string {
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
