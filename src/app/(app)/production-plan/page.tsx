@@ -18,7 +18,7 @@ import { REAL_DATA_START, monthRange, netSalesByVariant } from "@/lib/utils/sale
 import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
-import { planSheetRows, productionPlan, type BaselineInput, type PlanCell, type PlanMatrix } from "@/lib/utils/productionPlan";
+import { addMonthsClamped, formatPlanDate, planSheetRows, productionPlan, type BaselineInput, type PlanCell, type PlanMatrix } from "@/lib/utils/productionPlan";
 import { matchBaseline, parseBaselineCsv, type BaselineMatch } from "@/lib/utils/salesBaselineImport";
 
 function lastMonthStart(): string {
@@ -278,11 +278,16 @@ function PlanContent() {
   }, [activeSource, baseline.rows, state]);
 
   const matrices = useMemo(() => productionPlan(state, baseRows, { months: Number(months), brandId, search }), [state, baseRows, months, brandId, search]);
-  // ขาดรวมถ้าดูล่วงหน้า 1 / 2 / 3 เดือน (ใช้บนปุ่มเลือก)
-  const shortageByMonths = useMemo(
-    () => [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ n, need: productionPlan(state, baseRows, { months: n, brandId, search }).reduce((t, m) => t + m.totals.need, 0) })),
-    [state, baseRows, brandId, search]
-  );
+  // ขาดรวมถ้าดูล่วงหน้า 1-8 เดือน พร้อมวันที่ปลายทาง (วันนี้ + n เดือน) ใช้บนปุ่มเลือก
+  const shortageByMonths = useMemo(() => {
+    const today = new Date();
+    return [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
+      n,
+      until: formatPlanDate(addMonthsClamped(today, n)),
+      need: productionPlan(state, baseRows, { months: n, brandId, search }).reduce((t, m) => t + m.totals.need, 0),
+    }));
+  }, [state, baseRows, brandId, search]);
+  const untilDate = shortageByMonths.find((x) => String(x.n) === months)?.until ?? "";
   const sum = matrices.reduce(
     (s, m) => ({ stock: s.stock + m.totals.stock, wip: s.wip + m.totals.wip, have: s.have + m.totals.have, need: s.need + m.totals.need, urgent: s.urgent + m.totals.urgent }),
     { stock: 0, wip: 0, have: 0, need: 0, urgent: 0 }
@@ -334,7 +339,7 @@ function PlanContent() {
       ) : (
         <>
           <div role="group" aria-label="ดูล่วงหน้า" className="flex flex-wrap items-stretch gap-2">
-            {shortageByMonths.map(({ n, need }) => (
+            {shortageByMonths.map(({ n, need, until }) => (
               <button
                 key={n}
                 type="button"
@@ -343,6 +348,7 @@ function PlanContent() {
                 className={`rounded-xl border px-4 py-2 text-left ${months === String(n) ? "border-[var(--color-primary-container)] bg-[var(--color-primary-container)] text-white" : "border-[var(--color-border)] bg-white hover:bg-[var(--color-surface-container)]"}`}
               >
                 <span className="block text-sm font-semibold">ดูล่วงหน้า {n} เดือน</span>
+                <span className="block text-xs">ถึง {until}</span>
                 <span className="block text-xs">ขาดรวม {formatNumber(need)} ชิ้น</span>
               </button>
             ))}
@@ -367,7 +373,7 @@ function PlanContent() {
             </Card>
           </div>
           <p className="px-1 text-sm text-[var(--color-on-surface-variant)]">
-            ยอดขายเดือน {activeSource?.label} · ดูล่วงหน้า {months} เดือน · แต่ละรุ่นมีสามตารางเรียงข้างกัน (ยอดขาย → สต็อกปัจจุบัน → ที่ต้องผลิต) เลื่อนซ้าย-ขวาดูได้ · ในตารางที่ต้องผลิต{" "}
+            ยอดขายเดือน {activeSource?.label} · ดูล่วงหน้า {months} เดือน (ถึงวันที่ {untilDate}) · แต่ละรุ่นมีสามตารางเรียงข้างกัน (ยอดขาย → สต็อกปัจจุบัน → ที่ต้องผลิต) เลื่อนซ้าย-ขวาดูได้ · ในตารางที่ต้องผลิต{" "}
             <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> ไม่มีของเลย <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={lowStyle}>แดงอ่อน</span> ขาดบางส่วน
           </p>
           {matrices.map((m) => (
