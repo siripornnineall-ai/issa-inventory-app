@@ -14,7 +14,7 @@ import { EQUIPMENT_TYPE_LABEL_TH } from "@/lib/types";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { useUnsavedChangesGuard } from "@/lib/utils/useUnsavedChangesGuard";
 
-const UNIT_OPTIONS: EquipmentUnit[] = ["ชิ้น", "ใบ", "ตัว", "ม้วน", "กล่อง", "แพ็ก", "คู่", "ชุด", "เมตร", "กิโลกรัม"];
+const UNIT_OPTIONS: EquipmentUnit[] = ["ชิ้น", "ใบ", "ตัว", "ม้วน", "กล่อง", "แพ็ก", "คู่", "ชุด", "เมตร", "กิโลกรัม", "โหล"];
 
 export function EquipmentForm({ existing }: { existing?: Equipment }) {
   const router = useRouter();
