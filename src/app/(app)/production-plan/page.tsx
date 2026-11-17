@@ -43,7 +43,7 @@ const METRIC_HINT: Record<Metric, string> = {
 const METRICS: Metric[] = ["demand", "stock", "need"];
 
 // หนึ่งตารางต่อหนึ่งตัวชี้วัด ความกว้างคอลัมน์คงที่ วางเรียงข้างกันในแถวเดียวของรุ่น เลื่อนซ้าย-ขวาดูได้เหมือนชีต
-function MetricTable({ m, metric }: { m: PlanMatrix; metric: Metric }) {
+function MetricTable({ m, metric, showHave }: { m: PlanMatrix; metric: Metric; showHave: boolean }) {
   const value = (c: { demand: number; stock: number; need: number }) => (metric === "demand" ? c.demand : metric === "stock" ? c.stock : c.need);
   const rowSum = (cells: Record<string, PlanCell>) => Object.values(cells).reduce((t, c) => t + value(c), 0);
   const colSum = (size: string) => m.colors.reduce((t, c) => t + (c.cells[size] ? value(c.cells[size]) : 0), 0);
@@ -86,7 +86,15 @@ function MetricTable({ m, metric }: { m: PlanMatrix; metric: Metric }) {
                     className={`px-1 py-2 text-center ${shortage ? (cell.level === "out" ? "bg-[var(--color-danger)] font-bold text-white" : "font-bold text-[var(--color-danger)]") : v === 0 ? "text-[var(--color-on-surface-variant)]/40" : ""}`}
                     style={shortage && cell.level !== "out" ? lowStyle : undefined}
                   >
-                    {v === 0 && metric !== "stock" ? "–" : fmt1(v)}
+                    {metric === "need" && showHave && !shortage ? (
+                      // ช่องที่ไม่ขาด: แทนขีด "–" ด้วยของที่มี (คลัง + รอเย็บที่ BC) ตัวเล็กสีเทา
+                      <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">มี {fmt1(cell.have)}</span>
+                    ) : v === 0 && metric !== "stock" ? (
+                      "–"
+                    ) : (
+                      fmt1(v)
+                    )}
+                    {metric === "need" && showHave && shortage && <div className="whitespace-nowrap text-[10px] font-normal leading-tight opacity-80">มี {fmt1(cell.have)}</div>}
                     {wipNote(cell.wip)}
                   </td>
                 );
@@ -119,7 +127,7 @@ function MetricTable({ m, metric }: { m: PlanMatrix; metric: Metric }) {
   );
 }
 
-function ModelBlock({ m }: { m: PlanMatrix }) {
+function ModelBlock({ m, showHave }: { m: PlanMatrix; showHave: boolean }) {
   const brand = useStore((s) => (m.brandId ? s.brands[m.brandId] : undefined));
   return (
     <Card className="overflow-hidden" style={brandBarStyle(brand)}>
@@ -136,7 +144,7 @@ function ModelBlock({ m }: { m: PlanMatrix }) {
         </summary>
         <div className="flex gap-8 overflow-x-auto px-5 pb-5">
           {METRICS.map((metric) => (
-            <MetricTable key={metric} m={m} metric={metric} />
+            <MetricTable key={metric} m={m} metric={metric} showHave={showHave} />
           ))}
         </div>
       </details>
@@ -226,6 +234,8 @@ function PlanContent() {
   const [brandId, setBrandId] = useState("");
   const [search, setSearch] = useState("");
   const [months, setMonths] = useState("1");
+  // โชว์ของที่มี (คลัง + รอเย็บ) ในช่องที่ไม่ขาดของตาราง "ที่ต้องผลิต" (ติ๊กปิดได้ถ้ารู้สึกตัวเลขเยอะ)
+  const [showHave, setShowHave] = useState(true);
   const [source, setSource] = useState("");
 
   const reload = useCallback(async () => {
@@ -317,6 +327,10 @@ function PlanContent() {
             ))}
           </Select>
         )}
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={showHave} onChange={(e) => setShowHave(e.target.checked)} />
+          โชว์ของที่มีในตารางที่ต้องผลิต
+        </label>
         <Button className="ml-auto" variant="ghost" onClick={() => downloadWorkbook("วางแผนผลิต.xlsx", [{ name: "วางแผนผลิต", rows: planSheetRows(state, matrices) }])} disabled={matrices.length === 0}>
           <Download className="h-4 w-4" /> Excel
         </Button>
@@ -377,7 +391,7 @@ function PlanContent() {
             <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> ไม่มีของเลย <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={lowStyle}>แดงอ่อน</span> ขาดบางส่วน
           </p>
           {matrices.map((m) => (
-            <ModelBlock key={m.productId} m={m} />
+            <ModelBlock key={m.productId} m={m} showHave={showHave} />
           ))}
         </>
       )}
