@@ -58,3 +58,23 @@ export function wipByProduct(state: AppState): WipProductSummary[] {
   }
   return [...byProduct.values()].sort((a, b) => a.name.localeCompare(b.name, "th"));
 }
+
+// เลขที่ใบรับเข้า -> ตัวเลือกสินค้า (itemId) ที่รับแบบ "เย็บเสร็จจากโรงงาน BC" ในใบนั้น (รวมใบที่ยกเลิกแล้ว เพราะรายการเคลื่อนไหวยังอยู่ในประวัติ)
+// ใช้ติดป้าย/กรองในประวัติการเคลื่อนไหว เพราะการรับเข้าแบบนี้บันทึกเป็นสต็อกเข้า (stock_in) ปกติ ไม่มีชนิดการเคลื่อนไหวแยก
+export function wipSewnDocLines(state: Pick<AppState, "stockInDocs">): Map<string, Set<string>> {
+  const byDoc = new Map<string, Set<string>>();
+  for (const doc of Object.values(state.stockInDocs)) {
+    if (doc.itemType !== "product") continue;
+    for (const line of doc.lines) {
+      if (!line.fromWip) continue;
+      const set = byDoc.get(doc.docNo) ?? new Set<string>();
+      set.add(line.itemId);
+      byDoc.set(doc.docNo, set);
+    }
+  }
+  return byDoc;
+}
+
+export function isFromWipMovement(m: { movementType: string; refNo: string; itemId: string }, sewnDocLines: Map<string, Set<string>>): boolean {
+  return m.movementType === "stock_in" && Boolean(sewnDocLines.get(m.refNo)?.has(m.itemId));
+}
