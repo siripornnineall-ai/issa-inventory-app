@@ -1,12 +1,15 @@
 import type { AppState } from "@/lib/store/state";
 import { variantStockAcrossWarehouses, sourceVariantFor } from "@/lib/store/selectors";
-import { compareColors } from "@/lib/utils/colorOrder";
+import { colorRank, compareColors } from "@/lib/utils/colorOrder";
 import { compareSizes } from "@/lib/utils/sizes";
 import { wipBalances } from "@/lib/utils/factoryWip";
 
 // วางแผนผลิต: ยอดขายอ้างอิงต่อเดือน เทียบกับของที่มี (คลัง + ที่ตัดแล้วรอเย็บที่ BC โชว์แยกกันเสมอ)
 // ควรผลิตเพิ่ม = ยอดขายที่คาด (เผื่อสำรอง) - ของที่มี  ·  ช่องที่ของที่มีอยู่ได้ไม่ถึง COVER_DAYS_ALERT วัน = แดง  ·  ไม่มีของเลยแต่มียอดขาย = แดงเข้ม
 export const PLAN_RULES = { coverDaysAlert: 30, daysPerMonth: 30, defaultBuffer: 0.15 } as const;
+// หน้าวางแผนผลิตแสดงสีตามลำดับมาตรฐานถึงสีนี้เท่านั้น สีที่อยู่หลังจากนั้น (ม่วง เขียวขี้ม้า ฟ้า ส้มอิฐ ฯลฯ) ซ่อนไว้ ยกเว้นสีที่มียอดขายอ้างอิง (ไม่ให้ของที่ขายได้ขาดแล้วตกหาย)
+// สีที่ไม่รู้จักลำดับ (สีใหม่) ไม่ซ่อน ใช้ลำดับของรุ่นนั้นก่อนถ้าตั้งไว้ (products.color_order)
+export const PLAN_LAST_COLOR = "น้ำเงิน";
 export type PlanLevel = "out" | "low";
 
 export interface BaselineInput {
@@ -78,7 +81,15 @@ export function productionPlan(state: AppState, baseline: BaselineInput[], opts:
     const sizeDemand: Record<string, number> = {};
     const sizeDiff: Record<string, number> = {};
     const totals = { demand: 0, stock: 0, wip: 0, have: 0, diff: 0, need: 0, urgent: 0 };
+    const cutoff = colorRank(PLAN_LAST_COLOR, p);
+    const colorHasDemand = new Set<string>();
+    for (const v of variants) if ((demandByKey.get(`${productId}|${v.color}|${v.size}`) ?? 0) > 0) colorHasDemand.add(v.color);
+    const isHiddenColor = (color: string) => {
+      const r = colorRank(color, p);
+      return cutoff < Number.MAX_SAFE_INTEGER && r < Number.MAX_SAFE_INTEGER && r > cutoff && !colorHasDemand.has(color);
+    };
     for (const v of variants) {
+      if (isHiddenColor(v.color)) continue;
       const demand = Math.round((demandByKey.get(`${productId}|${v.color}|${v.size}`) ?? 0) * months * 100) / 100;
       const stock = variantStockAcrossWarehouses(state, v.id).onHand;
       const w = Math.max(0, wip.get(v.id) ?? 0);

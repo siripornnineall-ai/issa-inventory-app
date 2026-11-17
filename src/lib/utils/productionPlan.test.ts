@@ -79,4 +79,30 @@ describe("วางแผนผลิต", () => {
     });
     expect(productionPlan(next, [{ productId: p, color: "ดำ", size: "M", qty: 10 }])[0].shape).toBe("ทรงกระบอกใหญ่");
   });
+
+  it("แสดงสีตามลำดับมาตรฐานถึง 'น้ำเงิน' สีหลังจากนั้นซ่อน (ยกเว้นสีที่มียอดขาย) และไม่นับของสีที่ซ่อนในยอดรวม", () => {
+    const { state, wh, p } = seed();
+    const next = produce(state, (d) => {
+      const add = (color: string, qty: number) => {
+        const v = engine.addVariant(d, p, { color, size: "M", purchasePrice: 400, sellingPrice: 1000 });
+        engine.stockIn(d, { itemType: "product", date: DATE, warehouseId: wh, receivedBy: "u1", receivedByName: "รับ", lines: [{ itemId: v, qty }] });
+      };
+      add("น้ำเงิน", 5); // อยู่ในลำดับถึงน้ำเงิน → แสดง
+      add("ม่วง", 7); // หลังน้ำเงินและไม่มียอดขาย → ซ่อน
+      add("ฟ้า", 6); // หลังน้ำเงินแต่มียอดขาย → แสดง
+      add("สีใหม่ไม่รู้จัก", 3); // ไม่รู้ลำดับ → ไม่ซ่อน
+    });
+    const plan = productionPlan(next, [
+      { productId: p, color: "ดำ", size: "M", qty: 10 },
+      { productId: p, color: "ฟ้า", size: "M", qty: 4 },
+    ]);
+    const colors = plan[0].colors.map((c) => c.color);
+    expect(colors).toContain("ดำ");
+    expect(colors).toContain("น้ำเงิน");
+    expect(colors).toContain("ฟ้า");
+    expect(colors).toContain("สีใหม่ไม่รู้จัก");
+    expect(colors).not.toContain("ม่วง");
+    // ของสีที่ซ่อน (ม่วง 7) ไม่ถูกนับในยอดรวมสต็อกของรุ่น
+    expect(plan[0].totals.stock).toBe(0 + 5 + 6 + 3); // ดำ 0 + น้ำเงิน 5 + ฟ้า 6 + สีใหม่ 3 (ไม่มีม่วง)
+  });
 });
