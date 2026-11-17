@@ -47,28 +47,41 @@ function seed() {
   useStore.getState().actions.hydrate(state as never);
 }
 
-describe("หน้าวางแผนผลิต: โชว์ของที่มีในตารางที่ต้องผลิต", () => {
+describe("หน้าวางแผนผลิต: ตารางที่ต้องผลิตแสดงเลขตัวเดียวต่อช่อง", () => {
   beforeEach(() => {
     cleanup();
     seed();
   });
 
-  it("ค่าเริ่มต้นติ๊กอยู่: ช่องที่ไม่ขาดแทนขีดด้วย 'มี N' ส่วนช่องที่ขาดมีเลขผลิตพร้อม 'มี N' ใต้เลข", async () => {
-    render(<ProductionPlanPage />);
+  const needTable = (container: HTMLElement) => container.querySelectorAll("table")[2] as HTMLTableElement;
+  const cellOf = (table: HTMLTableElement, color: string) => Array.from(table.querySelectorAll("tbody tr")).find((r) => r.querySelector("td")?.textContent === color)!;
+
+  it("ค่าเริ่มต้นติ๊กอยู่: ช่องที่ขาดเป็นเลขติดลบสีแดง ช่องที่มีของพอเป็นจำนวนของที่มีสีเทา ไม่มีคำว่า 'มี'", async () => {
+    const { container } = render(<ProductionPlanPage />);
     await waitFor(() => expect(screen.getByText(/ที่ต้องผลิตเพิ่ม \(ชิ้น\)/)).toBeTruthy());
-    const box = screen.getByLabelText("โชว์ของที่มีในตารางที่ต้องผลิต") as HTMLInputElement;
-    expect(box.checked).toBe(true);
-    expect(screen.getByText("มี 500")).toBeTruthy(); // ขาว M ไม่ขาด (ขาย 50 มี 500)
-    expect(screen.getByText("มี 30")).toBeTruthy(); // ดำ M ขาด 70 แต่ยังบอกว่ามี 30
-    expect(screen.getAllByText("70").length).toBeGreaterThan(0); // เลขผลิตยังอยู่
+    expect((screen.getByLabelText("โชว์ของที่มีในตารางที่ต้องผลิต") as HTMLInputElement).checked).toBe(true);
+    const t = needTable(container);
+    const black = cellOf(t, "ดำ"); // ขาย 100 มี 30 → ขาด 70
+    expect(black.textContent).toContain("-70");
+    const shortageCell = Array.from(black.querySelectorAll("td")).find((td) => td.textContent === "-70")!;
+    expect(shortageCell.className).toContain("text-[var(--color-danger)]");
+    const white = cellOf(t, "ขาว"); // ขาย 50 มี 500 → พอ แสดง 500 สีเทา
+    const haveCell = Array.from(white.querySelectorAll("td span")).find((el) => el.textContent === "500")!;
+    expect(haveCell.className).toContain("text-[var(--color-on-surface-variant)]");
+    expect(t.textContent).not.toContain("มี "); // ไม่มีคำกำกับซ้อนในช่อง
+    // ช่องรวมของที่ขาดเป็นติดลบด้วย ส่วนแถวที่ไม่ขาดเลยเป็น 0
+    expect(black.textContent).toContain("-70");
+    expect(white.textContent).toContain("0");
   });
 
-  it("ติ๊กออก → กลับเป็นแบบเดิม ช่องที่ไม่ขาดเป็นขีด ไม่มี 'มี N'", async () => {
-    render(<ProductionPlanPage />);
-    await waitFor(() => expect(screen.getByText("มี 500")).toBeTruthy());
+  it("ติ๊กออก → กลับเป็นแบบเดิม ที่ขาดเป็นเลขแดงบวก ช่องที่ไม่ขาดเป็นขีด", async () => {
+    const { container } = render(<ProductionPlanPage />);
+    await waitFor(() => expect(screen.getByText(/ที่ต้องผลิตเพิ่ม \(ชิ้น\)/)).toBeTruthy());
     fireEvent.click(screen.getByLabelText("โชว์ของที่มีในตารางที่ต้องผลิต"));
-    expect(screen.queryByText("มี 500")).toBeNull();
-    expect(screen.queryByText("มี 30")).toBeNull();
-    expect(screen.getAllByText("70").length).toBeGreaterThan(0);
+    const t = needTable(container);
+    expect(cellOf(t, "ดำ").textContent).toContain("70");
+    expect(cellOf(t, "ดำ").textContent).not.toContain("-70");
+    expect(cellOf(t, "ขาว").textContent).toContain("–");
+    expect(cellOf(t, "ขาว").textContent).not.toContain("500");
   });
 });

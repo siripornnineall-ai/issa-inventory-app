@@ -38,7 +38,7 @@ const METRIC_TITLE: Record<Metric, string> = {
 const METRIC_HINT: Record<Metric, string> = {
   demand: "ยอดขายต่อเดือน × จำนวนเดือนที่เลือก · % = สัดส่วนของแต่ละสีในยอดขายรุ่นนี้",
   stock: "คลัง · ถ้ามีชิ้นรอเย็บที่ BC ขึ้นบรรทัดเล็ก +N รอเย็บ แยกไว้",
-  need: "ยอดขาย − (คลัง + รอเย็บ) เฉพาะช่องที่ขาด",
+  need: "แดงติดลบ = ขาด (ต้องผลิตเท่าที่ติดลบ) · เทา = มีของพอ (จำนวนคลัง + รอเย็บ)",
 };
 const METRICS: Metric[] = ["demand", "stock", "need"];
 
@@ -51,6 +51,7 @@ function MetricTable({ m, metric, showHave }: { m: PlanMatrix; metric: Metric; s
   const grand = m.colors.reduce((t, c) => t + rowSum(c.cells), 0);
   const grandWip = m.colors.reduce((t, c) => t + wipSum(c.cells), 0);
   const sub = metric === "stock";
+  const negNeed = metric === "need" && showHave; // โหมดเลขตัวเดียว: ที่ขาดแสดงติดลบสีแดง
   const wipNote = (n: number) => (sub && n > 0 ? <div className="whitespace-nowrap text-[10px] font-normal leading-tight text-[var(--color-on-surface-variant)]">+{formatNumber(n)} รอเย็บ</div> : null);
   return (
     <div className="w-[56rem] shrink-0">
@@ -86,21 +87,24 @@ function MetricTable({ m, metric, showHave }: { m: PlanMatrix; metric: Metric; s
                     className={`px-1 py-2 text-center ${shortage ? (cell.level === "out" ? "bg-[var(--color-danger)] font-bold text-white" : "font-bold text-[var(--color-danger)]") : v === 0 ? "text-[var(--color-on-surface-variant)]/40" : ""}`}
                     style={shortage && cell.level !== "out" ? lowStyle : undefined}
                   >
-                    {metric === "need" && showHave && !shortage ? (
-                      // ช่องที่ไม่ขาด: แทนขีด "–" ด้วยของที่มี (คลัง + รอเย็บที่ BC) ตัวเล็กสีเทา
-                      <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">มี {fmt1(cell.have)}</span>
+                    {metric === "need" && showHave ? (
+                      // เลขตัวเดียวต่อช่อง: ขาด = ติดลบสีแดง (ต้องผลิตเท่าที่ติดลบ) / ไม่ขาด = จำนวนของที่มี (คลัง + รอเย็บ) สีเทา
+                      shortage ? (
+                        `-${formatNumber(cell.need)}`
+                      ) : (
+                        <span className="font-normal text-[var(--color-on-surface-variant)]">{fmt1(cell.have)}</span>
+                      )
                     ) : v === 0 && metric !== "stock" ? (
                       "–"
                     ) : (
                       fmt1(v)
                     )}
-                    {metric === "need" && showHave && shortage && <div className="whitespace-nowrap text-[10px] font-normal leading-tight opacity-80">มี {fmt1(cell.have)}</div>}
                     {wipNote(cell.wip)}
                   </td>
                 );
               })}
-              <td className="bg-[var(--color-surface-container)] px-2 py-2 text-center font-semibold">
-                {fmt1(rowSum(c.cells))}
+              <td className={`bg-[var(--color-surface-container)] px-2 py-2 text-center font-semibold ${negNeed && rowSum(c.cells) > 0 ? "text-[var(--color-danger)]" : ""}`}>
+                {negNeed ? (rowSum(c.cells) > 0 ? `-${fmt1(rowSum(c.cells))}` : "0") : fmt1(rowSum(c.cells))}
                 {wipNote(wipSum(c.cells))}
               </td>
               {metric === "demand" && (
@@ -111,12 +115,12 @@ function MetricTable({ m, metric, showHave }: { m: PlanMatrix; metric: Metric; s
           <tr className="h-14 bg-[var(--color-surface-container)] font-semibold">
             <td className="px-3 py-2">รวม</td>
             {m.sizes.map((s) => (
-              <td key={s} className="px-1 py-2 text-center">
-                {fmt1(colSum(s))}
+              <td key={s} className={`px-1 py-2 text-center ${negNeed && colSum(s) > 0 ? "text-[var(--color-danger)]" : ""}`}>
+                {negNeed ? (colSum(s) > 0 ? `-${fmt1(colSum(s))}` : "0") : fmt1(colSum(s))}
               </td>
             ))}
-            <td className="px-2 py-2 text-center">
-              {fmt1(grand)}
+            <td className={`px-2 py-2 text-center ${negNeed && grand > 0 ? "text-[var(--color-danger)]" : ""}`}>
+              {negNeed ? (grand > 0 ? `-${fmt1(grand)}` : "0") : fmt1(grand)}
               {wipNote(grandWip)}
             </td>
             {metric === "demand" && <td className="px-2 py-2 text-center">{grand > 0 ? "100%" : "–"}</td>}
