@@ -24,6 +24,7 @@ import { formatThaiDateTime } from "@/lib/utils/date";
 import { HISTORY_TAB_LABEL, isVerificationOnly, movementDirection, movementTypesForTab, summarizeMovements, type HistoryTab } from "@/lib/utils/movementTabs";
 import { useCan } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
+import { isFromWipMovement, wipSewnDocLines } from "@/lib/utils/factoryWip";
 import { MOVEMENT_TYPE_LABEL_TH, STOCK_RETURN_LABEL_TH, STOCK_RETURN_TYPES, type MovementItemType, type MovementType, type StockMovement } from "@/lib/types";
 
 const PAGE_SIZE = 20;
@@ -48,7 +49,8 @@ export default function HistoryPage() {
   const [showScan, setShowScan] = useState(false);
   const [search, setSearch] = useState("");
   const [itemType, setItemType] = useState<MovementItemType | "all">("all");
-  const [movementType, setMovementType] = useState<MovementType | "all">("all");
+  // "from_wip" = ตัวกรองพิเศษ: สต็อกเข้าที่รับแบบ "เย็บเสร็จจากโรงงาน BC" (ไม่ใช่ชนิดการเคลื่อนไหวจริง)
+  const [movementType, setMovementType] = useState<MovementType | "all" | "from_wip">("all");
   const [warehouseId, setWarehouseId] = useState("all");
   // ผู้ทำรายการ: ดูว่าใครรับเข้า/เบิกออกบ้าง ("all" = ทุกคน)
   const [actorId, setActorId] = useState("all");
@@ -59,6 +61,8 @@ export default function HistoryPage() {
   const [noteDraft, setNoteDraft] = useState("");
 
   const movements = useMemo(() => allMovementsInRange(state, range.from, range.to), [state, range]);
+  const stockInDocs = state.stockInDocs;
+  const sewnDocLines = useMemo(() => wipSewnDocLines({ stockInDocs }), [stockInDocs]);
 
   // รายชื่อผู้ทำรายการจากประวัติทั้งหมด (ชื่อล่าสุดในระบบ ถ้าไม่มีใช้ชื่อที่บันทึกไว้ตอนทำรายการ)
   const actorOptions = useMemo(() => {
@@ -96,8 +100,8 @@ export default function HistoryPage() {
       .filter((m) => actorId === "all" || m.actorId === actorId)
       .filter((m) => !q || m.itemName.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q) || m.refNo.toLowerCase().includes(q))
       .filter((m) => tab === "all" || movementDirection(m) === tab)
-      .filter((m) => movementType === "all" || m.movementType === movementType);
-  }, [movements, search, itemType, warehouseId, actorId, tab, movementType]);
+      .filter((m) => movementType === "all" || (movementType === "from_wip" ? isFromWipMovement(m, sewnDocLines) : m.movementType === movementType));
+  }, [movements, search, itemType, warehouseId, actorId, tab, movementType, sewnDocLines]);
 
   const filtered = useMemo(
     () => tabbedAll.filter((m) => showVerified || !isVerificationOnly(m)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -173,6 +177,14 @@ export default function HistoryPage() {
         <div className="flex flex-col items-start gap-1">
           <MovementTypeBadge type={m.movementType} />
           {channel && <span className="text-xs text-[var(--color-on-surface-variant)]">{channel}</span>}
+        </div>
+      );
+    }
+    if (isFromWipMovement(m, sewnDocLines)) {
+      return (
+        <div className="flex flex-col items-start gap-1">
+          <MovementTypeBadge type={m.movementType} />
+          <span className="text-xs text-[var(--color-on-surface-variant)]">เย็บเสร็จจากโรงงาน BC</span>
         </div>
       );
     }
@@ -277,7 +289,7 @@ export default function HistoryPage() {
             <Select
               value={movementType}
               onChange={(e) => {
-                setMovementType(e.target.value as MovementType | "all");
+                setMovementType(e.target.value as MovementType | "all" | "from_wip");
                 setPage(1);
               }}
               aria-label="ประเภทการเคลื่อนไหว"
@@ -288,6 +300,7 @@ export default function HistoryPage() {
                   {MOVEMENT_TYPE_LABEL_TH[value]}
                 </option>
               ))}
+              {(tab === "all" || tab === "in") && <option value="from_wip">สต็อกเข้า — เย็บเสร็จจากโรงงาน BC</option>}
             </Select>
             <Select
               value={warehouseId}
@@ -362,6 +375,7 @@ export default function HistoryPage() {
                       </div>
                       <div className="shrink-0 text-right">
                         <MovementTypeBadge type={m.movementType} />
+                        {isFromWipMovement(m, sewnDocLines) && <p className="mt-0.5 text-[11px] text-[var(--color-on-surface-variant)]">เย็บเสร็จจากโรงงาน BC</p>}
                         {isVoidedMovement(m, cancelledDocs) && <p className="mt-0.5 text-[11px] font-medium text-[var(--color-danger)]">ใบนี้ถูกยกเลิก</p>}
                         <p className={`mt-1 text-sm font-semibold ${qtyClass(m.qtyChange)}`}>{qtyText(m.qtyChange)}</p>
                         <p className="text-xs text-[var(--color-on-surface-variant)]">
