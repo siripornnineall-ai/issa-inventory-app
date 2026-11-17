@@ -93,4 +93,19 @@ describe("หน้าวางแผนผลิต", () => {
     render(<ProductionPlanPage />);
     expect(await screen.findByText(/นำเข้ายอดขายรายเดือนจากไฟล์/)).toBeTruthy();
   });
+
+  it("ทั้งสามตารางกว้างเท่ากันและทุกแถวสูงเท่ากัน (ตรงกันแถวต่อแถว) ไม่ว่าจะมีบรรทัด +รอเย็บ หรือคอลัมน์ % หรือไม่", async () => {
+    const { container } = render(<ProductionPlanPage />);
+    await waitFor(() => expect(screen.getByText(/ที่ต้องผลิตเพิ่ม \(ชิ้น\)/)).toBeTruthy());
+    const tables = Array.from(container.querySelectorAll("table"));
+    expect(tables).toHaveLength(3);
+    for (const t of tables) {
+      expect(t.className).toContain("table-fixed");
+      expect(t.className).toContain("w-full");
+      expect(t.parentElement?.className).toContain("w-[56rem]"); // ความกว้างเท่ากันทุกตาราง
+      const bodyRows = Array.from(t.querySelectorAll("tbody tr"));
+      expect(bodyRows.length).toBeGreaterThan(0);
+      for (const r of bodyRows) expect(r.className).toContain("h-14"); // ความสูงแถวเท่ากัน
+    }
+  });
 });
