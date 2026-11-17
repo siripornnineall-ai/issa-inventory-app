@@ -74,3 +74,35 @@ export function markScansSaved(tokenIds: string[], docNo: string, action: ScanAc
     console.warn("เติมเลขที่ใบให้ประวัติการสแกนไม่สำเร็จ", e);
   }
 }
+
+// ยกเลิกออเดอร์แบบคืนสต็อก: ล้างสถานะ "ออกแล้ว" ของป้ายรายชิ้นที่สแกนออกไว้ในใบเบิกของออเดอร์นั้น เพื่อให้สแกนออกใหม่ได้ทันที (ไม่ต้องรอ 3 ชั่วโมงตามตัวกันสแกนซ้ำ)
+// หาป้ายจากสมุดบันทึกการสแกน (saved_doc_no = เลขที่ใบเบิก) ล้างเฉพาะป้ายที่สถานะล่าสุดยังเป็น "ออก" และไม่ได้ถูกสแกนต่อหลังใบนั้น (last_action_at ไม่เกิน notAfterIso)
+// ทำแบบ "พยายามทำ" ไม่ขวางการยกเลิก ไม่ throw: ถ้าผู้ใช้ไม่มีสิทธิ์อ่านสมุดสแกน (view.history) หรือเน็ตหลุด จะไม่ล้างอะไร (ป้ายค้างสถานะเดิม สแกนออกใหม่ได้หลังครบ 3 ชั่วโมงหรือเลือกสินค้าเอง)
+// คืนจำนวนป้ายที่ล้างได้ ไม่แตะสต็อก
+export async function releaseScannedTokens(input: { docNo: string | undefined; notAfterIso: string }): Promise<number> {
+  if (!input.docNo) return 0;
+  try {
+    const supabase = createClient();
+    const logs = await supabase.from("scan_log").select("token_id").eq("saved_doc_no", input.docNo).eq("action", "out").eq("outcome", "ok");
+    if (logs.error || !Array.isArray(logs.data)) return 0;
+    const ids = [...new Set((logs.data as { token_id: string | null }[]).map((r) => r.token_id).filter((x): x is string => Boolean(x)))];
+    if (ids.length === 0) return 0;
+    const upd = await supabase
+      .from("unit_tokens")
+      .update({ last_action: null, last_action_at: null })
+      .in("id", ids)
+      .eq("last_action", "out")
+      .lte("last_action_at", input.notAfterIso)
+      .select("id");
+    if (upd.error || !Array.isArray(upd.data)) return 0;
+    const cleared = (upd.data as { id: string }[]).map((r) => r.id);
+    // ให้ state ในเครื่องตรงกับฐานข้อมูลทันที (ไม่ผ่าน sync เพราะฐานข้อมูลถูกเขียนแล้ว)
+    const store = useStore.getState();
+    const local = cleared.map((id) => store.unitTokens[id]).filter(Boolean).map((t) => ({ ...t, lastAction: undefined, lastActionAt: undefined }));
+    if (local.length > 0) store.actions.mergeUnitTokens(local);
+    return cleared.length;
+  } catch (e) {
+    console.warn("ล้างสถานะป้ายหลังยกเลิกออเดอร์ไม่สำเร็จ", e);
+    return 0;
+  }
+}
