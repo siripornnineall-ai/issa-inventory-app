@@ -120,17 +120,60 @@ export function productionPlan(state: AppState, baseline: BaselineInput[], opts:
   return result.sort((a, b) => b.totals.need - a.totals.need || a.name.localeCompare(b.name, "th"));
 }
 
+// Excel เป็นตารางสี x ไซซ์ ต่อรุ่น เหมือนบนหน้าจอ: 4 ตารางเรียงข้างกัน (ยอดขาย / คลัง / รอเย็บที่ BC / ควรผลิตเพิ่ม) แต่ละตารางมีคอลัมน์รวมท้ายแถวและแถวรวมท้ายตาราง
 export function planSheetRows(state: AppState, matrices: PlanMatrix[]): (string | number)[][] {
-  const rows: (string | number)[][] = [["แบรนด์", "รุ่น", "สี", "ไซซ์", "SKU", "ยอดขาย", "คลัง", "รอเย็บที่ BC", "รวมที่มี", "ส่วนต่าง (ติดลบ = ขาด)", "อยู่ได้ (วัน)", "ควรผลิตเพิ่ม"]];
+  const blocks: { title: string; pick: (c: PlanCell) => number }[] = [
+    { title: "ยอดขาย", pick: (c) => c.demand },
+    { title: "สต็อกคลัง", pick: (c) => c.stock },
+    { title: "รอเย็บที่ BC", pick: (c) => c.wip },
+    { title: "ควรผลิตเพิ่ม", pick: (c) => c.need },
+  ];
+  const rows: (string | number)[][] = [];
   for (const m of matrices) {
     const brand = m.brandId ? (state.brands[m.brandId]?.name ?? "") : "";
-    for (const c of m.colors) {
-      for (const size of m.sizes) {
-        const cell = c.cells[size];
-        if (!cell) continue;
-        rows.push([brand, m.name, c.color, size, state.variants[cell.variantId]?.sku ?? "", cell.demand, cell.stock, cell.wip, cell.have, cell.diff, cell.coverDays === null ? "" : Math.round(cell.coverDays), cell.need]);
+    const width = m.sizes.length + 2; // สี + ไซซ์ + รวม
+    const gap = (): (string | number)[] => [""];
+    const title: (string | number)[] = [m.shape ? `${m.name} ${m.shape}` : m.name, brand];
+    rows.push(title);
+    const head: (string | number)[] = [];
+    const sub: (string | number)[] = [];
+    blocks.forEach((b, bi) => {
+      if (bi > 0) {
+        head.push(...gap());
+        sub.push(...gap());
       }
+      head.push(b.title, ...Array(width - 1).fill(""));
+      sub.push("สี", ...m.sizes, "รวม");
+    });
+    rows.push(head, sub);
+    for (const c of m.colors) {
+      const line: (string | number)[] = [];
+      blocks.forEach((b, bi) => {
+        if (bi > 0) line.push(...gap());
+        let total = 0;
+        const cells = m.sizes.map((size) => {
+          const cell = c.cells[size];
+          if (!cell) return "";
+          const v = b.pick(cell);
+          total += v;
+          return v;
+        });
+        line.push(c.color, ...cells, total);
+      });
+      rows.push(line);
     }
+    const foot: (string | number)[] = [];
+    blocks.forEach((b, bi) => {
+      if (bi > 0) foot.push(...gap());
+      let total = 0;
+      const sums = m.sizes.map((size) => {
+        const v = m.colors.reduce((t, c) => t + (c.cells[size] ? b.pick(c.cells[size]) : 0), 0);
+        total += v;
+        return v;
+      });
+      foot.push("รวม", ...sums, total);
+    });
+    rows.push(foot, []);
   }
   return rows;
 }
