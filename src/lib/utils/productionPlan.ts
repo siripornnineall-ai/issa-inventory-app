@@ -125,11 +125,17 @@ export function productionPlan(state: AppState, baseline: BaselineInput[], opts:
 const XL = { head: "0F5F56", headFg: "FFFFFF", total: "E3EAE9", low: "FADBD8", out: "F1948A", wip: "FFF2CC", need: "F5B7B1", title: "CDE7E3" };
 
 export function planSheet(state: AppState, matrices: PlanMatrix[]): { rows: (string | number)[][]; fills: Map<string, CellFill>; colWidths: number[] } {
-  const blocks: { title: string; pick: (c: PlanCell) => number; tint?: (c: PlanCell, v: number) => string | undefined }[] = [
+  // ตารางสุดท้าย (ควรผลิตเพิ่ม) เหมือนบนหน้าจอ: ขาด = ติดลบสีแดง (ต้องผลิตเท่าที่ติดลบ) / ไม่ขาด = จำนวนของที่มี (คลัง + รอเย็บ) สีเทา แถวรวมเป็น -ยอดที่ขาด
+  const blocks: { title: string; pick: (c: PlanCell) => number; tint?: (c: PlanCell, v: number) => CellFill | undefined; shortSum?: (c: PlanCell) => number }[] = [
     { title: "ยอดขาย", pick: (c) => c.demand },
-    { title: "สต็อกคลัง", pick: (c) => c.stock, tint: (c) => (c.level === "out" ? XL.out : c.level === "low" ? XL.low : undefined) },
-    { title: "รอเย็บที่ BC", pick: (c) => c.wip, tint: (_c, v) => (v > 0 ? XL.wip : undefined) },
-    { title: "ควรผลิตเพิ่ม", pick: (c) => c.need, tint: (_c, v) => (v > 0 ? XL.need : undefined) },
+    { title: "สต็อกคลัง", pick: (c) => c.stock, tint: (c) => (c.level === "out" ? { bg: XL.out } : c.level === "low" ? { bg: XL.low } : undefined) },
+    { title: "รอเย็บที่ BC", pick: (c) => c.wip, tint: (_c, v) => (v > 0 ? { bg: XL.wip } : undefined) },
+    {
+      title: "ควรผลิตเพิ่ม (ติดลบ = ขาด / เทา = ที่มี)",
+      pick: (c) => (c.need > 0 ? -c.need : c.have),
+      shortSum: (c) => c.need,
+      tint: (c) => (c.need > 0 ? (c.level === "out" ? { bg: XL.out, fg: "C0392B", bold: true } : { bg: XL.need, fg: "C0392B", bold: true }) : { fg: "7F8C8D" }),
+    },
   ];
   const rows: (string | number)[][] = [];
   const fills = new Map<string, CellFill>();
@@ -171,9 +177,8 @@ export function planSheet(state: AppState, matrices: PlanMatrix[]): { rows: (str
           const cell = c.cells[size];
           if (!cell) return "";
           const v = b.pick(cell);
-          total += v;
-          const bg = b.tint?.(cell, v);
-          fill(r, start(bi) + 1 + si, { center: true, ...(bg ? { bg } : {}) });
+          total += b.shortSum ? -b.shortSum(cell) : v; // ตารางควรผลิต: แถวรวม = -ยอดที่ขาดรวม (ไม่รวมเลขของที่มี) เหมือนหน้าจอ
+          fill(r, start(bi) + 1 + si, { center: true, ...(b.tint?.(cell, v) ?? {}) });
           return v;
         });
         line.push(c.color, ...cells, total);
@@ -188,7 +193,7 @@ export function planSheet(state: AppState, matrices: PlanMatrix[]): { rows: (str
       if (bi > 0) foot.push("");
       let total = 0;
       const sums = m.sizes.map((size) => {
-        const v = m.colors.reduce((t, c) => t + (c.cells[size] ? b.pick(c.cells[size]) : 0), 0);
+        const v = m.colors.reduce((t, c) => t + (c.cells[size] ? (b.shortSum ? -b.shortSum(c.cells[size]) : b.pick(c.cells[size])) : 0), 0);
         total += v;
         return v;
       });

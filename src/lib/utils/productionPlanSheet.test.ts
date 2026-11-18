@@ -26,6 +26,11 @@ describe("planSheetRows (Excel เป็นตารางสี x ไซซ์)
     // แถวดำ: ยอดขาย 62,228 รวม 290 | คลัง 62,71 รวม 133
     expect(rows[3].slice(0, 4)).toEqual(["ดำ", 62, 228, 290]);
     expect(rows[3].slice(5, 9)).toEqual(["ดำ", 62, 71, 133]);
+    // ตารางควรผลิต: ขาด = ติดลบ (ดำ M ขาด 157 -> -157) ไม่ขาด = จำนวนที่มี (ดำ S มี 62+29=91)
+    expect(rows[3].slice(15, 19)).toEqual(["ดำ", 91, -157, -157]);
+    // ขาว S: ต้องผลิต 5 -> -5 ช่อง M ไม่มี = ว่าง
+    expect(rows[4].slice(15, 19)).toEqual(["ขาว", -5, "", -5]);
+    expect(rows[5].slice(15, 19)).toEqual(["รวม", -5, -157, -162]);
     // ขาวไม่มีไซซ์ M = ช่องว่าง
     expect(rows[4].slice(0, 4)).toEqual(["ขาว", 10, "", 10]);
     // แถวรวมท้ายตาราง
@@ -52,7 +57,7 @@ describe("planSheet (สีในไฟล์ Excel)", () => {
     const { rows, fills } = planSheet(emptyState() as never, [m]);
     expect(fills.get("1,0")?.bg).toBe("0F5F56"); // หัวตารางยอดขาย
     expect(fills.get("3,5")?.bg).toBe("F1948A"); // สต็อกคลังของหมด (บล็อกที่ 2 เริ่มคอลัมน์ 4: สี=4, S=5)
-    expect(fills.get("3,13")?.bg).toBe("F5B7B1"); // ควรผลิตเพิ่ม > 0
+    expect(fills.get("3,13")?.bg).toBe("F1948A"); // ควรผลิตเพิ่ม > 0 และของหมด = แดงเข้ม
     const { fills: f2 } = planSheet(emptyState() as never, [m]);
     const ws = XLSX.utils.aoa_to_sheet(rows);
     for (const [k, f] of f2) {
