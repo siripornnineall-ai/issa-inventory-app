@@ -1,3 +1,4 @@
+import type { CellFill } from "@/lib/utils/excelMonths";
 import type { AppState } from "@/lib/store/state";
 import { FACTORY_WIP_KIND_LABEL_TH, type FactoryWipKind } from "@/lib/types";
 import { compareSizes } from "@/lib/utils/sizes";
@@ -95,22 +96,31 @@ export function wipBatches(state: AppState): WipBatch[] {
   return [...map.values()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-// Excel เป็นตารางสี x ไซซ์ ต่อรุ่น เหมือนบนหน้าจอ (มีรวมท้ายแถวและแถวรวมท้ายตาราง)
-export function wipSheetRows(state: AppState, matrices: WipMatrix[]): (string | number)[][] {
+// Excel เป็นตารางสี x ไซซ์ ต่อรุ่น เหมือนบนหน้าจอ (มีรวมท้ายแถวและแถวรวมท้ายตาราง) หัวเขียวเข้ม แถวรวมเทา ช่องติดลบแดง
+export function wipSheet(state: AppState, matrices: WipMatrix[]): { rows: (string | number)[][]; fills: Map<string, CellFill>; colWidths: number[] } {
   const rows: (string | number)[][] = [];
+  const fills = new Map<string, CellFill>();
+  const fill = (r: number, c: number, f: CellFill) => fills.set(`${r},${c}`, f);
   for (const m of matrices) {
     const brand = m.brandId ? (state.brands[m.brandId]?.name ?? "") : "";
+    const width = m.sizes.length + 2;
     rows.push([m.shape ? `${m.name} ${m.shape}` : m.name, brand, "ยังไม่เย็บ (ชิ้น)"]);
+    for (let k = 0; k < 3; k++) fill(rows.length - 1, k, { bold: true, bg: "CDE7E3" });
     rows.push(["สี", ...m.sizes, "รวม"]);
+    for (let k = 0; k < width; k++) fill(rows.length - 1, k, { bg: "0F5F56", fg: "FFFFFF", bold: true, center: k > 0 });
     for (const c of m.colors) {
+      const r = rows.length;
       let total = 0;
-      const cells = m.sizes.map((size) => {
+      const cells = m.sizes.map((size, si) => {
         const q = c.cells[size];
         if (q === undefined) return "";
         total += q;
+        fill(r, si + 1, { center: true, ...(q < 0 ? { bg: "F1948A" } : q > 0 ? { bg: "FFF2CC" } : {}) });
         return q;
       });
       rows.push([c.color, ...cells, total]);
+      fill(r, 0, { bold: true });
+      fill(r, width - 1, { bold: true, center: true, bg: "E3EAE9", ...(total < 0 ? { fg: "C0392B" } : {}) });
     }
     let grand = 0;
     const sums = m.sizes.map((size) => {
@@ -118,9 +128,16 @@ export function wipSheetRows(state: AppState, matrices: WipMatrix[]): (string | 
       grand += v;
       return v;
     });
+    const fr = rows.length;
     rows.push(["รวม", ...sums, grand], []);
+    for (let k = 0; k < width; k++) fill(fr, k, { bold: true, bg: "E3EAE9", center: k > 0 });
   }
-  return rows;
+  const maxSizes = matrices.reduce((n, m) => Math.max(n, m.sizes.length), 0);
+  return { rows, fills, colWidths: Array(maxSizes + 2).fill(11) };
+}
+
+export function wipSheetRows(state: AppState, matrices: WipMatrix[]): (string | number)[][] {
+  return wipSheet(state, matrices).rows;
 }
 
 // รายการบันทึกทีละสี/ไซซ์ สำหรับหน้า "ประวัติโรงงาน BC" (ใหม่ไปเก่า) ตัวกรอง: ประเภท ช่วงวันที่ (ตามวันที่ที่ระบุตอนบันทึก) ค้นหารุ่น/สี/ไซซ์/SKU/หมายเหตุ/ผู้บันทึก

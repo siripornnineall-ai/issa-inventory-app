@@ -3,6 +3,7 @@ import { variantStockAcrossWarehouses, sourceVariantFor } from "@/lib/store/sele
 import { colorRank, compareColors } from "@/lib/utils/colorOrder";
 import { compareSizes } from "@/lib/utils/sizes";
 import { wipBalances } from "@/lib/utils/factoryWip";
+import type { CellFill } from "@/lib/utils/excelMonths";
 
 // วางแผนผลิต: ยอดขายอ้างอิงต่อเดือน เทียบกับของที่มี (คลัง + ที่ตัดแล้วรอเย็บที่ BC โชว์แยกกันเสมอ)
 // ควรผลิตเพิ่ม = ยอดขายที่คาด (เผื่อสำรอง) - ของที่มี  ·  ช่องที่ของที่มีอยู่ได้ไม่ถึง COVER_DAYS_ALERT วัน = แดง  ·  ไม่มีของเลยแต่มียอดขาย = แดงเข้ม
@@ -120,51 +121,71 @@ export function productionPlan(state: AppState, baseline: BaselineInput[], opts:
   return result.sort((a, b) => b.totals.need - a.totals.need || a.name.localeCompare(b.name, "th"));
 }
 
-// Excel เป็นตารางสี x ไซซ์ ต่อรุ่น เหมือนบนหน้าจอ: 4 ตารางเรียงข้างกัน (ยอดขาย / คลัง / รอเย็บที่ BC / ควรผลิตเพิ่ม) แต่ละตารางมีคอลัมน์รวมท้ายแถวและแถวรวมท้ายตาราง
-export function planSheetRows(state: AppState, matrices: PlanMatrix[]): (string | number)[][] {
-  const blocks: { title: string; pick: (c: PlanCell) => number }[] = [
+// สีในไฟล์ Excel (ตามหน้าจอ): หัวตารางเขียวเข้ม ตัวอักษรขาว / แถวรวมเทา / ช่องที่ขาดแดง ของหมดแดงเข้ม / รอเย็บเหลือง
+const XL = { head: "0F5F56", headFg: "FFFFFF", total: "E3EAE9", low: "FADBD8", out: "F1948A", wip: "FFF2CC", need: "F5B7B1", title: "CDE7E3" };
+
+export function planSheet(state: AppState, matrices: PlanMatrix[]): { rows: (string | number)[][]; fills: Map<string, CellFill>; colWidths: number[] } {
+  const blocks: { title: string; pick: (c: PlanCell) => number; tint?: (c: PlanCell, v: number) => string | undefined }[] = [
     { title: "ยอดขาย", pick: (c) => c.demand },
-    { title: "สต็อกคลัง", pick: (c) => c.stock },
-    { title: "รอเย็บที่ BC", pick: (c) => c.wip },
-    { title: "ควรผลิตเพิ่ม", pick: (c) => c.need },
+    { title: "สต็อกคลัง", pick: (c) => c.stock, tint: (c) => (c.level === "out" ? XL.out : c.level === "low" ? XL.low : undefined) },
+    { title: "รอเย็บที่ BC", pick: (c) => c.wip, tint: (_c, v) => (v > 0 ? XL.wip : undefined) },
+    { title: "ควรผลิตเพิ่ม", pick: (c) => c.need, tint: (_c, v) => (v > 0 ? XL.need : undefined) },
   ];
   const rows: (string | number)[][] = [];
+  const fills = new Map<string, CellFill>();
+  const fill = (r: number, c: number, f: CellFill) => fills.set(`${r},${c}`, f);
+  const maxSizes = matrices.reduce((n, m) => Math.max(n, m.sizes.length), 0);
   for (const m of matrices) {
     const brand = m.brandId ? (state.brands[m.brandId]?.name ?? "") : "";
     const width = m.sizes.length + 2; // สี + ไซซ์ + รวม
-    const gap = (): (string | number)[] => [""];
-    const title: (string | number)[] = [m.shape ? `${m.name} ${m.shape}` : m.name, brand];
-    rows.push(title);
+    const start = (bi: number) => bi * (width + 1);
+    const colorCols = (r: number) => blocks.forEach((_b, bi) => fill(r, start(bi), { bold: true }));
+    rows.push([m.shape ? `${m.name} ${m.shape}` : m.name, brand]);
+    fill(rows.length - 1, 0, { bold: true, bg: XL.title });
+    fill(rows.length - 1, 1, { bg: XL.title });
     const head: (string | number)[] = [];
     const sub: (string | number)[] = [];
     blocks.forEach((b, bi) => {
       if (bi > 0) {
-        head.push(...gap());
-        sub.push(...gap());
+        head.push("");
+        sub.push("");
       }
       head.push(b.title, ...Array(width - 1).fill(""));
       sub.push("สี", ...m.sizes, "รวม");
     });
     rows.push(head, sub);
+    const hr = rows.length - 2;
+    blocks.forEach((_b, bi) => {
+      for (let k = 0; k < width; k++) {
+        fill(hr, start(bi) + k, { bg: XL.head, fg: XL.headFg, bold: true });
+        fill(hr + 1, start(bi) + k, { bg: XL.head, fg: XL.headFg, bold: true, center: k > 0 });
+      }
+    });
     for (const c of m.colors) {
       const line: (string | number)[] = [];
+      const r = rows.length;
       blocks.forEach((b, bi) => {
-        if (bi > 0) line.push(...gap());
+        if (bi > 0) line.push("");
         let total = 0;
-        const cells = m.sizes.map((size) => {
+        const cells = m.sizes.map((size, si) => {
           const cell = c.cells[size];
           if (!cell) return "";
           const v = b.pick(cell);
           total += v;
+          const bg = b.tint?.(cell, v);
+          fill(r, start(bi) + 1 + si, { center: true, ...(bg ? { bg } : {}) });
           return v;
         });
         line.push(c.color, ...cells, total);
+        fill(r, start(bi) + width - 1, { bold: true, center: true, bg: XL.total });
       });
       rows.push(line);
+      colorCols(r);
     }
     const foot: (string | number)[] = [];
+    const fr = rows.length;
     blocks.forEach((b, bi) => {
-      if (bi > 0) foot.push(...gap());
+      if (bi > 0) foot.push("");
       let total = 0;
       const sums = m.sizes.map((size) => {
         const v = m.colors.reduce((t, c) => t + (c.cells[size] ? b.pick(c.cells[size]) : 0), 0);
@@ -172,10 +193,18 @@ export function planSheetRows(state: AppState, matrices: PlanMatrix[]): (string 
         return v;
       });
       foot.push("รวม", ...sums, total);
+      for (let k = 0; k < width; k++) fill(fr, start(bi) + k, { bold: true, bg: XL.total, center: k > 0 });
     });
     rows.push(foot, []);
   }
-  return rows;
+  // ความกว้างเท่ากันทุกคอลัมน์ เพราะแต่ละรุ่นมีจำนวนไซซ์ต่างกัน ตำแหน่งตารางจึงไม่ตรงคอลัมน์กันทุกรุ่น
+  const colWidths: number[] = Array(blocks.length * (maxSizes + 3)).fill(11);
+  return { rows, fills, colWidths };
+}
+
+// Excel เป็นตารางสี x ไซซ์ ต่อรุ่น เหมือนบนหน้าจอ: 4 ตารางเรียงข้างกัน (ยอดขาย / สต็อกคลัง / รอเย็บที่ BC / ควรผลิตเพิ่ม) แต่ละตารางมีคอลัมน์รวมท้ายแถวและแถวรวมท้ายตาราง
+export function planSheetRows(state: AppState, matrices: PlanMatrix[]): (string | number)[][] {
+  return planSheet(state, matrices).rows;
 }
 
 // วันที่ปลายทางของการดูล่วงหน้า n เดือนจากวันนี้ (วันเดียวกันของเดือนนั้น ถ้าเดือนนั้นไม่มีวันนี้ ใช้วันสุดท้ายของเดือน เช่น 31 ม.ค. + 1 เดือน = 28/29 ก.พ.)

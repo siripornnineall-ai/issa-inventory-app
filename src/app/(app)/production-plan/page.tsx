@@ -19,7 +19,7 @@ import { REAL_DATA_START, monthRange, netSalesByVariant } from "@/lib/utils/sale
 import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
-import { addMonthsClamped, formatPlanDate, planSheetRows, productionPlan, type BaselineInput, type PlanCell, type PlanMatrix } from "@/lib/utils/productionPlan";
+import { addMonthsClamped, formatPlanDate, planSheet, productionPlan, type BaselineInput, type PlanCell, type PlanMatrix } from "@/lib/utils/productionPlan";
 import { matchBaseline, parseBaselineCsv, type BaselineMatch } from "@/lib/utils/salesBaselineImport";
 
 function lastMonthStart(): string {
@@ -337,7 +337,7 @@ function PlanContent() {
           โชว์ของที่มีในตารางที่ต้องผลิต
         </label>
         <span className="ml-auto">
-          <ExcelPickButton items={matrices.map((m) => ({ id: m.productId, label: m.shape ? `${m.name} ${m.shape}` : m.name }))} onExport={(sel) => downloadWorkbook("วางแผนผลิต.xlsx", [{ name: "วางแผนผลิต", rows: planSheetRows(state, matrices.filter((m) => sel.has(m.productId))) }])} disabled={matrices.length === 0} />
+          <ExcelPickButton items={matrices.map((m) => ({ id: m.productId, label: m.shape ? `${m.name} ${m.shape}` : m.name }))} onExport={(sel) => downloadWorkbook("วางแผนผลิต.xlsx", [{ name: "วางแผนผลิต", ...planSheet(state, matrices.filter((m) => sel.has(m.productId))) }])} disabled={matrices.length === 0} />
         </span>
       </div>
 
