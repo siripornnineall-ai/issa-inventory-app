@@ -95,20 +95,30 @@ export function wipBatches(state: AppState): WipBatch[] {
   return [...map.values()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-// แถวสำหรับ Excel: หนึ่งแถวต่อสี/ไซซ์
+// Excel เป็นตารางสี x ไซซ์ ต่อรุ่น เหมือนบนหน้าจอ (มีรวมท้ายแถวและแถวรวมท้ายตาราง)
 export function wipSheetRows(state: AppState, matrices: WipMatrix[]): (string | number)[][] {
-  const rows: (string | number)[][] = [["แบรนด์", "รุ่น", "สี", "ไซซ์", "SKU", "ยังไม่เย็บ (ชิ้น)"]];
+  const rows: (string | number)[][] = [];
   for (const m of matrices) {
     const brand = m.brandId ? (state.brands[m.brandId]?.name ?? "") : "";
-    const variants = Object.values(state.variants).filter((v) => v.productId === m.productId);
+    rows.push([m.shape ? `${m.name} ${m.shape}` : m.name, brand, "ยังไม่เย็บ (ชิ้น)"]);
+    rows.push(["สี", ...m.sizes, "รวม"]);
     for (const c of m.colors) {
-      for (const size of m.sizes) {
-        const v = variants.find((x) => x.color === c.color && x.size === size);
-        const qty = c.cells[size];
-        if (qty === undefined) continue;
-        rows.push([brand, m.name, c.color, size, v?.sku ?? "", qty]);
-      }
+      let total = 0;
+      const cells = m.sizes.map((size) => {
+        const q = c.cells[size];
+        if (q === undefined) return "";
+        total += q;
+        return q;
+      });
+      rows.push([c.color, ...cells, total]);
     }
+    let grand = 0;
+    const sums = m.sizes.map((size) => {
+      const v = m.colors.reduce((t, c) => t + (c.cells[size] ?? 0), 0);
+      grand += v;
+      return v;
+    });
+    rows.push(["รวม", ...sums, grand], []);
   }
   return rows;
 }
