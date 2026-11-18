@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import FactoryBcPage from "./page";
 import FactoryRecordPage from "./record/page";
 import { useStore } from "@/lib/store";
@@ -64,6 +64,14 @@ describe("หน้าโรงงาน BC", () => {
   });
 });
 
+// ช่องเลือกรุ่นเป็นช่องพิมพ์ค้นหา: พิมพ์คำแล้วคลิกรุ่นจากรายการที่ขึ้น
+function pickModel(query: string) {
+  const box = screen.getByRole("combobox", { name: "เลือกรุ่น" });
+  fireEvent.focus(box);
+  fireEvent.change(box, { target: { value: query } });
+  fireEvent.click(within(screen.getByRole("listbox")).getAllByRole("option")[0]);
+}
+
 describe("หน้าบันทึกตัวที่ยังไม่เย็บ", () => {
   beforeEach(() => {
     cleanup();
@@ -73,7 +81,7 @@ describe("หน้าบันทึกตัวที่ยังไม่เ�
   it("เลือกรุ่น กรอกแยกสี/ไซซ์ แล้วบันทึก: ยอดเพิ่มในสมุดบันทึก ไม่แตะสต็อกสินค้า", () => {
     seed("admin", false);
     render(<FactoryRecordPage />);
-    fireEvent.change(screen.getByLabelText("เลือกรุ่น"), { target: { value: "p1" } });
+    pickModel("Billie");
     fireEvent.change(screen.getByLabelText("ดำ M"), { target: { value: "120" } });
     fireEvent.change(screen.getByLabelText("ดำ L"), { target: { value: "45" } });
     expect(screen.getByText(/กรอกแล้ว/).textContent).toContain("2");
@@ -91,7 +99,7 @@ describe("หน้าบันทึกตัวที่ยังไม่เ�
     seed("admin", false);
     render(<FactoryRecordPage />);
     fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "scrap" } }); // ช่องแรก = ประเภท
-    fireEvent.change(screen.getByLabelText("เลือกรุ่น"), { target: { value: "p1" } });
+    pickModel("Billie");
     fireEvent.change(screen.getByLabelText("ดำ M"), { target: { value: "3" } });
     fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
     expect(Object.keys(useStore.getState().factoryWipEntries)).toHaveLength(0);

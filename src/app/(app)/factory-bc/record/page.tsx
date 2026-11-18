@@ -8,6 +8,7 @@ import { RequireAccess } from "@/components/layout/RequireAccess";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, Textarea, FormField } from "@/components/ui/Field";
+import { ProductModelPicker } from "@/components/stock/ProductModelPicker";
 import { DraftBanner } from "@/components/stock/DraftBanner";
 import { SaveSuccessCard, type SavedInfo } from "@/components/stock/SaveSuccessCard";
 import { useStore, useActions } from "@/lib/store";
@@ -175,15 +176,12 @@ function RecordForm({ onAgain }: { onAgain: () => void }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <FormField label="รุ่น">
-            <Select value={productId} onChange={(e) => setProductId(e.target.value)} aria-label="เลือกรุ่น">
-              <option value="">เลือกรุ่น</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.sellingName}
-                  {p.brandId && state.brands[p.brandId] ? ` · ${state.brands[p.brandId].name}` : ""}
-                </option>
-              ))}
-            </Select>
+            <ProductModelPicker
+              options={products.map((p) => ({ id: p.id, name: p.sellingName, brand: p.brandId ? state.brands[p.brandId]?.name : undefined, shape: p.shape, code: p.modelCode }))}
+              value={productId}
+              onChange={setProductId}
+              placeholder="พิมพ์ค้นหารุ่น เช่น Billie, Wendy..."
+            />
           </FormField>
           {!productId ? (
             <p className="text-sm text-[var(--color-on-surface-variant)]">เลือกรุ่นเพื่อกรอกจำนวนแยกสี/ไซซ์ กรอกได้หลายรุ่น เปลี่ยนรุ่นแล้วตัวเลขที่กรอกไว้ยังอยู่ แล้วกดบันทึกครั้งเดียว</p>
