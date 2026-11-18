@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/Button";
 import { Input, Select, Textarea, FormField } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { EquipmentPicker } from "@/components/equipment/EquipmentPicker";
-import { EquipmentStockInGrid } from "@/components/equipment/EquipmentStockInGrid";
+import { EquipmentQtyGrid } from "@/components/equipment/EquipmentQtyGrid";
+import { useEquipmentGrid } from "@/components/equipment/useEquipmentGrid";
 import { equipmentGroupKey } from "@/lib/utils/equipmentGroups";
 import { useStore, useActions } from "@/lib/store";
 import { useCurrentUser } from "@/lib/auth/session";
@@ -37,48 +38,33 @@ function EquipmentStockInForm({ onAgain }: { onAgain: () => void }) {
   const [poNumber, setPoNumber] = useState("");
   const [billNumber, setBillNumber] = useState("");
   const [note, setNote] = useState("");
-  // ตารางกรอกจำนวนรายไซซ์: เลือกอุปกรณ์ทีละกลุ่ม (ชื่อเดียวกันแต่ละไซซ์รวมเป็นกลุ่ม) แล้วกรอกจำนวนในช่องของแต่ละไซซ์ (ว่าง = ไม่รับ)
-  const [groupKeys, setGroupKeys] = useState<string[]>([]);
-  const [qtys, setQtys] = useState<Record<string, number>>({});
-  const [costs, setCosts] = useState<Record<string, number>>({}); // ราคาต่อหน่วยตามกลุ่ม (groupKey)
+  // ตารางกรอกจำนวนรายไซซ์ (สถานะร่วมกับหน้าเบิกออก/โอนย้าย) ราคาต่อหน่วยตั้งต่อกลุ่ม (groupKey)
+  const grid = useEquipmentGrid();
+  const [costs, setCosts] = useState<Record<string, number>>({});
   // ล็อกปุ่มบันทึกทันทีที่กด (กันมือถือค้างแล้วบันทึกซ้ำ) และขึ้นหน้ายืนยันเมื่อสำเร็จ
   const guard = useSaveGuard();
   const saving = guard.locked;
   const [saved, setSaved] = useState<SavedInfo | null>(null);
 
-  // รายการที่จะบันทึก = ช่องที่กรอกจำนวนมากกว่า 0 (ราคาต่อหน่วยตามกลุ่มชื่อ)
   const lines = useMemo(
     () =>
-      Object.entries(qtys)
-        .filter(([, qty]) => qty > 0)
-        .map(([equipmentId, qty]) => {
-          const e = state.equipment[equipmentId];
-          return { equipmentId, qty, unitCost: (e ? costs[equipmentGroupKey(e)] : undefined) ?? e?.purchasePricePerUnit ?? 0 };
-        }),
-    [qtys, costs, state.equipment]
+      grid.entries.map(({ equipmentId, qty }) => {
+        const e = state.equipment[equipmentId];
+        return { equipmentId, qty, unitCost: (e ? costs[equipmentGroupKey(e)] : undefined) ?? e?.purchasePricePerUnit ?? 0 };
+      }),
+    [grid.entries, costs, state.equipment]
   );
 
   const dirty = !saved && (lines.length > 0 || note.trim().length > 0 || poNumber.trim().length > 0);
   useUnsavedChangesGuard(dirty);
 
-  const groupItems = (key: string) => Object.values(state.equipment).filter((e) => e.status === "active" && equipmentGroupKey(e) === key);
-
   function addGroup(equipmentId: string) {
-    const equipment = state.equipment[equipmentId];
-    if (!equipment) return;
-    const key = equipmentGroupKey(equipment);
-    if (groupKeys.includes(key)) {
+    const added = grid.addGroup(equipmentId);
+    if (!added) {
       toastError("เพิ่มรายการนี้ไว้แล้ว");
       return;
     }
-    setGroupKeys((prev) => [...prev, key]);
-    setCosts((prev) => ({ ...prev, [key]: equipment.purchasePricePerUnit ?? 0 }));
-  }
-
-  function removeGroup(key: string) {
-    const ids = new Set(groupItems(key).map((e) => e.id));
-    setGroupKeys((prev) => prev.filter((k) => k !== key));
-    setQtys((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => !ids.has(id))));
+    setCosts((prev) => ({ ...prev, [added.key]: added.first.purchasePricePerUnit ?? 0 }));
   }
 
   const totalQty = lines.reduce((s, l) => s + l.qty, 0);
@@ -179,27 +165,20 @@ function EquipmentStockInForm({ onAgain }: { onAgain: () => void }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <EquipmentPicker warehouseId={warehouseId} onSelect={addGroup} placeholder="ค้นหาอุปกรณ์ด้วยชื่อ แล้วกรอกจำนวนในตารางด้านล่าง..." />
-          {groupKeys.length === 0 ? (
+          {grid.groupKeys.length === 0 ? (
             <EmptyState icon={<PackagePlus className="h-10 w-10" />} title="ยังไม่มีรายการอุปกรณ์" description="ค้นหาและเลือกอุปกรณ์ด้านบน จะขึ้นเป็นตารางรายไซซ์ให้กรอกจำนวนที่รับได้เลย" />
           ) : (
             <div className="flex flex-col gap-4">
-              {groupKeys.map((key) => (
-                <EquipmentStockInGrid
+              {grid.groupKeys.map((key) => (
+                <EquipmentQtyGrid
                   key={key}
                   groupKey={key}
                   warehouseId={warehouseId}
-                  qtys={qtys}
+                  qtys={grid.qtys}
                   unitCost={costs[key] ?? 0}
-                  onQty={(id, qty) =>
-                    setQtys((prev) => {
-                      const next = { ...prev };
-                      if (qty === undefined) delete next[id];
-                      else next[id] = qty;
-                      return next;
-                    })
-                  }
+                  onQty={grid.setQty}
                   onCost={(cost) => setCosts((prev) => ({ ...prev, [key]: cost }))}
-                  onRemove={() => removeGroup(key)}
+                  onRemove={() => grid.removeGroup(key)}
                 />
               ))}
             </div>

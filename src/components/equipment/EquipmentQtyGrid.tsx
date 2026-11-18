@@ -7,24 +7,33 @@ import { getStockLevel } from "@/lib/store/engine";
 import { equipmentGroupKey, groupEquipment } from "@/lib/utils/equipmentGroups";
 import { formatNumber, formatTHB } from "@/lib/utils/money";
 
-// ตารางกรอกจำนวนรับเข้าของอุปกรณ์หนึ่งกลุ่มชื่อ (เช่น เลเบิ้ล Issa): หนึ่งคอลัมน์ต่อไซซ์ แถวบนบอกคงเหลือตอนนี้ แถวล่างให้กรอกจำนวนที่รับ (ว่าง = ไม่รับ)
-// กด Enter ไปช่องถัดไป ราคาต่อหน่วยตั้งต่อกลุ่ม (ใช้กับทุกไซซ์ในกลุ่ม)
-export function EquipmentStockInGrid({
+// ตารางกรอกจำนวนของอุปกรณ์หนึ่งกลุ่มชื่อ (เช่น เลเบิ้ล Issa): หนึ่งคอลัมน์ต่อไซซ์ แถวบนบอกคงเหลือ แถวล่างให้กรอกจำนวน (ว่าง = ไม่เอาไซซ์นั้น)
+// ใช้ร่วมกันในหน้ารับเข้า / เบิกออก / โอนย้ายอุปกรณ์ กด Enter ไปช่องถัดไป
+// รับเข้า: ส่ง onCost เพื่อโชว์ช่องราคาต่อหน่วย (ตั้งต่อกลุ่ม ใช้กับทุกไซซ์) / เบิกออก-โอนย้าย: ส่ง warnOver ให้ช่องที่กรอกเกินคงเหลือขึ้นแดง
+export function EquipmentQtyGrid({
   groupKey,
   warehouseId,
   qtys,
-  unitCost,
+  unitCost = 0,
   onQty,
   onCost,
   onRemove,
+  qtyLabel = "รับเข้า",
+  stockLabel = "คงเหลือตอนนี้",
+  ariaVerb = "รับ",
+  warnOver = false,
 }: {
   groupKey: string; // equipmentGroupKey: อุปกรณ์มีไซซ์รวมกลุ่มตามชื่อ ไม่มีไซซ์เป็นกลุ่มของตัวเอง
   warehouseId: string;
   qtys: Record<string, number>;
-  unitCost: number;
+  unitCost?: number;
   onQty: (equipmentId: string, qty: number | undefined) => void;
-  onCost: (cost: number) => void;
+  onCost?: (cost: number) => void;
   onRemove: () => void;
+  qtyLabel?: string; // หัวแถวช่องกรอก เช่น รับเข้า / เบิกออก / โอน
+  stockLabel?: string; // หัวแถวคงเหลือ
+  ariaVerb?: string; // ใช้ใน aria-label ของช่องกรอก เช่น "รับ เลเบิ้ล Issa S"
+  warnOver?: boolean;
 }) {
   const equipment = useStore((s) => s.equipment);
   const stock = useStore((s) => s.equipmentStock);
@@ -48,17 +57,19 @@ export function EquipmentStockInGrid({
           {name} <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">หน่วย: {unit}</span>
         </h3>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm">
-            ราคาต่อหน่วย
-            <input
-              type="number"
-              min={0}
-              aria-label={`ราคาต่อหน่วย ${name}`}
-              value={unitCost}
-              onChange={(e) => onCost(Math.max(0, Number(e.target.value) || 0))}
-              className="h-9 w-24 rounded-lg border border-[var(--color-border)] bg-white px-2 text-right text-sm"
-            />
-          </label>
+          {onCost && (
+            <label className="flex items-center gap-2 text-sm">
+              ราคาต่อหน่วย
+              <input
+                type="number"
+                min={0}
+                aria-label={`ราคาต่อหน่วย ${name}`}
+                value={unitCost}
+                onChange={(e) => onCost(Math.max(0, Number(e.target.value) || 0))}
+                className="h-9 w-24 rounded-lg border border-[var(--color-border)] bg-white px-2 text-right text-sm"
+              />
+            </label>
+          )}
           <button type="button" onClick={onRemove} className="text-[var(--color-danger)]" aria-label={`เอา ${name} ออก`}>
             <Trash2 className="h-4 w-4" />
           </button>
@@ -79,24 +90,30 @@ export function EquipmentStockInGrid({
           </thead>
           <tbody>
             <tr className="border-b border-[var(--color-border)] text-[var(--color-on-surface-variant)]">
-              <td className="px-3 py-2 text-xs">คงเหลือตอนนี้</td>
-              {items.map((e) => (
-                <td key={e.id} className="px-1 py-2 text-center text-xs">
-                  {formatNumber(warehouseId ? getStockLevel(stock, e.id, warehouseId).qtyOnHand : 0)}
-                </td>
-              ))}
+              <td className="px-3 py-2 text-xs">{stockLabel}</td>
+              {items.map((e) => {
+                const onHand = warehouseId ? getStockLevel(stock, e.id, warehouseId).qtyOnHand : 0;
+                const over = warnOver && (qtys[e.id] ?? 0) > onHand;
+                return (
+                  <td key={e.id} className={`px-1 py-2 text-center text-xs ${over ? "font-semibold text-[var(--color-danger)]" : ""}`}>
+                    {formatNumber(onHand)}
+                  </td>
+                );
+              })}
               <td className="px-2 py-2" />
             </tr>
             <tr>
-              <td className="px-3 py-2 font-medium">รับเข้า ({unit})</td>
-              {items.map((e) => (
+              <td className="px-3 py-2 font-medium">{qtyLabel} ({unit})</td>
+              {items.map((e) => {
+                const over = warnOver && (qtys[e.id] ?? 0) > (warehouseId ? getStockLevel(stock, e.id, warehouseId).qtyOnHand : 0);
+                return (
                 <td key={e.id} className="px-1 py-1.5 text-center">
                   <input
                     type="number"
                     min={0}
                     inputMode="numeric"
                     data-receive-cell
-                    aria-label={`รับ ${name}${e.size ? ` ${e.size}` : ""}`}
+                    aria-label={`${ariaVerb} ${name}${e.size ? ` ${e.size}` : ""}`}
                     value={qtys[e.id] ?? ""}
                     placeholder="–"
                     onChange={(ev) => {
@@ -104,16 +121,17 @@ export function EquipmentStockInGrid({
                       onQty(e.id, raw === "" ? undefined : Math.max(0, Math.floor(Number(raw)) || 0));
                     }}
                     onKeyDown={nextOnEnter}
-                    className="h-9 w-16 rounded-lg border border-[var(--color-border)] bg-white px-1 text-center text-sm font-semibold focus:border-[var(--color-primary-container)] focus:outline-none"
+                    className={`h-9 w-16 rounded-lg border bg-white px-1 text-center text-sm font-semibold focus:outline-none ${over ? "border-[var(--color-danger)] text-[var(--color-danger)]" : "border-[var(--color-border)] focus:border-[var(--color-primary-container)]"}`}
                   />
                 </td>
-              ))}
+                );
+              })}
               <td className="bg-[var(--color-surface-container)] px-2 py-2 text-center font-semibold">{formatNumber(total)}</td>
             </tr>
           </tbody>
         </table>
       </div>
-      {total > 0 && <p className="mt-2 text-right text-sm text-[var(--color-on-surface-variant)]">มูลค่า {formatTHB(total * unitCost)}</p>}
+      {onCost && total > 0 && <p className="mt-2 text-right text-sm text-[var(--color-on-surface-variant)]">มูลค่า {formatTHB(total * unitCost)}</p>}
     </Card>
   );
 }

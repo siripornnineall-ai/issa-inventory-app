@@ -1,8 +1,7 @@
 "use client";
 
-import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import { useMemo, useState } from "react";
-import { Trash2, ArrowLeftRight, CheckCircle2, XCircle } from "lucide-react";
+import { ArrowLeftRight, CheckCircle2, XCircle } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { RequireAccess } from "@/components/layout/RequireAccess";
@@ -14,6 +13,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Dialog } from "@/components/ui/Dialog";
 import { TransferStatusBadge } from "@/components/ui/Badge";
 import { EquipmentPicker } from "@/components/equipment/EquipmentPicker";
+import { EquipmentQtyGrid } from "@/components/equipment/EquipmentQtyGrid";
+import { useEquipmentGrid } from "@/components/equipment/useEquipmentGrid";
 import { useStore, useActions } from "@/lib/store";
 import { useCurrentUser, useCan } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -23,12 +24,6 @@ import { useUnsavedChangesGuard } from "@/lib/utils/useUnsavedChangesGuard";
 import { DuplicateSaveDialog } from "@/components/stock/DuplicateSaveDialog";
 import { findRecentSimilarDoc, useSaveGuard } from "@/lib/utils/saveGuard";
 import type { Transfer } from "@/lib/types";
-
-interface Line {
-  key: string;
-  equipmentId: string;
-  qty: number;
-}
 
 function CreateEquipmentTransferForm() {
   const state = useStore();
@@ -41,7 +36,9 @@ function CreateEquipmentTransferForm() {
   const [fromWarehouseId, setFromWarehouseId] = useState(activeWarehouses[0]?.id ?? "");
   const [toWarehouseId, setToWarehouseId] = useState(activeWarehouses[1]?.id ?? "");
   const [note, setNote] = useState("");
-  const [lines, setLines] = useState<Line[]>([]);
+  // ตารางกรอกจำนวนรายไซซ์ (ช่องว่าง = ไม่โอนไซซ์นั้น)
+  const grid = useEquipmentGrid();
+  const lines = grid.entries;
   // ล็อกปุ่มทันทีที่กด กันมือถือค้างแล้วสร้างรายการโอนซ้ำ
   const guard = useSaveGuard();
   const saving = guard.locked;
@@ -49,23 +46,11 @@ function CreateEquipmentTransferForm() {
   const dirty = lines.length > 0 || note.trim().length > 0;
   useUnsavedChangesGuard(dirty);
 
-  function addLine(equipmentId: string) {
-    if (lines.some((l) => l.equipmentId === equipmentId)) {
-      toastError("เพิ่มรายการนี้ไว้แล้ว");
-      return;
-    }
-    setLines((prev) => [...prev, { key: equipmentId, equipmentId, qty: 1 }]);
+  function addGroup(equipmentId: string) {
+    if (!grid.addGroup(equipmentId)) toastError("เพิ่มรายการนี้ไว้แล้ว");
   }
 
-  function updateLine(key: string, qty: number) {
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, qty } : l)));
-  }
-
-  function removeLine(key: string) {
-    setLines((prev) => prev.filter((l) => l.key !== key));
-  }
-
-  const totalQty = lines.reduce((s, l) => s + (l.qty || 0), 0);
+  const totalQty = lines.reduce((s, l) => s + l.qty, 0);
 
   function handleSubmit() {
     if (!fromWarehouseId || !toWarehouseId) {
@@ -77,7 +62,7 @@ function CreateEquipmentTransferForm() {
       return;
     }
     if (lines.length === 0) {
-      toastError("กรุณาเพิ่มรายการอุปกรณ์อย่างน้อย 1 รายการ");
+      toastError("กรุณากรอกจำนวนที่โอนอย่างน้อย 1 ช่อง");
       return;
     }
     if (!user) return;
@@ -104,7 +89,7 @@ function CreateEquipmentTransferForm() {
         lines: lines.map((l) => ({ itemId: l.equipmentId, qty: l.qty })),
       });
       toastSuccess("สร้างรายการโอนย้ายเรียบร้อยแล้ว");
-      setLines([]);
+      grid.reset();
       setNote("");
       // ฟอร์มถูกล้างแล้ว กดซ้ำจะไม่มีรายการให้บันทึก จึงปลดล็อกให้ทำรายการต่อได้
       return "release";
@@ -149,79 +134,27 @@ function CreateEquipmentTransferForm() {
           </FormField>
         </div>
 
-        <EquipmentPicker warehouseId={fromWarehouseId} onSelect={addLine} />
+        <EquipmentPicker warehouseId={fromWarehouseId} onSelect={addGroup} placeholder="ค้นหาอุปกรณ์ด้วยชื่อ แล้วกรอกจำนวนในตารางด้านล่าง..." />
 
-        {lines.length === 0 ? (
-          <EmptyState icon={<ArrowLeftRight className="h-10 w-10" />} title="ยังไม่มีรายการอุปกรณ์" description="ค้นหาและเลือกอุปกรณ์ด้านบนเพื่อเพิ่มลงในรายการโอนย้าย" />
+        {grid.groupKeys.length === 0 ? (
+          <EmptyState icon={<ArrowLeftRight className="h-10 w-10" />} title="ยังไม่มีรายการอุปกรณ์" description="ค้นหาและเลือกอุปกรณ์ด้านบน จะขึ้นเป็นตารางรายไซซ์ให้กรอกจำนวนที่โอนได้เลย" />
         ) : (
-          <>
-            {/* การ์ดสำหรับจอมือถือ */}
-            <div className="flex flex-col gap-2 sm:hidden">
-              {lines.map((l) => {
-                const equipment = state.equipment[l.equipmentId];
-                const onHand = fromWarehouseId ? state.equipmentStock[`${l.equipmentId}::${fromWarehouseId}`]?.qtyOnHand ?? 0 : 0;
-                const insufficient = l.qty > onHand;
-                return (
-                  <div key={l.key} className="rounded-lg border border-[var(--color-border)] p-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium leading-tight">{equipmentLabel(equipment)}</p>
-                        <p className={`text-xs ${insufficient ? "font-semibold text-[var(--color-danger)]" : "text-[var(--color-on-surface-variant)]"}`}>
-                          คงเหลือที่ต้นทาง {formatNumber(onHand)} {equipment?.unit}
-                        </p>
-                      </div>
-                      <button onClick={() => removeLine(l.key)} className="shrink-0 text-[var(--color-danger)]" aria-label="ลบรายการ">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                    <div className="mt-1.5">
-                      <label className="mb-0.5 block text-[10px] text-[var(--color-on-surface-variant)]">จำนวนที่โอน</label>
-                      <Input type="number" min={1} value={l.qty} onChange={(e) => updateLine(l.key, Number(e.target.value))} className="h-8 w-24 px-2 py-1 text-sm" />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* ตารางสำหรับจอกว้าง */}
-            <div className="hidden sm:block">
-              <Table>
-                <Thead>
-                  <Tr>
-                    <Th>อุปกรณ์</Th>
-                    <Th>คงเหลือที่ต้นทาง</Th>
-                    <Th>จำนวนที่โอน</Th>
-                    <Th></Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {lines.map((l) => {
-                    const equipment = state.equipment[l.equipmentId];
-                    const onHand = fromWarehouseId ? state.equipmentStock[`${l.equipmentId}::${fromWarehouseId}`]?.qtyOnHand ?? 0 : 0;
-                    const insufficient = l.qty > onHand;
-                    return (
-                      <Tr key={l.key}>
-                        <Td>
-                          <p className="font-medium">{equipmentLabel(equipment)}</p>
-                        </Td>
-                        <Td className={insufficient ? "font-semibold text-[var(--color-danger)]" : ""}>
-                          {formatNumber(onHand)} {equipment?.unit}
-                        </Td>
-                        <Td>
-                          <Input type="number" min={1} value={l.qty} onChange={(e) => updateLine(l.key, Number(e.target.value))} className="w-24" />
-                        </Td>
-                        <Td>
-                          <button onClick={() => removeLine(l.key)} className="text-[var(--color-danger)]" aria-label="ลบรายการ">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </Td>
-                      </Tr>
-                    );
-                  })}
-                </Tbody>
-              </Table>
-            </div>
-          </>
+          <div className="flex flex-col gap-4">
+            {grid.groupKeys.map((key) => (
+              <EquipmentQtyGrid
+                key={key}
+                groupKey={key}
+                warehouseId={fromWarehouseId}
+                qtys={grid.qtys}
+                onQty={grid.setQty}
+                onRemove={() => grid.removeGroup(key)}
+                qtyLabel="โอน"
+                stockLabel="คงเหลือที่ต้นทาง"
+                ariaVerb="โอน"
+                warnOver
+              />
+            ))}
+          </div>
         )}
 
         {lines.length > 0 && (
