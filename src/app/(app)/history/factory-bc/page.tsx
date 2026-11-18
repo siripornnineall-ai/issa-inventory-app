@@ -1,8 +1,9 @@
 "use client";
 
+import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Download, Search } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { RequireAccess } from "@/components/layout/RequireAccess";
@@ -69,9 +70,7 @@ function FactoryHistory({ range }: { range: DateRangeValue }) {
             ))}
           </Select>
         </div>
-        <Button variant="ghost" onClick={() => downloadWorkbook("ประวัติโรงงาน-BC.xlsx", [{ name: "ประวัติโรงงาน BC", rows: wipHistorySheetRows(rows) }])} disabled={rows.length === 0}>
-          <Download className="h-4 w-4" /> Excel
-        </Button>
+        <ExcelPickButton items={Array.from(new Set(rows.map((r) => r.productName))).map((n) => ({ id: n, label: n }))} onExport={(sel) => downloadWorkbook("ประวัติโรงงาน-BC.xlsx", [{ name: "ประวัติโรงงาน BC", rows: wipHistorySheetRows(rows.filter((r) => sel.has(r.productName))) }])} disabled={rows.length === 0} />
       </div>
 
       <p role="status" className="px-1 text-sm text-[var(--color-on-surface-variant)]">

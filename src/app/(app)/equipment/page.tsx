@@ -1,9 +1,10 @@
 "use client";
 
+import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Search, SlidersHorizontal, PackagePlus, LogIn, LogOut, Download, ImageOff, Wrench } from "lucide-react";
+import { Search, SlidersHorizontal, PackagePlus, LogIn, LogOut, ImageOff, Wrench } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -84,8 +85,8 @@ export default function EquipmentPage() {
   const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
   const paged = groups.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  function exportExcel() {
-    const rows = filtered.map((e) => {
+  function exportExcel(picked: Set<string>) {
+    const rows = filtered.filter((e) => picked.has(e.name)).map((e) => {
       const stock = equipmentStockAcrossWarehouses(state, e.id);
       return {
         "ชื่ออุปกรณ์": e.name,
@@ -135,9 +136,7 @@ export default function EquipmentPage() {
               <LogOut className="h-4 w-4" /> เบิกอุปกรณ์ออก
             </Button>
           </Link>
-          <Button variant="ghost" onClick={exportExcel}>
-            <Download className="h-4 w-4" /> Export Excel
-          </Button>
+          <ExcelPickButton label="Export Excel" itemsLabel="อุปกรณ์" items={Array.from(new Set(filtered.map((e) => e.name))).map((n) => ({ id: n, label: n }))} onExport={exportExcel} disabled={filtered.length === 0} />
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3">
