@@ -32,3 +32,38 @@ describe("planSheetRows (Excel เป็นตารางสี x ไซซ์)
     expect(rows[5].slice(0, 4)).toEqual(["รวม", 72, 228, 300]);
   });
 });
+
+import { planSheet } from "@/lib/utils/productionPlan";
+import * as XLSX from "xlsx-js-style";
+
+describe("planSheet (สีในไฟล์ Excel)", () => {
+  const m = {
+    productId: "p",
+    name: "Billie Wide",
+    sizes: ["S"],
+    colors: [{ color: "ดำ", cells: { S: { ...cell(62, 0, 0, 62), level: "out" as const } }, need: 62, demand: 62, diff: 0 }],
+    sizeNeed: {},
+    sizeDemand: {},
+    sizeDiff: {},
+    totals: { demand: 0, stock: 0, wip: 0, have: 0, diff: 0, need: 0, urgent: 0 },
+  } as unknown as PlanMatrix;
+
+  it("หัวตารางเขียวเข้ม ช่องของหมดแดง ช่องที่ต้องผลิตแดงอ่อน และไฟล์มีสีจริง", () => {
+    const { rows, fills } = planSheet(emptyState() as never, [m]);
+    expect(fills.get("1,0")?.bg).toBe("0F5F56"); // หัวตารางยอดขาย
+    expect(fills.get("3,5")?.bg).toBe("F1948A"); // สต็อกคลังของหมด (บล็อกที่ 2 เริ่มคอลัมน์ 4: สี=4, S=5)
+    expect(fills.get("3,13")?.bg).toBe("F5B7B1"); // ควรผลิตเพิ่ม > 0
+    const { fills: f2 } = planSheet(emptyState() as never, [m]);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    for (const [k, f] of f2) {
+      const [r, c] = k.split(",").map(Number);
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (!ws[ref]) ws[ref] = { t: "s", v: "" };
+      ws[ref].s = { fill: { patternType: "solid", fgColor: { rgb: f.bg ?? "FFFFFF" } } };
+    }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "x");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+    expect(buf.length).toBeGreaterThan(500);
+  });
+});

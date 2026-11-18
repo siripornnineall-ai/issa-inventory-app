@@ -16,7 +16,7 @@ import { useCan } from "@/lib/auth/session";
 import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
-import { needCutRows, wipMatrices, wipSheetRows, type WipMatrix } from "@/lib/utils/factoryWipView";
+import { needCutRows, wipMatrices, wipSheet, type WipMatrix } from "@/lib/utils/factoryWipView";
 
 function cellStyle(value: number, max: number): React.CSSProperties | undefined {
   if (value <= 0 || max <= 0) return undefined;
@@ -134,7 +134,7 @@ function FactoryContent() {
           ดูเฉพาะที่ควรเย็บ
         </label>
         <div className="ml-auto flex flex-wrap gap-2">
-          <ExcelPickButton items={matrices.map((m) => ({ id: m.productId, label: m.shape ? `${m.name} ${m.shape}` : m.name }))} onExport={(sel) => downloadWorkbook("โรงงาน-BC-ยังไม่เย็บ.xlsx", [{ name: "ยังไม่เย็บ", rows: wipSheetRows(state, matrices.filter((m) => sel.has(m.productId))) }])} disabled={matrices.length === 0} />
+          <ExcelPickButton items={matrices.map((m) => ({ id: m.productId, label: m.shape ? `${m.name} ${m.shape}` : m.name }))} onExport={(sel) => downloadWorkbook("โรงงาน-BC-ยังไม่เย็บ.xlsx", [{ name: "ยังไม่เย็บ", ...wipSheet(state, matrices.filter((m) => sel.has(m.productId))) }])} disabled={matrices.length === 0} />
           {canRecord && (
             <Link href="/factory-bc/record">
               <Button>
