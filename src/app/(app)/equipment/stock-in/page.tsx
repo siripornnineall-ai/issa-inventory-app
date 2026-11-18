@@ -1,18 +1,18 @@
 "use client";
 
-import { equipmentLabel } from "@/lib/utils/equipmentLabel";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, PackagePlus } from "lucide-react";
+import { PackagePlus } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { RequireAccess } from "@/components/layout/RequireAccess";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Select, Textarea, FormField } from "@/components/ui/Field";
-import { Table, Thead, Tbody, Tr, Th, Td } from "@/components/ui/Table";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { EquipmentPicker } from "@/components/equipment/EquipmentPicker";
+import { EquipmentStockInGrid } from "@/components/equipment/EquipmentStockInGrid";
+import { equipmentGroupKey } from "@/lib/utils/equipmentGroups";
 import { useStore, useActions } from "@/lib/store";
 import { useCurrentUser } from "@/lib/auth/session";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -22,13 +22,6 @@ import { useUnsavedChangesGuard } from "@/lib/utils/useUnsavedChangesGuard";
 import { DuplicateSaveDialog } from "@/components/stock/DuplicateSaveDialog";
 import { SaveSuccessCard, type SavedInfo } from "@/components/stock/SaveSuccessCard";
 import { findRecentSimilarDoc, useSaveGuard } from "@/lib/utils/saveGuard";
-
-interface Line {
-  key: string;
-  equipmentId: string;
-  qty: number;
-  unitCost: number;
-}
 
 function EquipmentStockInForm({ onAgain }: { onAgain: () => void }) {
   const state = useStore();
@@ -44,34 +37,52 @@ function EquipmentStockInForm({ onAgain }: { onAgain: () => void }) {
   const [poNumber, setPoNumber] = useState("");
   const [billNumber, setBillNumber] = useState("");
   const [note, setNote] = useState("");
-  const [lines, setLines] = useState<Line[]>([]);
+  // ตารางกรอกจำนวนรายไซซ์: เลือกอุปกรณ์ทีละกลุ่ม (ชื่อเดียวกันแต่ละไซซ์รวมเป็นกลุ่ม) แล้วกรอกจำนวนในช่องของแต่ละไซซ์ (ว่าง = ไม่รับ)
+  const [groupKeys, setGroupKeys] = useState<string[]>([]);
+  const [qtys, setQtys] = useState<Record<string, number>>({});
+  const [costs, setCosts] = useState<Record<string, number>>({}); // ราคาต่อหน่วยตามกลุ่ม (groupKey)
   // ล็อกปุ่มบันทึกทันทีที่กด (กันมือถือค้างแล้วบันทึกซ้ำ) และขึ้นหน้ายืนยันเมื่อสำเร็จ
   const guard = useSaveGuard();
   const saving = guard.locked;
   const [saved, setSaved] = useState<SavedInfo | null>(null);
 
+  // รายการที่จะบันทึก = ช่องที่กรอกจำนวนมากกว่า 0 (ราคาต่อหน่วยตามกลุ่มชื่อ)
+  const lines = useMemo(
+    () =>
+      Object.entries(qtys)
+        .filter(([, qty]) => qty > 0)
+        .map(([equipmentId, qty]) => {
+          const e = state.equipment[equipmentId];
+          return { equipmentId, qty, unitCost: (e ? costs[equipmentGroupKey(e)] : undefined) ?? e?.purchasePricePerUnit ?? 0 };
+        }),
+    [qtys, costs, state.equipment]
+  );
+
   const dirty = !saved && (lines.length > 0 || note.trim().length > 0 || poNumber.trim().length > 0);
   useUnsavedChangesGuard(dirty);
 
-  function addLine(equipmentId: string) {
-    if (lines.some((l) => l.equipmentId === equipmentId)) {
+  const groupItems = (key: string) => Object.values(state.equipment).filter((e) => e.status === "active" && equipmentGroupKey(e) === key);
+
+  function addGroup(equipmentId: string) {
+    const equipment = state.equipment[equipmentId];
+    if (!equipment) return;
+    const key = equipmentGroupKey(equipment);
+    if (groupKeys.includes(key)) {
       toastError("เพิ่มรายการนี้ไว้แล้ว");
       return;
     }
-    const equipment = state.equipment[equipmentId];
-    setLines((prev) => [...prev, { key: equipmentId, equipmentId, qty: 1, unitCost: equipment?.purchasePricePerUnit ?? 0 }]);
+    setGroupKeys((prev) => [...prev, key]);
+    setCosts((prev) => ({ ...prev, [key]: equipment.purchasePricePerUnit ?? 0 }));
   }
 
-  function updateLine(key: string, patch: Partial<Line>) {
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  function removeGroup(key: string) {
+    const ids = new Set(groupItems(key).map((e) => e.id));
+    setGroupKeys((prev) => prev.filter((k) => k !== key));
+    setQtys((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => !ids.has(id))));
   }
 
-  function removeLine(key: string) {
-    setLines((prev) => prev.filter((l) => l.key !== key));
-  }
-
-  const totalQty = lines.reduce((s, l) => s + (l.qty || 0), 0);
-  const totalCost = lines.reduce((s, l) => s + (l.qty || 0) * (l.unitCost || 0), 0);
+  const totalQty = lines.reduce((s, l) => s + l.qty, 0);
+  const totalCost = lines.reduce((s, l) => s + l.qty * l.unitCost, 0);
 
   function handleSubmit() {
     if (!warehouseId) {
@@ -79,7 +90,7 @@ function EquipmentStockInForm({ onAgain }: { onAgain: () => void }) {
       return;
     }
     if (lines.length === 0) {
-      toastError("กรุณาเพิ่มรายการอุปกรณ์อย่างน้อย 1 รายการ");
+      toastError("กรุณากรอกจำนวนรับเข้าอย่างน้อย 1 ช่อง");
       return;
     }
     if (!user) return;
@@ -167,104 +178,31 @@ function EquipmentStockInForm({ onAgain }: { onAgain: () => void }) {
           <CardTitle>รายการอุปกรณ์</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <EquipmentPicker warehouseId={warehouseId} onSelect={addLine} />
-          {lines.length === 0 ? (
-            <EmptyState icon={<PackagePlus className="h-10 w-10" />} title="ยังไม่มีรายการอุปกรณ์" description="ค้นหาและเลือกอุปกรณ์ด้านบนเพื่อเพิ่มลงในรายการรับเข้า" />
+          <EquipmentPicker warehouseId={warehouseId} onSelect={addGroup} placeholder="ค้นหาอุปกรณ์ด้วยชื่อ แล้วกรอกจำนวนในตารางด้านล่าง..." />
+          {groupKeys.length === 0 ? (
+            <EmptyState icon={<PackagePlus className="h-10 w-10" />} title="ยังไม่มีรายการอุปกรณ์" description="ค้นหาและเลือกอุปกรณ์ด้านบน จะขึ้นเป็นตารางรายไซซ์ให้กรอกจำนวนที่รับได้เลย" />
           ) : (
-            <>
-              {/* การ์ดสำหรับจอมือถือ */}
-              <div className="flex flex-col gap-2 sm:hidden">
-                {lines.map((l) => {
-                  const equipment = state.equipment[l.equipmentId];
-                  return (
-                    <div key={l.key} className="rounded-lg border border-[var(--color-border)] p-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium leading-tight">{equipmentLabel(equipment)}</p>
-                        </div>
-                        <button onClick={() => removeLine(l.key)} className="shrink-0 text-[var(--color-danger)]" aria-label="ลบรายการ">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                      <div className="mt-1.5 flex items-end gap-1.5">
-                        <div className="flex-1">
-                          <label className="mb-0.5 block text-[10px] text-[var(--color-on-surface-variant)]">จำนวน</label>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={l.qty}
-                            onChange={(e) => updateLine(l.key, { qty: Number(e.target.value) })}
-                            className="h-8 px-2 py-1 text-sm"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <label className="mb-0.5 block text-[10px] text-[var(--color-on-surface-variant)]">ราคาต่อหน่วย</label>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={l.unitCost}
-                            onChange={(e) => updateLine(l.key, { unitCost: Number(e.target.value) })}
-                            className="h-8 px-2 py-1 text-sm"
-                          />
-                        </div>
-                        <p className="h-8 shrink-0 pl-1 pt-1.5 text-sm font-semibold">{formatTHB(l.qty * l.unitCost)}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* ตารางสำหรับจอกว้าง */}
-              <div className="hidden sm:block">
-                <Table>
-                  <Thead>
-                    <Tr>
-                      <Th>อุปกรณ์</Th>
-                      <Th>จำนวน</Th>
-                      <Th>ราคาต่อหน่วย</Th>
-                      <Th>รวม</Th>
-                      <Th></Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {lines.map((l) => {
-                      const equipment = state.equipment[l.equipmentId];
-                      return (
-                        <Tr key={l.key}>
-                          <Td>
-                            <p className="font-medium">{equipmentLabel(equipment)}</p>
-                          </Td>
-                          <Td>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={l.qty}
-                              onChange={(e) => updateLine(l.key, { qty: Number(e.target.value) })}
-                              className="w-24"
-                            />
-                          </Td>
-                          <Td>
-                            <Input
-                              type="number"
-                              min={0}
-                              value={l.unitCost}
-                              onChange={(e) => updateLine(l.key, { unitCost: Number(e.target.value) })}
-                              className="w-28"
-                            />
-                          </Td>
-                          <Td>{formatTHB(l.qty * l.unitCost)}</Td>
-                          <Td>
-                            <button onClick={() => removeLine(l.key)} className="text-[var(--color-danger)]" aria-label="ลบรายการ">
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </Td>
-                        </Tr>
-                      );
-                    })}
-                  </Tbody>
-                </Table>
-              </div>
-            </>
+            <div className="flex flex-col gap-4">
+              {groupKeys.map((key) => (
+                <EquipmentStockInGrid
+                  key={key}
+                  groupKey={key}
+                  warehouseId={warehouseId}
+                  qtys={qtys}
+                  unitCost={costs[key] ?? 0}
+                  onQty={(id, qty) =>
+                    setQtys((prev) => {
+                      const next = { ...prev };
+                      if (qty === undefined) delete next[id];
+                      else next[id] = qty;
+                      return next;
+                    })
+                  }
+                  onCost={(cost) => setCosts((prev) => ({ ...prev, [key]: cost }))}
+                  onRemove={() => removeGroup(key)}
+                />
+              ))}
+            </div>
           )}
           {lines.length > 0 && (
             <div className="flex items-center justify-end gap-6 border-t border-[var(--color-border)] pt-4 text-sm">
