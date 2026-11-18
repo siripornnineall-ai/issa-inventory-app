@@ -1,8 +1,9 @@
 "use client";
 
+import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Download, Plus, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { RequireAccess } from "@/components/layout/RequireAccess";
@@ -133,9 +134,7 @@ function FactoryContent() {
           ดูเฉพาะที่ควรเย็บ
         </label>
         <div className="ml-auto flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={() => downloadWorkbook("โรงงาน-BC-ยังไม่เย็บ.xlsx", [{ name: "ยังไม่เย็บ", rows: wipSheetRows(state, matrices) }])} disabled={matrices.length === 0}>
-            <Download className="h-4 w-4" /> Excel
-          </Button>
+          <ExcelPickButton items={matrices.map((m) => ({ id: m.productId, label: m.shape ? `${m.name} ${m.shape}` : m.name }))} onExport={(sel) => downloadWorkbook("โรงงาน-BC-ยังไม่เย็บ.xlsx", [{ name: "ยังไม่เย็บ", rows: wipSheetRows(state, matrices.filter((m) => sel.has(m.productId))) }])} disabled={matrices.length === 0} />
           {canRecord && (
             <Link href="/factory-bc/record">
               <Button>

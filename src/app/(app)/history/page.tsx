@@ -1,8 +1,9 @@
 "use client";
 
+import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, SlidersHorizontal, Download, History as HistoryIcon, Pencil, Factory } from "lucide-react";
+import { Search, SlidersHorizontal, History as HistoryIcon, Pencil, Factory } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -120,10 +121,10 @@ export default function HistoryPage() {
     setPage(1);
   }
 
-  function exportExcel() {
+  function exportExcel(picked: Set<string>) {
     // ส่งออกเฉพาะประวัติคำสั่งซื้อที่ขายออก (movementType === "sale") เท่านั้น
     // ไม่รวมรับเข้า/โอนย้าย/ปรับยอด/สาเหตุอื่น ๆ แม้ว่าหน้าจอจะกรองแบบอื่นอยู่ก็ตาม
-    const saleRows = filtered.filter((m) => m.movementType === "sale");
+    const saleRows = filtered.filter((m) => m.movementType === "sale" && picked.has(m.itemName));
     if (saleRows.length === 0) {
       toastError("ไม่พบประวัติคำสั่งซื้อที่ขายออกในช่วงเวลา/ตัวกรองที่เลือก");
       return;
@@ -264,9 +265,7 @@ export default function HistoryPage() {
                 <Factory className="h-4 w-4" /> ประวัติโรงงาน BC
               </Button>
             </Link>
-            <Button variant="ghost" onClick={exportExcel}>
-              <Download className="h-4 w-4" /> Export Excel (เฉพาะรายการขาย)
-            </Button>
+            <ExcelPickButton label="Export Excel (เฉพาะรายการขาย)" itemsLabel="รายการ" items={Array.from(new Set(filtered.filter((m) => m.movementType === "sale").map((m) => m.itemName))).map((n) => ({ id: n, label: n }))} onExport={exportExcel} />
           </div>
         </div>
 

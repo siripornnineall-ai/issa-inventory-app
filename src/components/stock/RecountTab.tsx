@@ -1,10 +1,10 @@
 "use client";
 
+import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Download, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useStore } from "@/lib/store";
@@ -51,19 +51,20 @@ export function RecountTab({ brandId, setBrandId }: { brandId: string; setBrandI
   const cells = products.reduce((s, p) => s + p.countedCells, 0);
   const diffCells = products.reduce((s, p) => s + p.diffCells, 0);
 
+  const allModelItems = useMemo(() => Object.values(state.products).map((p) => ({ id: p.id, label: p.sellingName })).sort((a, b) => a.label.localeCompare(b.label, "th")), [state.products]);
   const firstCount = useMemo(() => firstCountMs(state, sinceMs), [state, sinceMs]);
 
   // ส่งออกช่วงที่เลือก หรือทุกเดือนย้อนหลัง (หนึ่งชีตต่อเดือน) ใช้ตัวกรองรุ่น/แบรนด์/คลังและตัวเลือกซ่อนช่วงตั้งต้นที่ตั้งไว้เหมือนกัน
-  function exportExcel(allMonths: boolean) {
+  function exportExcel(allMonths: boolean, picked: Set<string>) {
     if (!allMonths) {
-      const list = recountFor(period).filter(keep);
+      const list = recountFor(period).filter(keep).filter((p) => picked.has(p.productId));
       if (list.length === 0) return;
       downloadWorkbook(`นับสต็อก-${periodFileKey(period)}.xlsx`, [{ name: periodFileKey(period), rows: recountSheetRows(`ผลนับสต็อก ${label}`, list) }]);
       return;
     }
     const sheets = monthSheets(monthsSince(firstCount), (m) => {
       const p = monthPeriod(m.year, m.month0);
-      const list = recountFor(p).filter(keep);
+      const list = recountFor(p).filter(keep).filter((x) => picked.has(x.productId));
       return list.length === 0 ? null : recountSheetRows(`ผลนับสต็อก ${periodLabel(p)}`, list);
     });
     downloadWorkbook("นับสต็อก-ทุกเดือน.xlsx", sheets);
@@ -101,12 +102,8 @@ export function RecountTab({ brandId, setBrandId }: { brandId: string; setBrandI
           รวมการนับช่วงตั้งต้นระบบ (ก่อน {earlyLabel})
         </label>
         <div className="ml-auto flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={() => exportExcel(false)} disabled={products.length === 0}>
-            <Download className="h-4 w-4" /> Excel ช่วงที่เลือก
-          </Button>
-          <Button variant="ghost" onClick={() => exportExcel(true)} disabled={firstCount === null} title="ไฟล์เดียว หนึ่งชีตต่อเดือน ย้อนหลังตั้งแต่เดือนที่นับสต็อกครั้งแรก">
-            <Download className="h-4 w-4" /> Excel ทุกเดือนย้อนหลัง
-          </Button>
+          <ExcelPickButton label="Excel ช่วงที่เลือก" items={products.map((p) => ({ id: p.productId, label: p.name }))} onExport={(sel) => exportExcel(false, sel)} disabled={products.length === 0} />
+          <ExcelPickButton label="Excel ทุกเดือนย้อนหลัง" items={allModelItems} onExport={(sel) => exportExcel(true, sel)} disabled={firstCount === null} title="ไฟล์เดียว หนึ่งชีตต่อเดือน ย้อนหลังตั้งแต่เดือนที่นับสต็อกครั้งแรก" />
         </div>
       </div>
 

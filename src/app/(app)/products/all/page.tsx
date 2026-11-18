@@ -1,5 +1,6 @@
 "use client";
 
+import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -10,7 +11,6 @@ import {
   PackagePlus,
   LogIn,
   LogOut,
-  Download,
   ImageOff,
   Tag,
   Truck,
@@ -98,8 +98,8 @@ export default function ProductsAllPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  function exportExcel() {
-    const rows = filtered.map((p) => {
+  function exportExcel(picked: Set<string>) {
+    const rows = filtered.filter((p) => picked.has(p.id)).map((p) => {
       const agg = productAggregate(state, p.id);
       const variants = productVariants(state, p.id);
       return {
@@ -206,9 +206,7 @@ export default function ProductsAllPage() {
               <LogOut className="h-4 w-4" /> เบิกสินค้าออก
             </Button>
           </Link>
-          <Button variant="ghost" onClick={exportExcel}>
-            <Download className="h-4 w-4" /> Export Excel
-          </Button>
+          <ExcelPickButton label="Export Excel" items={filtered.map((p) => ({ id: p.id, label: p.sellingName }))} onExport={exportExcel} disabled={filtered.length === 0} />
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3">

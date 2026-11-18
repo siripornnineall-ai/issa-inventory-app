@@ -1,7 +1,8 @@
 "use client";
 
+import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useMemo, useState } from "react";
-import { Download, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -141,7 +142,9 @@ function PairList({ items }: { items: { from: string; to: string; pieces: number
   );
 }
 
-function exportExcel(s: ReturnSummary, rangeLabel: string) {
+function exportExcel(s0: ReturnSummary, rangeLabel: string, picked: Set<string>) {
+  // เลือกรุ่นแล้ว กรองชีตที่แยกตามรุ่น/รายการ (ชีตสรุปรวมยังเป็นภาพรวมของช่วงที่เลือกทั้งหมด)
+  const s = { ...s0, byProduct: s0.byProduct.filter((p) => picked.has(p.name)), rows: s0.rows.filter((r) => picked.has(r.productName)) };
   downloadWorkbook(`สรุปสินค้าคืน_${rangeLabel.replace(/[\\/:*?"<>|\s]+/g, "_")}.xlsx`, [
     {
       name: "สรุป",
@@ -258,9 +261,7 @@ function SummaryContent() {
           />
         </div>
         <div>
-          <Button variant="secondary" onClick={() => exportExcel(summary, rangeLabel)} disabled={summary.rows.length === 0}>
-            <Download className="h-4 w-4" /> ดาวน์โหลด Excel
-          </Button>
+          <ExcelPickButton variant="secondary" label="ดาวน์โหลด Excel" items={summary.byProduct.map((p) => ({ id: p.name, label: p.name, hint: `${p.pieces} ชิ้น` }))} onExport={(sel) => exportExcel(summary, rangeLabel, sel)} disabled={summary.rows.length === 0} />
         </div>
       </div>
 
