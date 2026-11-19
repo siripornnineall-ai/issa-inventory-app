@@ -143,12 +143,12 @@ function ProductBlock({ product: p, defaultOpen, prevLabel }: { product: Product
               <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
                 <th className="sticky left-0 z-10 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-left font-medium">สี</th>
                 {p.sizes.map((s) => (
-                  <th key={s} className="px-3 py-2 text-center font-medium">
+                  <th key={s} className="px-1.5 py-2 text-center sm:px-3 font-medium">
                     {s}
                   </th>
                 ))}
-                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-3 py-2 text-center font-medium">รวมต่อสี</th>
-                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-3 py-2 text-center font-medium">%</th>
+                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">รวมต่อสี</th>
+                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">%</th>
               </tr>
             </thead>
             <tbody>
@@ -158,24 +158,24 @@ function ProductBlock({ product: p, defaultOpen, prevLabel }: { product: Product
                   {p.sizes.map((s) => {
                     const n = c.cells[s] ?? 0;
                     return (
-                      <td key={s} style={cellStyle(n, p.maxCell)} className={`px-3 py-2 text-center ${n < 0 ? "font-semibold text-[var(--color-danger)]" : n === 0 ? "text-[var(--color-on-surface-variant)]/50" : ""}`}>
+                      <td key={s} style={cellStyle(n, p.maxCell)} className={`px-1.5 py-2 text-center sm:px-3 ${n < 0 ? "font-semibold text-[var(--color-danger)]" : n === 0 ? "text-[var(--color-on-surface-variant)]/50" : ""}`}>
                         {formatNumber(n)}
                       </td>
                     );
                   })}
-                  <td className={`bg-[var(--color-surface-container)] px-3 py-2 text-center font-semibold ${c.total < 0 ? "text-[var(--color-danger)]" : ""}`}>{formatNumber(c.total)}</td>
-                  <td className="px-3 py-2 text-center text-[var(--color-on-surface-variant)]">{c.sharePct === null ? "–" : `${c.sharePct}%`}</td>
+                  <td className={`bg-[var(--color-surface-container)] px-1.5 py-2 text-center sm:px-3 font-semibold ${c.total < 0 ? "text-[var(--color-danger)]" : ""}`}>{formatNumber(c.total)}</td>
+                  <td className="px-1.5 py-2 text-center sm:px-3 text-[var(--color-on-surface-variant)]">{c.sharePct === null ? "–" : `${c.sharePct}%`}</td>
                 </tr>
               ))}
               <tr className="bg-[var(--color-surface-container)] font-semibold">
                 <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-3 py-2">รวมต่อไซซ์</td>
                 {p.sizes.map((s) => (
-                  <td key={s} className={`px-3 py-2 text-center ${(p.sizeTotals[s] ?? 0) < 0 ? "text-[var(--color-danger)]" : ""}`}>
+                  <td key={s} className={`px-1.5 py-2 text-center sm:px-3 ${(p.sizeTotals[s] ?? 0) < 0 ? "text-[var(--color-danger)]" : ""}`}>
                     {formatNumber(p.sizeTotals[s] ?? 0)}
                   </td>
                 ))}
-                <td className="px-3 py-2 text-center">{formatNumber(p.net)}</td>
-                <td className="px-3 py-2 text-center">{p.net > 0 ? "100%" : "–"}</td>
+                <td className="px-1.5 py-2 text-center sm:px-3">{formatNumber(p.net)}</td>
+                <td className="px-1.5 py-2 text-center sm:px-3">{p.net > 0 ? "100%" : "–"}</td>
               </tr>
             </tbody>
           </table>

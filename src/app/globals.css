@@ -72,3 +72,35 @@ h3 {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* มือถือ (จอแคบ): ปุ่ม/ช่องที่เล็กเกินกดไม่ถูก ขยายพื้นที่กดให้ถึง ~40 พิกเซล และตัวหนังสือจิ๋วขยับขึ้นให้พออ่านได้ ไม่กระทบจอคอม */
+@media (max-width: 767px) {
+  /* ปุ่มไอคอนล้วนที่ไม่ได้กำหนดขนาดเอง (แก้ไข ลบ ฯลฯ ที่เดิมเล็กแค่ 16 พิกเซล): ขยายพื้นที่กดด้วย padding แล้วดึงกลับด้วย margin ลบ ไม่ทำให้แถวสูงขึ้น */
+  button:has(> svg:only-child):not([class*="h-"]):not([class*="w-"]):not([class*="p-"]) {
+    padding: 12px;
+    margin: -12px;
+  }
+  /* ปุ่มไอคอนที่กำหนดขนาดเองแต่เล็กกว่า 40 (เช่นปุ่มปิดเมนู 32 พิกเซล) */
+  button:has(> svg:only-child)[class*="h-8"] {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  /* ปุ่มตัวอักษร เช่น ชิปเลือกช่วงวันที่ ปุ่มขนาดเล็ก ป้ายสถานะที่กดได้ */
+  button:not(:has(> svg:only-child)) {
+    min-height: 40px;
+  }
+  /* ตัวหนังสือจิ๋วใน Tailwind (text-[10px] / text-[11px]) */
+  [class*="text-[10px]"] {
+    font-size: 11.5px;
+  }
+  [class*="text-[11px]"] {
+    font-size: 12px;
+  }
+  /* ลิงก์ที่เป็นแถวในรายการ (ชื่อสินค้า ฯลฯ) ให้แตะง่ายขึ้นโดยไม่ดันเลย์เอาต์ */
+  li > a:only-child,
+  td > a:only-child,
+  a.block {
+    padding-block: 10px;
+    margin-block: -10px;
+  }
+}

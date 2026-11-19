@@ -129,7 +129,7 @@ export default function ReportsPage() {
         title="รายงาน"
         description="สรุปยอดขาย สินค้าขายดี และภาพรวมสต็อกสำหรับช่วงเวลาที่เลือก"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <DateRangePicker value={range} onChange={setRange} />
             {canExport && (
               <Button variant="secondary" onClick={exportExcel}>
