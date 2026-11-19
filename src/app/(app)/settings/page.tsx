@@ -20,6 +20,7 @@ import { ChannelsEditor } from "@/components/settings/ChannelsEditor";
 import { BannerEditor } from "@/components/settings/BannerEditor";
 import { BrandBannersCard } from "@/components/settings/BrandBannersCard";
 import { BrandSlidesCard } from "@/components/settings/BrandSlidesCard";
+import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { StockAuditCard } from "@/components/settings/StockAuditCard";
 import { NightlyCheckCard } from "@/components/settings/NightlyCheckCard";
 import { BrandColorsCard } from "@/components/settings/BrandColorsCard";
@@ -176,90 +177,100 @@ export default function SettingsPage() {
           <BrandColorsCard />
         </RequireAccess>
 
-        <RequireAccess perm="settings.write">
-          <Card>
-            <CardHeader>
-              <CardTitle>เว็บไซต์หน้าร้าน (ISSA Apparel Storefront)</CardTitle>
-              <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                ข้อความบนหน้าแรกของเว็บลูกค้า — แก้แล้วขึ้นเว็บเองภายในไม่เกิน 1 นาที ไม่ต้องแจ้งใคร
-              </p>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-4 pt-0">
-              <FormField label="ข้อความแบนเนอร์บนสุด" hint="เช่น เงื่อนไขส่งฟรี, โปรโมชันสั้น ๆ">
-                <Input value={announcementText} onChange={(e) => setAnnouncementText(e.target.value)} />
-              </FormField>
-
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <FormField label="พาดหัวหน้าแรก บรรทัดที่ 1">
-                  <Input value={heroHeadingLine1} onChange={(e) => setHeroHeadingLine1(e.target.value)} />
-                </FormField>
-                <FormField label="พาดหัวหน้าแรก บรรทัดที่ 2">
-                  <Input value={heroHeadingLine2} onChange={(e) => setHeroHeadingLine2(e.target.value)} />
-                </FormField>
-              </div>
-              <FormField label="คำโปรยใต้พาดหัว">
-                <Input value={heroTagline} onChange={(e) => setHeroTagline(e.target.value)} />
-              </FormField>
-              <BannerEditor
-                title="แบนเนอร์ใหญ่หน้าแรก (Hero)"
-                folder="hero"
-                imageUrl={heroImageUrl}
-                onImageChange={setHeroImageUrl}
-                layout={heroLayout}
-                onLayoutChange={setHeroLayout}
-              />
-
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <FormField label="หัวข้อแบนเนอร์โปรโมชัน บรรทัดที่ 1">
-                  <Input value={promoHeadingLine1} onChange={(e) => setPromoHeadingLine1(e.target.value)} />
-                </FormField>
-                <FormField label="หัวข้อแบนเนอร์โปรโมชัน บรรทัดที่ 2">
-                  <Input value={promoHeadingLine2} onChange={(e) => setPromoHeadingLine2(e.target.value)} />
-                </FormField>
-              </div>
-              <FormField label="คำอธิบายแบนเนอร์โปรโมชัน">
-                <Input value={promoSubtext} onChange={(e) => setPromoSubtext(e.target.value)} />
-              </FormField>
-              <BannerEditor
-                title="แบนเนอร์โปรโมชัน"
-                folder="promo"
-                imageUrl={promoImageUrl}
-                onImageChange={setPromoImageUrl}
-                layout={promoLayout}
-                onLayoutChange={setPromoLayout}
-              />
-
-              <div className="mt-2 border-t border-[var(--color-outline-variant)] pt-4">
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <FormField label="เบอร์โทรศัพท์ร้าน" hint="แสดงที่หน้า Contact">
-                    <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
-                  </FormField>
-                </div>
-              </div>
-
-              <div className="flex items-end">
-                <Button onClick={saveStorefrontSettings}>บันทึกข้อความหน้าเว็บ</Button>
-              </div>
-
-              <ChannelsEditor />
-            </CardContent>
-          </Card>
-        </RequireAccess>
-
-        <RequireAccess perm="settings.write">
-          <BrandBannersCard />
-        </RequireAccess>
-
         <RequireAccess perm="master.write">
-          <WebCollectionsCard />
-        </RequireAccess>
+          <CollapsibleSection title="ตั้งค่าเว็บไซต์หน้าร้าน" description="ข้อความ แบนเนอร์ วิดีโอ และช่องทางขายของเว็บลูกค้า (กดเพื่อเปิด)">
+            <CollapsibleSection nested title="ข้อความ แบนเนอร์หน้าแรก และช่องทางติดต่อ" description="ข้อความบนเว็บ แบนเนอร์ใหญ่/โปรโมชัน เบอร์โทร ช่องทางขาย">
+            <RequireAccess perm="settings.write">
+              <Card>
+                <CardHeader>
+                  <CardTitle>เว็บไซต์หน้าร้าน (ISSA Apparel Storefront)</CardTitle>
+                  <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                    ข้อความบนหน้าแรกของเว็บลูกค้า — แก้แล้วขึ้นเว็บเองภายในไม่เกิน 1 นาที ไม่ต้องแจ้งใคร
+                  </p>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 gap-4 pt-0">
+                  <FormField label="ข้อความแบนเนอร์บนสุด" hint="เช่น เงื่อนไขส่งฟรี, โปรโมชันสั้น ๆ">
+                    <Input value={announcementText} onChange={(e) => setAnnouncementText(e.target.value)} />
+                  </FormField>
 
-        <RequireAccess perm="settings.write">
-          <FeedVideosCard />
-        </RequireAccess>
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <FormField label="พาดหัวหน้าแรก บรรทัดที่ 1">
+                      <Input value={heroHeadingLine1} onChange={(e) => setHeroHeadingLine1(e.target.value)} />
+                    </FormField>
+                    <FormField label="พาดหัวหน้าแรก บรรทัดที่ 2">
+                      <Input value={heroHeadingLine2} onChange={(e) => setHeroHeadingLine2(e.target.value)} />
+                    </FormField>
+                  </div>
+                  <FormField label="คำโปรยใต้พาดหัว">
+                    <Input value={heroTagline} onChange={(e) => setHeroTagline(e.target.value)} />
+                  </FormField>
+                  <BannerEditor
+                    title="แบนเนอร์ใหญ่หน้าแรก (Hero)"
+                    folder="hero"
+                    imageUrl={heroImageUrl}
+                    onImageChange={setHeroImageUrl}
+                    layout={heroLayout}
+                    onLayoutChange={setHeroLayout}
+                  />
 
-        <RequireAccess perm="settings.write">
-          <BrandSlidesCard />
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <FormField label="หัวข้อแบนเนอร์โปรโมชัน บรรทัดที่ 1">
+                      <Input value={promoHeadingLine1} onChange={(e) => setPromoHeadingLine1(e.target.value)} />
+                    </FormField>
+                    <FormField label="หัวข้อแบนเนอร์โปรโมชัน บรรทัดที่ 2">
+                      <Input value={promoHeadingLine2} onChange={(e) => setPromoHeadingLine2(e.target.value)} />
+                    </FormField>
+                  </div>
+                  <FormField label="คำอธิบายแบนเนอร์โปรโมชัน">
+                    <Input value={promoSubtext} onChange={(e) => setPromoSubtext(e.target.value)} />
+                  </FormField>
+                  <BannerEditor
+                    title="แบนเนอร์โปรโมชัน"
+                    folder="promo"
+                    imageUrl={promoImageUrl}
+                    onImageChange={setPromoImageUrl}
+                    layout={promoLayout}
+                    onLayoutChange={setPromoLayout}
+                  />
+
+                  <div className="mt-2 border-t border-[var(--color-outline-variant)] pt-4">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                      <FormField label="เบอร์โทรศัพท์ร้าน" hint="แสดงที่หน้า Contact">
+                        <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
+                      </FormField>
+                    </div>
+                  </div>
+
+                  <div className="flex items-end">
+                    <Button onClick={saveStorefrontSettings}>บันทึกข้อความหน้าเว็บ</Button>
+                  </div>
+
+                  <ChannelsEditor />
+                </CardContent>
+              </Card>
+            </RequireAccess>
+            </CollapsibleSection>
+            <CollapsibleSection nested title="แบนเนอร์ของแต่ละแบรนด์" description="แบนเนอร์บนหน้าแรกเว็บ แยกตามแบรนด์">
+            <RequireAccess perm="settings.write">
+              <BrandBannersCard />
+            </RequireAccess>
+            </CollapsibleSection>
+            <CollapsibleSection nested title="คอลเลกชันและรูปคู่ทรง">
+            <RequireAccess perm="master.write">
+              <WebCollectionsCard />
+            </RequireAccess>
+            </CollapsibleSection>
+            <CollapsibleSection nested title="วิดีโอ Shop the Feed" description="คลิปบนหน้าแรกเว็บ">
+            <RequireAccess perm="settings.write">
+              <FeedVideosCard />
+            </RequireAccess>
+            </CollapsibleSection>
+            <CollapsibleSection nested title="สไลด์รูปของแต่ละแบรนด์">
+            <RequireAccess perm="settings.write">
+              <BrandSlidesCard />
+            </RequireAccess>
+            </CollapsibleSection>
+          </CollapsibleSection>
         </RequireAccess>
 
         <RequireAccess perm="master.write">
