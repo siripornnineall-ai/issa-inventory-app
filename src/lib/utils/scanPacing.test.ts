@@ -19,4 +19,20 @@ describe("จังหวะถอดรหัส QR ตามความแร
   it("เครื่องกลับมาเร็ว → รอบกลับไปที่ค่าฐาน", () => {
     expect(nextQrPacing({ width: 640, intervalMs: 900 }, 10, 100).intervalMs).toBe(100);
   });
+
+  it("ย่อไปแล้วแต่เครื่องกลับมาเร็ว → ขยายภาพกลับทีละขั้น ไม่ค้างที่ภาพเล็ก", () => {
+    let p = { width: 640, intervalMs: 100 };
+    for (let i = 0; i < 6; i++) p = nextQrPacing(p, 10, 100);
+    expect(p.width).toBe(1280);
+  });
+
+  it("ขยายกลับได้ไม่เกินความกว้างสูงสุดของเครื่องนั้น", () => {
+    let p = { width: 640, intervalMs: 400 };
+    for (let i = 0; i < 6; i++) p = nextQrPacing(p, 10, 400, 640);
+    expect(p.width).toBe(640);
+  });
+
+  it("ช้าปานกลาง (40-80 มิลลิวินาที) → คงขนาดเดิม ไม่แกว่ง", () => {
+    expect(nextQrPacing({ width: 960, intervalMs: 100 }, 60, 100).width).toBe(960);
+  });
 });
