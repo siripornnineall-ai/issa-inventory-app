@@ -16,7 +16,7 @@ import { useCan } from "@/lib/auth/session";
 import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
-import { needCutRows, sewAdvice, sortMatricesByShortage, wipMatrices, wipSheet, type SewAdviceRow, type WipMatrix } from "@/lib/utils/factoryWipView";
+import { sewAdvice, sortMatricesByShortage, wipMatrices, wipSheet, type SewAdviceRow, type WipMatrix } from "@/lib/utils/factoryWipView";
 import { netSalesByVariant } from "@/lib/utils/salesMatrix";
 import { createClient } from "@/lib/supabase/client";
 import { loadBaseline } from "@/lib/supabase/salesBaseline";
@@ -203,7 +203,6 @@ function FactoryContent() {
   }, [state, baseline, nowMs]);
   const advice = useMemo(() => sewAdvice(state, demand).filter((r) => (!brandId || r.brandId === brandId) && (!search.trim() || r.productName.toLowerCase().includes(search.trim().toLowerCase()))), [state, demand, brandId, search]);
   const allMatrices = useMemo(() => sortMatricesByShortage(wipMatrices(state, { brandId, search }), advice), [state, brandId, search, advice]);
-  const needCut = useMemo(() => needCutRows(state, allMatrices), [state, allMatrices]);
   const matrices = useMemo(() => (onlyUrgent ? allMatrices.filter((m) => m.urgentCells > 0) : allMatrices), [allMatrices, onlyUrgent]);
   const total = matrices.reduce((s, m) => s + m.total, 0);
   const negative = matrices.reduce((s, m) => s + m.negativeCells, 0);
@@ -263,16 +262,6 @@ function FactoryContent() {
         <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={{ backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" }}>แดงอ่อน</span> ใกล้หมด
       </p>
       <SewAdviceCard rows={advice} sourceLabel={sourceLabel} />
-      {needCut.length > 0 && (
-        <details className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          <summary className="cursor-pointer font-medium">หมด/ใกล้หมด แต่ไม่มีชิ้นตัดรออยู่ ({formatNumber(needCut.length)} รายการ) อาจต้องสั่งตัดเพิ่ม</summary>
-          <ul className="mt-2 flex flex-col gap-1">
-            {needCut.map((r) => (
-              <li key={r.sku || `${r.productName}${r.color}${r.size}`}>{r.productName} · {r.color} · {r.size} · คลัง {formatNumber(r.stock)}</li>
-            ))}
-          </ul>
-        </details>
-      )}
       {negative > 0 && (
         <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           มี {formatNumber(negative)} ช่องที่ยอดติดลบ แปลว่ารับเข้า &quot;เย็บเสร็จ&quot; มากกว่าที่บันทึกว่าตัดไว้ ควรบันทึก &quot;ตัดเข้า&quot; หรือ &quot;ปรับยอด&quot; ให้ตรงกับของจริง
