@@ -3,7 +3,7 @@
 import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Plus, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { RequireAccess } from "@/components/layout/RequireAccess";
@@ -16,7 +16,7 @@ import { useCan } from "@/lib/auth/session";
 import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
-import { sewAdvice, sortMatricesByShortage, wipMatrices, wipSheet, type SewAdviceRow, type WipMatrix } from "@/lib/utils/factoryWipView";
+import { sewAdvice, sortMatricesByShortage, wipMatrices, wipSheet, type WipMatrix } from "@/lib/utils/factoryWipView";
 import { netSalesByVariant } from "@/lib/utils/salesMatrix";
 import { createClient } from "@/lib/supabase/client";
 import { loadBaseline } from "@/lib/supabase/salesBaseline";
@@ -103,63 +103,6 @@ function ModelBlock({ m }: { m: WipMatrix }) {
   );
 }
 
-// แจ้งเตือนเย็บตามยอดขาย: ไซซ์/สีที่ขายดีแต่ของหมดหรือใกล้หมด พร้อมจำนวนที่แนะนำ (สมส่วนกับยอดขายต่อเดือน)
-const ADVICE_PREVIEW = 12;
-
-function SewAdviceCard({ rows, sourceLabel }: { rows: SewAdviceRow[]; sourceLabel: string }) {
-  const [all, setAll] = useState(false);
-  if (rows.length === 0) return null;
-  const shown = all ? rows : rows.slice(0, ADVICE_PREVIEW);
-  const sew = rows.reduce((t, r) => t + r.sewNow, 0);
-  const cut = rows.reduce((t, r) => t + r.cutMore, 0);
-  return (
-    <Card className="border-[var(--color-danger)]/40 bg-[color-mix(in_srgb,var(--color-danger)_5%,white)] p-4" role="alert">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-[var(--color-danger)]">
-          <AlertTriangle className="h-5 w-5" /> ขายดีแต่ของหมด/ใกล้หมด — ควรเย็บ ({formatNumber(rows.length)} รายการ)
-        </h2>
-        <span className="text-sm text-[var(--color-on-surface-variant)]">
-          เย็บจากที่ตัดรออยู่ <span className="font-semibold text-[var(--color-on-surface)]">{formatNumber(sew)}</span> ชิ้น
-          {cut > 0 && (
-            <>
-              {" "}· ต้องตัดเพิ่ม <span className="font-semibold text-[var(--color-danger)]">{formatNumber(cut)}</span> ชิ้น
-            </>
-          )}
-        </span>
-      </div>
-      <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
-        {sourceLabel} · แจ้งเมื่อสต็อกคลังเหลือไม่ถึงครึ่งของยอดขายต่อเดือน · จำนวนแนะนำ = ยอดขายต่อเดือน − สต็อกคลัง (ให้พอขายประมาณหนึ่งเดือน) เรียงจากด่วนสุดก่อน
-      </p>
-      <ul className="mt-3 flex flex-col divide-y divide-[var(--color-border)] rounded-xl border border-[var(--color-border)] bg-white text-sm">
-        {shown.map((r) => (
-          <li key={r.variantId} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5">
-            <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${r.out ? "bg-[var(--color-danger)] text-white" : "text-[var(--color-danger)]"}`} style={r.out ? undefined : { backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" }}>
-              {r.out ? "หมด" : `เหลือ ${r.coverDays} วัน`}
-            </span>
-            <span className="min-w-0 flex-1 font-medium">
-              {r.productName}
-              {r.shape && <span className="ml-1 text-xs font-normal text-[var(--color-on-surface-variant)]">{r.shape}</span>} · {r.color} · {r.size}
-            </span>
-            <span className="text-xs text-[var(--color-on-surface-variant)]">
-              ขาย {formatNumber(Math.round(r.demand))}/เดือน · คลัง {formatNumber(r.stock)} · รอเย็บ {formatNumber(r.wip)}
-            </span>
-            <span className="font-semibold">
-              {r.sewNow > 0 ? <>เย็บ {formatNumber(r.sewNow)}</> : null}
-              {r.sewNow > 0 && r.cutMore > 0 ? " · " : null}
-              {r.cutMore > 0 ? <span className="text-[var(--color-danger)]">ตัดเพิ่ม {formatNumber(r.cutMore)}</span> : null}
-            </span>
-          </li>
-        ))}
-      </ul>
-      {rows.length > ADVICE_PREVIEW && (
-        <button type="button" onClick={() => setAll((v) => !v)} className="mt-2 text-sm font-medium text-[var(--color-primary)] underline">
-          {all ? "แสดงเฉพาะที่ด่วนสุด" : `ดูทั้งหมด ${formatNumber(rows.length)} รายการ`}
-        </button>
-      )}
-    </Card>
-  );
-}
-
 function FactoryContent() {
   const state = useStore();
   const canRecord = useCan("stock.in");
@@ -185,7 +128,7 @@ function FactoryContent() {
       off = true;
     };
   }, []);
-  const { demand, sourceLabel } = useMemo(() => {
+  const demand = useMemo(() => {
     const out = new Map<string, number>();
     const month = baseline?.months[0];
     if (baseline && month) {
@@ -196,10 +139,10 @@ function FactoryContent() {
         const id = idByKey.get(`${r.productId}|${r.color}|${r.size}`);
         if (id) out.set(id, (out.get(id) ?? 0) + r.qty);
       }
-      return { demand: out, sourceLabel: `ยอดขายอ้างอิงเดือน ${month} (จากไฟล์ที่นำเข้า)` };
+      return out;
     }
     for (const [id, q] of netSalesByVariant(state, nowMs - 30 * 86400000, nowMs)) out.set(id, q);
-    return { demand: out, sourceLabel: "ยอดขายที่บันทึกในระบบ 30 วันล่าสุด" };
+    return out;
   }, [state, baseline, nowMs]);
   const advice = useMemo(() => sewAdvice(state, demand).filter((r) => (!brandId || r.brandId === brandId) && (!search.trim() || r.productName.toLowerCase().includes(search.trim().toLowerCase()))), [state, demand, brandId, search]);
   const allMatrices = useMemo(() => sortMatricesByShortage(wipMatrices(state, { brandId, search }), advice), [state, brandId, search, advice]);
@@ -261,7 +204,6 @@ function FactoryContent() {
         ช่องสีแดงในตาราง = ควรเย็บก่อน (สต็อกคลังเหลือไม่เกิน 10 ชิ้น และมีชิ้นรอเย็บ) · <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> คลังหมดเกลี้ยง ·{" "}
         <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={{ backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" }}>แดงอ่อน</span> ใกล้หมด
       </p>
-      <SewAdviceCard rows={advice} sourceLabel={sourceLabel} />
       {negative > 0 && (
         <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           มี {formatNumber(negative)} ช่องที่ยอดติดลบ แปลว่ารับเข้า &quot;เย็บเสร็จ&quot; มากกว่าที่บันทึกว่าตัดไว้ ควรบันทึก &quot;ตัดเข้า&quot; หรือ &quot;ปรับยอด&quot; ให้ตรงกับของจริง
