@@ -4,7 +4,7 @@ import { FACTORY_WIP_KIND_LABEL_TH, type FactoryWipKind } from "@/lib/types";
 import { compareSizes } from "@/lib/utils/sizes";
 import { compareColors } from "@/lib/utils/colorOrder";
 import { variantStockAcrossWarehouses, sourceVariantFor } from "@/lib/store/selectors";
-import { wipByProduct, type WipProductSummary } from "./factoryWip";
+import { wipBalances, wipByProduct, type WipProductSummary } from "./factoryWip";
 
 // เกณฑ์ "ควรเย็บ": ตัวเลือกที่สต็อกคลังเหลือไม่เกินค่านี้ และยังมีชิ้นตัดรอเย็บที่โรงงาน BC (เจ้าของงานกำหนด 10 ชิ้น 15 พ.ย. 2026) ปรับที่เดียว
 export const SEW_ALERT_RULES = { maxStock: 10 } as const;
@@ -68,6 +68,77 @@ export function wipMatrices(state: AppState, filter: { brandId?: string; search?
     .filter((p) => (!filter.brandId || p.brandId === filter.brandId) && (!q || p.name.toLowerCase().includes(q)))
     .map((p) => toMatrix(state, p, state.products[p.productId]));
 }
+
+// แจ้งเตือนให้เย็บตามยอดขาย: ตัวเลือกที่ขายได้ (ยอดขายต่อเดือน >= minDemand) แต่สต็อกคลังเหลือไม่ถึง coverRatio ของยอดขายเดือนหนึ่ง (ราวครึ่งเดือน)
+// จำนวนที่แนะนำสมส่วนกับยอดขาย: ขาด = ยอดขายต่อเดือน - สต็อกคลัง (ให้พอขายหนึ่งเดือน)
+//   เย็บ = ชิ้นที่ตัดรออยู่ (ไม่เกินที่ขาด) / ตัดเพิ่ม = ส่วนที่ขาดแต่ไม่มีชิ้นตัดรออยู่แล้ว
+export const SEW_ADVICE_RULES = { coverRatio: 0.5, minDemand: 3 } as const;
+
+export interface SewAdviceRow {
+  variantId: string;
+  productId: string;
+  productName: string;
+  shape?: string;
+  brandId?: string;
+  color: string;
+  size: string;
+  sku: string;
+  demand: number; // ยอดขายต่อเดือน
+  stock: number;
+  wip: number;
+  shortage: number;
+  sewNow: number;
+  cutMore: number;
+  coverDays: number;
+  out: boolean;
+}
+
+export function sewAdvice(state: AppState, demand: Map<string, number>): SewAdviceRow[] {
+  const wip = wipBalances(state);
+  const rows: SewAdviceRow[] = [];
+  for (const [variantId, d] of demand) {
+    if (d < SEW_ADVICE_RULES.minDemand) continue;
+    const v = state.variants[variantId];
+    const p = v ? state.products[v.productId] : undefined;
+    if (!v || !p || !v.active || sourceVariantFor(state, variantId)) continue;
+    const stock = Math.max(0, variantStockAcrossWarehouses(state, variantId).onHand);
+    if (stock > d * SEW_ADVICE_RULES.coverRatio) continue;
+    const shortage = Math.max(0, Math.ceil(d - stock));
+    if (shortage <= 0) continue;
+    const queued = Math.max(0, wip.get(variantId) ?? 0);
+    const sewNow = Math.min(queued, shortage);
+    rows.push({
+      variantId,
+      productId: p.id,
+      productName: p.sellingName,
+      shape: p.shape,
+      brandId: p.brandId,
+      color: v.color ?? "",
+      size: v.size ?? "",
+      sku: v.sku,
+      demand: d,
+      stock,
+      wip: queued,
+      shortage,
+      sewNow,
+      cutMore: shortage - sewNow,
+      coverDays: Math.round((stock / (d / 30)) * 10) / 10,
+      out: stock <= 0,
+    });
+  }
+  // ด่วนที่สุดก่อน: ของหมดก่อน แล้วอยู่ได้น้อยวันก่อน แล้วขาดมากก่อน
+  return rows.sort((a, b) => Number(b.out) - Number(a.out) || a.coverDays - b.coverDays || b.shortage - a.shortage);
+}
+
+// เรียงรุ่นให้รุ่นที่ขาดเยอะ (ตามยอดขาย) อยู่ก่อน แล้วค่อยตามจำนวนช่องที่ควรเย็บ และยอดยังไม่เย็บ
+export function sortMatricesByShortage(matrices: WipMatrix[], advice: SewAdviceRow[]): WipMatrix[] {
+  const short = new Map<string, number>();
+  for (const r of advice) short.set(r.productId, (short.get(r.productId) ?? 0) + r.shortage);
+  return [...matrices].sort(
+    (a, b) => (short.get(b.productId) ?? 0) - (short.get(a.productId) ?? 0) || b.urgentCells - a.urgentCells || b.total - a.total || a.name.localeCompare(b.name, "th")
+  );
+}
+
 
 export interface WipBatch {
   batchId: string;
