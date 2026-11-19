@@ -174,18 +174,18 @@ function RecountBlock({ product: p, defaultOpen }: { product: ProductRecount; de
               <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
                 <th className="sticky left-0 z-10 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-left font-medium">สี</th>
                 {p.sizes.map((s) => (
-                  <th key={s} className="px-3 py-2 text-center font-medium">
+                  <th key={s} className="px-1.5 py-2 text-center sm:px-3 font-medium">
                     {s}
                   </th>
                 ))}
-                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-3 py-2 text-center font-medium">นับได้จริง</th>
-                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-3 py-2 text-center font-medium">
+                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">นับได้จริง</th>
+                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">
                   ระบบเดิม<span className="block text-[10px] font-normal opacity-80">ก่อนนับ</span>
                 </th>
-                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-3 py-2 text-center font-medium">
+                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">
                   ต่าง<span className="block text-[10px] font-normal opacity-80">นับได้ − ระบบเดิม</span>
                 </th>
-                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-3 py-2 text-center font-medium">
+                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">
                   สต็อกตอนนี้<span className="block text-[10px] font-normal opacity-80">หลังขาย/รับของต่อ</span>
                 </th>
               </tr>
@@ -196,7 +196,7 @@ function RecountBlock({ product: p, defaultOpen }: { product: ProductRecount; de
                   <td className="sticky left-0 z-10 bg-white px-3 py-2 font-medium">{r.color}</td>
                   {p.sizes.map((s) => {
                     const c = r.cells[s];
-                    if (!c) return <td key={s} className="px-3 py-2 text-center text-[var(--color-on-surface-variant)]/40">–</td>;
+                    if (!c) return <td key={s} className="px-1.5 py-2 text-center sm:px-3 text-[var(--color-on-surface-variant)]/40">–</td>;
                     const bg = c.diff < 0 ? "bg-[var(--color-danger-container)]" : c.diff > 0 ? "bg-[var(--color-success-container)]" : "";
                     return (
                       <td key={s} className={`px-3 py-1.5 text-center tabular-nums ${bg}`} title={c.diff === 0 ? "ตรงกับระบบ" : `ระบบ ${c.system} → นับได้ ${c.counted} (${signed(c.diff)})`}>
@@ -205,10 +205,10 @@ function RecountBlock({ product: p, defaultOpen }: { product: ProductRecount; de
                       </td>
                     );
                   })}
-                  <td className="bg-[var(--color-surface-container)] px-3 py-2 text-center font-semibold tabular-nums">{r.countedCells > 0 ? formatNumber(r.counted) : "–"}</td>
-                  <td className="px-3 py-2 text-center tabular-nums">{r.countedCells > 0 ? formatNumber(r.system) : "–"}</td>
-                  <td className={`px-3 py-2 text-center font-semibold tabular-nums ${r.countedCells > 0 ? diffTone(r.diff) : ""}`}>{r.countedCells > 0 ? signed(r.diff) : "–"}</td>
-                  <td className="px-3 py-2 text-center tabular-nums text-[var(--color-on-surface-variant)]">{formatNumber(r.now)}</td>
+                  <td className="bg-[var(--color-surface-container)] px-1.5 py-2 text-center sm:px-3 font-semibold tabular-nums">{r.countedCells > 0 ? formatNumber(r.counted) : "–"}</td>
+                  <td className="px-1.5 py-2 text-center sm:px-3 tabular-nums">{r.countedCells > 0 ? formatNumber(r.system) : "–"}</td>
+                  <td className={`px-1.5 py-2 text-center sm:px-3 font-semibold tabular-nums ${r.countedCells > 0 ? diffTone(r.diff) : ""}`}>{r.countedCells > 0 ? signed(r.diff) : "–"}</td>
+                  <td className="px-1.5 py-2 text-center sm:px-3 tabular-nums text-[var(--color-on-surface-variant)]">{formatNumber(r.now)}</td>
                 </tr>
               ))}
               <tr className="bg-[var(--color-surface-container)] font-semibold">
@@ -216,10 +216,10 @@ function RecountBlock({ product: p, defaultOpen }: { product: ProductRecount; de
                 {p.sizes.map((s) => (
                   <td key={s} className="px-3 py-2" />
                 ))}
-                <td className="px-3 py-2 text-center tabular-nums">{formatNumber(p.counted)}</td>
-                <td className="px-3 py-2 text-center tabular-nums">{formatNumber(p.system)}</td>
-                <td className={`px-3 py-2 text-center tabular-nums ${diffTone(p.diff)}`}>{signed(p.diff)}</td>
-                <td className="px-3 py-2 text-center tabular-nums">{formatNumber(p.now)}</td>
+                <td className="px-1.5 py-2 text-center sm:px-3 tabular-nums">{formatNumber(p.counted)}</td>
+                <td className="px-1.5 py-2 text-center sm:px-3 tabular-nums">{formatNumber(p.system)}</td>
+                <td className={`px-1.5 py-2 text-center sm:px-3 tabular-nums ${diffTone(p.diff)}`}>{signed(p.diff)}</td>
+                <td className="px-1.5 py-2 text-center sm:px-3 tabular-nums">{formatNumber(p.now)}</td>
               </tr>
             </tbody>
           </table>

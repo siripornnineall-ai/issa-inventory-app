@@ -49,11 +49,11 @@ function ModelBlock({ m }: { m: WipMatrix }) {
               <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
                 <th className="sticky left-0 z-10 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-left font-medium">สี</th>
                 {m.sizes.map((s) => (
-                  <th key={s} className="px-3 py-2 text-center font-medium">
+                  <th key={s} className="px-1.5 py-2 text-center sm:px-3 font-medium">
                     {s}
                   </th>
                 ))}
-                <th className="bg-[var(--bar-strong,var(--color-primary))] px-3 py-2 text-center font-medium text-[color:var(--bar-strong-fg,#fff)]">รวมต่อสี</th>
+                <th className="bg-[var(--bar-strong,var(--color-primary))] px-1.5 py-2 text-center sm:px-3 font-medium text-[color:var(--bar-strong-fg,#fff)]">รวมต่อสี</th>
               </tr>
             </thead>
             <tbody>
@@ -69,7 +69,7 @@ function ModelBlock({ m }: { m: WipMatrix }) {
                         <td
                           key={s}
                           title={`สต็อกในคลัง ${stock} ชิ้น · ควรเย็บ`}
-                          className={`px-3 py-2 text-center font-semibold ${lv === "out" ? "bg-[var(--color-danger)] text-white" : "text-[var(--color-danger)]"}`}
+                          className={`px-1.5 py-2 text-center sm:px-3 font-semibold ${lv === "out" ? "bg-[var(--color-danger)] text-white" : "text-[var(--color-danger)]"}`}
                           style={lv === "low" ? { backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" } : undefined}
                         >
                           {formatNumber(n ?? 0)}
@@ -78,22 +78,22 @@ function ModelBlock({ m }: { m: WipMatrix }) {
                       );
                     }
                     return (
-                      <td key={s} style={n === undefined ? undefined : cellStyle(n, m.maxCell)} className={`px-3 py-2 text-center ${n !== undefined && n < 0 ? "font-semibold text-[var(--color-danger)]" : !n ? "text-[var(--color-on-surface-variant)]/50" : ""}`}>
+                      <td key={s} style={n === undefined ? undefined : cellStyle(n, m.maxCell)} className={`px-1.5 py-2 text-center sm:px-3 ${n !== undefined && n < 0 ? "font-semibold text-[var(--color-danger)]" : !n ? "text-[var(--color-on-surface-variant)]/50" : ""}`}>
                         {n === undefined ? "–" : formatNumber(n)}
                       </td>
                     );
                   })}
-                  <td className={`bg-[var(--color-surface-container)] px-3 py-2 text-center font-semibold ${c.total < 0 ? "text-[var(--color-danger)]" : ""}`}>{formatNumber(c.total)}</td>
+                  <td className={`bg-[var(--color-surface-container)] px-1.5 py-2 text-center sm:px-3 font-semibold ${c.total < 0 ? "text-[var(--color-danger)]" : ""}`}>{formatNumber(c.total)}</td>
                 </tr>
               ))}
               <tr className="bg-[var(--color-surface-container)] font-semibold">
                 <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-3 py-2">รวมต่อไซซ์</td>
                 {m.sizes.map((s) => (
-                  <td key={s} className={`px-3 py-2 text-center ${(m.sizeTotals[s] ?? 0) < 0 ? "text-[var(--color-danger)]" : ""}`}>
+                  <td key={s} className={`px-1.5 py-2 text-center sm:px-3 ${(m.sizeTotals[s] ?? 0) < 0 ? "text-[var(--color-danger)]" : ""}`}>
                     {formatNumber(m.sizeTotals[s] ?? 0)}
                   </td>
                 ))}
-                <td className="px-3 py-2 text-center">{formatNumber(m.total)}</td>
+                <td className="px-1.5 py-2 text-center sm:px-3">{formatNumber(m.total)}</td>
               </tr>
             </tbody>
           </table>

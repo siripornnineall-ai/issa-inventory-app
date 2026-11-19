@@ -18,12 +18,12 @@ import { formatNumber } from "@/lib/utils/money";
 
 // ช่องตัวเลขในตารางสต็อก: null = ไม่มีตัวเลือกนี้, 0 = สต็อกหมด (จาง), ติดลบ = พื้นแดง (ขายเกิน/ตัดสต็อกเกินที่มี)
 function Cell({ value }: { value: number | null }) {
-  if (value === null) return <Td className="px-3 py-2 text-center text-[var(--color-on-surface-variant)]/40">–</Td>;
+  if (value === null) return <Td className="px-1.5 py-2 text-center sm:px-3 text-[var(--color-on-surface-variant)]/40">–</Td>;
   if (value < 0) {
-    return <Td className="bg-[var(--color-danger-container)] px-3 py-2 text-center font-semibold tabular-nums text-[var(--color-on-danger-container)]">{formatNumber(value)}</Td>;
+    return <Td className="bg-[var(--color-danger-container)] px-1.5 py-2 text-center sm:px-3 font-semibold tabular-nums text-[var(--color-on-danger-container)]">{formatNumber(value)}</Td>;
   }
-  if (value === 0) return <Td className="px-3 py-2 text-center tabular-nums text-[var(--color-on-surface-variant)]/50">0</Td>;
-  return <Td className="px-3 py-2 text-center font-medium tabular-nums">{formatNumber(value)}</Td>;
+  if (value === 0) return <Td className="px-1.5 py-2 text-center sm:px-3 tabular-nums text-[var(--color-on-surface-variant)]/50">0</Td>;
+  return <Td className="px-1.5 py-2 text-center sm:px-3 font-medium tabular-nums">{formatNumber(value)}</Td>;
 }
 
 function MatrixTable({ matrix }: { matrix: StockMatrix }) {
@@ -36,11 +36,11 @@ function MatrixTable({ matrix }: { matrix: StockMatrix }) {
         <Tr className="bg-[var(--bar,var(--color-primary-container))] hover:bg-[var(--bar,var(--color-primary-container))]">
           <Th className="sticky left-0 z-10 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-[color:var(--bar-fg,#fff)]">สี</Th>
           {matrix.sizes.map((s) => (
-            <Th key={s} className="px-3 py-2 text-center normal-case text-[color:var(--bar-fg,#fff)]">
+            <Th key={s} className="px-1.5 py-2 text-center sm:px-3 normal-case text-[color:var(--bar-fg,#fff)]">
               {s}
             </Th>
           ))}
-          <Th className="bg-[var(--bar-strong,var(--color-primary))] px-3 py-2 text-center normal-case text-[color:var(--bar-strong-fg,#fff)]">รวมต่อสี</Th>
+          <Th className="bg-[var(--bar-strong,var(--color-primary))] px-1.5 py-2 text-center sm:px-3 normal-case text-[color:var(--bar-strong-fg,#fff)]">รวมต่อสี</Th>
         </Tr>
       </Thead>
       <Tbody>
@@ -57,7 +57,7 @@ function MatrixTable({ matrix }: { matrix: StockMatrix }) {
             {matrix.sizes.map((s) => (
               <Cell key={s} value={r.cells[s]} />
             ))}
-            <Td className={"bg-[var(--color-info-container)] px-3 py-2 text-center font-semibold tabular-nums " + (r.total < 0 ? "text-[var(--color-danger)]" : "")}>
+            <Td className={"bg-[var(--color-info-container)] px-1.5 py-2 text-center sm:px-3 font-semibold tabular-nums " + (r.total < 0 ? "text-[var(--color-danger)]" : "")}>
               {formatNumber(r.total)}
             </Td>
           </Tr>
@@ -65,11 +65,11 @@ function MatrixTable({ matrix }: { matrix: StockMatrix }) {
         <Tr className="bg-[var(--color-info-container)] hover:bg-[var(--color-info-container)]">
           <Td className="sticky left-0 z-10 whitespace-nowrap bg-[var(--color-info-container)] px-3 py-2 font-semibold">รวมต่อไซซ์</Td>
           {matrix.sizes.map((s) => (
-            <Td key={s} className={"px-3 py-2 text-center font-semibold tabular-nums " + (matrix.colTotals[s] < 0 ? "text-[var(--color-danger)]" : "")}>
+            <Td key={s} className={"px-1.5 py-2 text-center sm:px-3 font-semibold tabular-nums " + (matrix.colTotals[s] < 0 ? "text-[var(--color-danger)]" : "")}>
               {formatNumber(matrix.colTotals[s])}
             </Td>
           ))}
-          <Td className="bg-[var(--bar-strong,var(--color-primary))] px-3 py-2 text-center font-bold tabular-nums text-[color:var(--bar-strong-fg,#fff)]">{formatNumber(matrix.grandTotal)}</Td>
+          <Td className="bg-[var(--bar-strong,var(--color-primary))] px-1.5 py-2 text-center sm:px-3 font-bold tabular-nums text-[color:var(--bar-strong-fg,#fff)]">{formatNumber(matrix.grandTotal)}</Td>
         </Tr>
       </Tbody>
     </Table>
