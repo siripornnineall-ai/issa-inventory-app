@@ -56,6 +56,7 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
   const lastZxingAtRef = useRef(0);
   const nativeRef = useRef(false);
   const qrBaseIntervalRef = useRef(QR_INTERVAL_MS);
+  const qrMaxWidthRef = useRef(QR_MAX_WIDTH);
   const qrPacingRef = useRef<QrPacing>({ width: QR_MAX_WIDTH, intervalMs: QR_INTERVAL_MS });
   const onDetectRef = useRef(onDetect);
   const [error, setError] = useState("");
@@ -167,7 +168,7 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
             if (result?.data) emit(result.data);
           }
           // เครื่องช้าจะย่อภาพและห่างรอบขึ้นเอง ไม่ให้กินเธรดหลักจนกล้องและทั้งหน้ากระตุก
-          qrPacingRef.current = nextQrPacing(qrPacingRef.current, performance.now() - startedAt, qrBaseIntervalRef.current);
+          qrPacingRef.current = nextQrPacing(qrPacingRef.current, performance.now() - startedAt, qrBaseIntervalRef.current, qrMaxWidthRef.current);
         } else {
           tryBarcode(video, now);
         }
@@ -208,6 +209,7 @@ export function CameraScanner({ onDetect, onClose }: { onDetect: (value: string)
       .then((reads) => {
         if (reads && !cancelled) {
           qrBaseIntervalRef.current = QR_FALLBACK_INTERVAL_MS;
+          qrMaxWidthRef.current = QR_FALLBACK_WIDTH;
           qrPacingRef.current = { width: QR_FALLBACK_WIDTH, intervalMs: QR_FALLBACK_INTERVAL_MS };
         }
       })
