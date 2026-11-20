@@ -1,7 +1,5 @@
 "use client";
 
-import { MobileMatrix, type MxRow } from "@/components/ui/MobileMatrix";
-import { useIsMobile } from "@/lib/utils/useIsMobile";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Boxes, Search } from "lucide-react";
@@ -29,35 +27,8 @@ function Cell({ value }: { value: number | null }) {
 }
 
 function MatrixTable({ matrix }: { matrix: StockMatrix }) {
-  const isMobile = useIsMobile();
   if (matrix.rows.length === 0) {
     return <p className="px-4 py-6 text-sm text-[var(--color-on-surface-variant)]">ไม่มีสีที่มีสต็อกในรุ่นนี้ (ปิดตัวเลือก &quot;ซ่อนสีที่ไม่มีสต็อก&quot; เพื่อดูทุกสี)</p>;
-  }
-  if (isMobile) {
-    return (
-      <MobileMatrix
-        sizes={matrix.sizes}
-        rows={matrix.rows.map<MxRow>((r) => ({
-          key: r.color,
-          label: (
-            <span className="flex items-center gap-2">
-              <ColorSwatch name={r.color} size={16} />
-              {r.color}
-            </span>
-          ),
-          summary: <span className={r.total < 0 ? "font-semibold text-[var(--color-danger)]" : ""}>รวม {formatNumber(r.total)}</span>,
-          cells: Object.fromEntries(
-            matrix.sizes
-              .filter((s) => r.cells[s] !== null && r.cells[s] !== undefined)
-              .map((s) => {
-                const v = r.cells[s] as number;
-                return [s, { value: formatNumber(v), tone: v < 0 ? "danger" : v === 0 ? "muted" : undefined }];
-              })
-          ),
-        }))}
-        footer={{ label: "รวมต่อไซซ์", cells: Object.fromEntries(matrix.sizes.map((s) => [s, formatNumber(matrix.colTotals[s])])), summary: <>รวม {formatNumber(matrix.grandTotal)}</> }}
-      />
-    );
   }
   return (
     <Table className="min-w-max">

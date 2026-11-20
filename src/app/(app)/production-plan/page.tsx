@@ -1,7 +1,5 @@
 "use client";
 
-import { MobileMatrix, type MxRow } from "@/components/ui/MobileMatrix";
-import { useIsMobile } from "@/lib/utils/useIsMobile";
 import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Upload } from "lucide-react";
@@ -134,50 +132,7 @@ function MetricTable({ m, metric, showHave }: { m: PlanMatrix; metric: Metric; s
   );
 }
 
-const METRIC_SHORT: Record<Metric, string> = { demand: "ยอดขาย", stock: "สต็อก", need: "ต้องผลิต" };
-
-// ตารางแบบมือถือ: เลือกดูทีละตัวชี้วัด (ยอดขาย / สต็อก / ต้องผลิต) หนึ่งสี = หนึ่งการ์ด โชว์เฉพาะไซซ์ที่มีตัวเลข
-function PlanMobile({ m, metric, showHave }: { m: PlanMatrix; metric: Metric; showHave: boolean }) {
-  const value = (c: PlanCell) => (metric === "demand" ? c.demand : metric === "stock" ? c.stock : c.need);
-  const negNeed = metric === "need" && showHave;
-  const rows: MxRow[] = m.colors.map((c) => {
-    const entries = Object.entries(c.cells);
-    const sum = entries.reduce((t, [, cell]) => t + value(cell), 0);
-    const wip = entries.reduce((t, [, cell]) => t + cell.wip, 0);
-    const cells: MxRow["cells"] = {};
-    for (const [size, cell] of entries) {
-      const shortage = metric === "need" && cell.need > 0;
-      if (negNeed) {
-        cells[size] = shortage ? { value: `-${formatNumber(cell.need)}`, tone: cell.level === "out" ? "danger-strong" : "danger" } : { value: fmt1(cell.have), tone: "muted" };
-      } else if (metric === "need") {
-        if (cell.need > 0) cells[size] = { value: fmt1(cell.need), tone: cell.level === "out" ? "danger-strong" : "danger" };
-      } else if (metric === "stock") {
-        cells[size] = { value: fmt1(cell.stock), sub: cell.wip > 0 ? `+${formatNumber(cell.wip)} รอเย็บ` : undefined, tone: cell.stock === 0 ? "muted" : undefined };
-      } else if (cell.demand > 0) {
-        cells[size] = { value: fmt1(cell.demand) };
-      }
-    }
-    const summary = negNeed ? (sum > 0 ? <span className="font-semibold text-[var(--color-danger)]">-{fmt1(sum)}</span> : "0") : <>รวม {fmt1(sum)}{metric === "stock" && wip > 0 ? ` · +${formatNumber(wip)} รอเย็บ` : ""}</>;
-    return { key: c.color, label: c.color, summary, cells };
-  });
-  const colTotal = (size: string) => m.colors.reduce((t, c) => t + (c.cells[size] ? value(c.cells[size]) : 0), 0);
-  const grand = m.colors.reduce((t, c) => t + Object.values(c.cells).reduce((u, cell) => u + value(cell), 0), 0);
-  return (
-    <MobileMatrix
-      sizes={m.sizes}
-      rows={rows}
-      footer={{
-        label: "รวมต่อไซซ์",
-        cells: Object.fromEntries(m.sizes.map((s) => [s, negNeed ? (colTotal(s) > 0 ? `-${fmt1(colTotal(s))}` : "0") : fmt1(colTotal(s))])),
-        summary: negNeed ? <>{grand > 0 ? `-${fmt1(grand)}` : "0"}</> : <>รวม {fmt1(grand)}</>,
-      }}
-    />
-  );
-}
-
 function ModelBlock({ m, showHave }: { m: PlanMatrix; showHave: boolean }) {
-  const isMobile = useIsMobile();
-  const [metric, setMetric] = useState<Metric>("need");
   const brand = useStore((s) => (m.brandId ? s.brands[m.brandId] : undefined));
   return (
     <Card className="overflow-hidden" style={brandBarStyle(brand)}>
@@ -192,32 +147,11 @@ function ModelBlock({ m, showHave }: { m: PlanMatrix; showHave: boolean }) {
             {m.totals.urgent > 0 && <span className="font-semibold text-[var(--color-danger)]"> · ขาด {formatNumber(m.totals.urgent)} ช่อง</span>}
           </span>
         </summary>
-        {isMobile ? (
-          <>
-            <div className="flex gap-1.5 px-3 pb-3" role="tablist" aria-label="เลือกตาราง">
-              {METRICS.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  role="tab"
-                  aria-selected={metric === k}
-                  onClick={() => setMetric(k)}
-                  className={`flex-1 rounded-lg border px-2 text-sm font-medium ${metric === k ? "border-transparent bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]" : "border-[var(--color-border)] bg-white"}`}
-                >
-                  {METRIC_SHORT[k]}
-                </button>
-              ))}
-            </div>
-            <p className="px-4 pb-2 text-xs text-[var(--color-on-surface-variant)]">{METRIC_HINT[metric]}</p>
-            <PlanMobile m={m} metric={metric} showHave={showHave} />
-          </>
-        ) : (
-          <div className="flex gap-8 overflow-x-auto px-5 pb-5">
-            {METRICS.map((k) => (
-              <MetricTable key={k} m={m} metric={k} showHave={showHave} />
-            ))}
-          </div>
-        )}
+        <div className="flex gap-8 overflow-x-auto px-5 pb-5">
+          {METRICS.map((metric) => (
+            <MetricTable key={metric} m={m} metric={metric} showHave={showHave} />
+          ))}
+        </div>
       </details>
     </Card>
   );
