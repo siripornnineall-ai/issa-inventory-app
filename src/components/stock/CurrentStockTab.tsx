@@ -1,5 +1,6 @@
 "use client";
 
+import { compactCellNumber, useIsMobile } from "@/lib/utils/useIsMobile";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Boxes, Search } from "lucide-react";
@@ -17,21 +18,23 @@ import { buildStockMatrix, qtyByVariant, type StockMatrix } from "@/lib/utils/st
 import { formatNumber } from "@/lib/utils/money";
 
 // ช่องตัวเลขในตารางสต็อก: null = ไม่มีตัวเลือกนี้, 0 = สต็อกหมด (จาง), ติดลบ = พื้นแดง (ขายเกิน/ตัดสต็อกเกินที่มี)
-function Cell({ value }: { value: number | null }) {
+function Cell({ value, fmt }: { value: number | null; fmt: (n: number) => string }) {
   if (value === null) return <Td className="px-1.5 py-2 text-center sm:px-3 text-[var(--color-on-surface-variant)]/40">–</Td>;
   if (value < 0) {
-    return <Td className="bg-[var(--color-danger-container)] px-1.5 py-2 text-center sm:px-3 font-semibold tabular-nums text-[var(--color-on-danger-container)]">{formatNumber(value)}</Td>;
+    return <Td className="bg-[var(--color-danger-container)] px-1.5 py-2 text-center sm:px-3 font-semibold tabular-nums text-[var(--color-on-danger-container)]">{fmt(value)}</Td>;
   }
   if (value === 0) return <Td className="px-1.5 py-2 text-center sm:px-3 tabular-nums text-[var(--color-on-surface-variant)]/50">0</Td>;
-  return <Td className="px-1.5 py-2 text-center sm:px-3 font-medium tabular-nums">{formatNumber(value)}</Td>;
+  return <Td className="px-1.5 py-2 text-center sm:px-3 font-medium tabular-nums">{fmt(value)}</Td>;
 }
 
 function MatrixTable({ matrix }: { matrix: StockMatrix }) {
+  const mobile = useIsMobile();
+  const fc = (n: number) => compactCellNumber(n, mobile, formatNumber);
   if (matrix.rows.length === 0) {
     return <p className="px-4 py-6 text-sm text-[var(--color-on-surface-variant)]">ไม่มีสีที่มีสต็อกในรุ่นนี้ (ปิดตัวเลือก &quot;ซ่อนสีที่ไม่มีสต็อก&quot; เพื่อดูทุกสี)</p>;
   }
   return (
-    <Table className="min-w-max">
+    <Table className="mx-compact sm:min-w-max">
       <Thead>
         <Tr className="bg-[var(--bar,var(--color-primary-container))] hover:bg-[var(--bar,var(--color-primary-container))]">
           <Th className="sticky left-0 z-10 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-[color:var(--bar-fg,#fff)]">สี</Th>
@@ -47,15 +50,15 @@ function MatrixTable({ matrix }: { matrix: StockMatrix }) {
         {matrix.rows.map((r) => (
           <Tr key={r.color}>
             <Td className="sticky left-0 z-10 bg-[var(--color-surface)] px-3 py-2 font-medium">
-              <span className="flex items-center gap-2 whitespace-nowrap">
-                <span className="inline-block">
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 sm:flex-nowrap sm:whitespace-nowrap">
+                <span className="hidden sm:inline-block">
                   <ColorSwatch name={r.color} size={16} />
                 </span>
                 {r.color}
               </span>
             </Td>
             {matrix.sizes.map((s) => (
-              <Cell key={s} value={r.cells[s]} />
+              <Cell key={s} value={r.cells[s]} fmt={fc} />
             ))}
             <Td className={"bg-[var(--color-info-container)] px-1.5 py-2 text-center sm:px-3 font-semibold tabular-nums " + (r.total < 0 ? "text-[var(--color-danger)]" : "")}>
               {formatNumber(r.total)}
@@ -66,7 +69,7 @@ function MatrixTable({ matrix }: { matrix: StockMatrix }) {
           <Td className="sticky left-0 z-10 whitespace-nowrap bg-[var(--color-info-container)] px-3 py-2 font-semibold">รวมต่อไซซ์</Td>
           {matrix.sizes.map((s) => (
             <Td key={s} className={"px-1.5 py-2 text-center sm:px-3 font-semibold tabular-nums " + (matrix.colTotals[s] < 0 ? "text-[var(--color-danger)]" : "")}>
-              {formatNumber(matrix.colTotals[s])}
+              {fc(matrix.colTotals[s])}
             </Td>
           ))}
           <Td className="bg-[var(--bar-strong,var(--color-primary))] px-1.5 py-2 text-center sm:px-3 font-bold tabular-nums text-[color:var(--bar-strong-fg,#fff)]">{formatNumber(matrix.grandTotal)}</Td>

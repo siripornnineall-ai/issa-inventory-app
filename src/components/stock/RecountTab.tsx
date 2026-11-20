@@ -1,5 +1,6 @@
 "use client";
 
+import { compactCellNumber, useIsMobile } from "@/lib/utils/useIsMobile";
 import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -156,6 +157,8 @@ export function RecountTab({ brandId, setBrandId }: { brandId: string; setBrandI
 }
 
 function RecountBlock({ product: p, defaultOpen }: { product: ProductRecount; defaultOpen: boolean }) {
+  const mobile = useIsMobile();
+  const fc = (n: number) => compactCellNumber(n, mobile, formatNumber);
   const brand = useStore((s) => (p.brandId ? s.brands[p.brandId] : undefined));
   return (
     <Card className="overflow-hidden" style={brandBarStyle(brand)}>
@@ -168,8 +171,8 @@ function RecountBlock({ product: p, defaultOpen }: { product: ProductRecount; de
             {p.diffCells > 0 && <span className="text-[var(--color-danger)]"> (ไม่ตรง {p.diffCells} ตัวเลือก)</span>}
           </span>
         </summary>
-        <div className="overflow-x-auto px-5 pb-5">
-          <table className="w-full border-collapse text-sm">
+        <div className="overflow-x-auto px-2 pb-4 sm:px-5 sm:pb-5">
+          <table className="mx-compact w-full border-collapse text-sm">
             <thead>
               <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
                 <th className="sticky left-0 z-10 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-left font-medium">สี</th>
@@ -179,13 +182,13 @@ function RecountBlock({ product: p, defaultOpen }: { product: ProductRecount; de
                   </th>
                 ))}
                 <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">นับได้จริง</th>
-                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">
+                <th className="max-sm:hidden bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">
                   ระบบเดิม<span className="block text-[10px] font-normal opacity-80">ก่อนนับ</span>
                 </th>
-                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">
+                <th className="max-sm:hidden bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">
                   ต่าง<span className="block text-[10px] font-normal opacity-80">นับได้ − ระบบเดิม</span>
                 </th>
-                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">
+                <th className="max-sm:hidden bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">
                   สต็อกตอนนี้<span className="block text-[10px] font-normal opacity-80">หลังขาย/รับของต่อ</span>
                 </th>
               </tr>
@@ -199,27 +202,27 @@ function RecountBlock({ product: p, defaultOpen }: { product: ProductRecount; de
                     if (!c) return <td key={s} className="px-1.5 py-2 text-center sm:px-3 text-[var(--color-on-surface-variant)]/40">–</td>;
                     const bg = c.diff < 0 ? "bg-[var(--color-danger-container)]" : c.diff > 0 ? "bg-[var(--color-success-container)]" : "";
                     return (
-                      <td key={s} className={`px-3 py-1.5 text-center tabular-nums ${bg}`} title={c.diff === 0 ? "ตรงกับระบบ" : `ระบบ ${c.system} → นับได้ ${c.counted} (${signed(c.diff)})`}>
-                        <span className="block font-medium">{formatNumber(c.counted)}</span>
-                        {c.diff !== 0 && <span className={`block text-[10px] leading-none ${diffTone(c.diff)}`}>ระบบ {formatNumber(c.system)}</span>}
+                      <td key={s} className={`px-1 py-1.5 text-center tabular-nums sm:px-3 ${bg}`} title={c.diff === 0 ? "ตรงกับระบบ" : `ระบบ ${c.system} → นับได้ ${c.counted} (${signed(c.diff)})`}>
+                        <span className="block font-medium">{fc(c.counted)}</span>
+                        {c.diff !== 0 && <span className={`block text-[10px] leading-none max-sm:hidden ${diffTone(c.diff)}`}>ระบบ {formatNumber(c.system)}</span>}
                       </td>
                     );
                   })}
                   <td className="bg-[var(--color-surface-container)] px-1.5 py-2 text-center sm:px-3 font-semibold tabular-nums">{r.countedCells > 0 ? formatNumber(r.counted) : "–"}</td>
-                  <td className="px-1.5 py-2 text-center sm:px-3 tabular-nums">{r.countedCells > 0 ? formatNumber(r.system) : "–"}</td>
-                  <td className={`px-1.5 py-2 text-center sm:px-3 font-semibold tabular-nums ${r.countedCells > 0 ? diffTone(r.diff) : ""}`}>{r.countedCells > 0 ? signed(r.diff) : "–"}</td>
-                  <td className="px-1.5 py-2 text-center sm:px-3 tabular-nums text-[var(--color-on-surface-variant)]">{formatNumber(r.now)}</td>
+                  <td className="max-sm:hidden px-1.5 py-2 text-center sm:px-3 tabular-nums">{r.countedCells > 0 ? formatNumber(r.system) : "–"}</td>
+                  <td className={`max-sm:hidden px-1.5 py-2 text-center sm:px-3 font-semibold tabular-nums ${r.countedCells > 0 ? diffTone(r.diff) : ""}`}>{r.countedCells > 0 ? signed(r.diff) : "–"}</td>
+                  <td className="max-sm:hidden px-1.5 py-2 text-center sm:px-3 tabular-nums text-[var(--color-on-surface-variant)]">{formatNumber(r.now)}</td>
                 </tr>
               ))}
               <tr className="bg-[var(--color-surface-container)] font-semibold">
                 <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-3 py-2">รวม</td>
                 {p.sizes.map((s) => (
-                  <td key={s} className="px-3 py-2" />
+                  <td key={s} className="px-3 py-2 max-sm:p-0" />
                 ))}
                 <td className="px-1.5 py-2 text-center sm:px-3 tabular-nums">{formatNumber(p.counted)}</td>
-                <td className="px-1.5 py-2 text-center sm:px-3 tabular-nums">{formatNumber(p.system)}</td>
-                <td className={`px-1.5 py-2 text-center sm:px-3 tabular-nums ${diffTone(p.diff)}`}>{signed(p.diff)}</td>
-                <td className="px-1.5 py-2 text-center sm:px-3 tabular-nums">{formatNumber(p.now)}</td>
+                <td className="max-sm:hidden px-1.5 py-2 text-center sm:px-3 tabular-nums">{formatNumber(p.system)}</td>
+                <td className={`max-sm:hidden px-1.5 py-2 text-center sm:px-3 tabular-nums ${diffTone(p.diff)}`}>{signed(p.diff)}</td>
+                <td className="max-sm:hidden px-1.5 py-2 text-center sm:px-3 tabular-nums">{formatNumber(p.now)}</td>
               </tr>
             </tbody>
           </table>

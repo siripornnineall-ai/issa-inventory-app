@@ -1,5 +1,6 @@
 "use client";
 
+import { compactCellNumber, useIsMobile } from "@/lib/utils/useIsMobile";
 import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Upload } from "lucide-react";
@@ -45,6 +46,8 @@ const METRICS: Metric[] = ["demand", "stock", "need"];
 
 // หนึ่งตารางต่อหนึ่งตัวชี้วัด ความกว้างคอลัมน์คงที่ วางเรียงข้างกันในแถวเดียวของรุ่น เลื่อนซ้าย-ขวาดูได้เหมือนชีต
 function MetricTable({ m, metric, showHave }: { m: PlanMatrix; metric: Metric; showHave: boolean }) {
+  const mobile = useIsMobile();
+  const fc = (n: number) => compactCellNumber(Math.round(n), mobile, formatNumber);
   const value = (c: { demand: number; stock: number; need: number }) => (metric === "demand" ? c.demand : metric === "stock" ? c.stock : c.need);
   const rowSum = (cells: Record<string, PlanCell>) => Object.values(cells).reduce((t, c) => t + value(c), 0);
   const colSum = (size: string) => m.colors.reduce((t, c) => t + (c.cells[size] ? value(c.cells[size]) : 0), 0);
@@ -53,13 +56,13 @@ function MetricTable({ m, metric, showHave }: { m: PlanMatrix; metric: Metric; s
   const grandWip = m.colors.reduce((t, c) => t + wipSum(c.cells), 0);
   const sub = metric === "stock";
   const negNeed = metric === "need" && showHave; // โหมดเลขตัวเดียว: ที่ขาดแสดงติดลบสีแดง
-  const wipNote = (n: number) => (sub && n > 0 ? <div className="whitespace-nowrap text-[10px] font-normal leading-tight text-[var(--color-on-surface-variant)]">+{formatNumber(n)} รอเย็บ</div> : null);
+  const wipNote = (n: number) => (sub && n > 0 ? <div className="whitespace-nowrap text-[10px] font-normal leading-tight text-[var(--color-on-surface-variant)]">+{formatNumber(n)}<span className="hidden sm:inline"> รอเย็บ</span></div> : null);
   return (
-    <div className="w-[56rem] shrink-0">
+    <div className="w-full sm:w-[56rem] sm:shrink-0">
       <p className="mb-1 min-h-10 text-sm font-semibold">
         {METRIC_TITLE[metric]} <span className="font-normal text-[var(--color-on-surface-variant)]">· {METRIC_HINT[metric]}</span>
       </p>
-      <table className="w-full table-fixed border-collapse text-sm">
+      <table className="mx-compact w-full table-fixed border-collapse text-sm">
         <thead>
           <tr className="h-10 bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
             <th className="w-24 px-3 py-2 text-left font-medium">สี</th>
@@ -69,12 +72,12 @@ function MetricTable({ m, metric, showHave }: { m: PlanMatrix; metric: Metric; s
               </th>
             ))}
             <th className="w-20 bg-[var(--bar-strong,var(--color-primary))] px-2 py-2 text-center font-medium text-[color:var(--bar-strong-fg,#fff)]">รวม</th>
-            {metric === "demand" && <th className="w-16 px-2 py-2 text-center font-medium">%</th>}
+            {metric === "demand" && <th className="w-16 px-2 py-2 text-center font-medium max-sm:hidden">%</th>}
           </tr>
         </thead>
         <tbody>
           {m.colors.map((c) => (
-            <tr key={c.color} className="h-14 border-b border-[var(--color-border)]">
+            <tr key={c.color} className="h-11 border-b sm:h-14 border-[var(--color-border)]">
               <td className="whitespace-nowrap px-3 py-2 font-medium">{c.color}</td>
               {m.sizes.map((s) => {
                 const cell = c.cells[s];
@@ -91,14 +94,14 @@ function MetricTable({ m, metric, showHave }: { m: PlanMatrix; metric: Metric; s
                     {metric === "need" && showHave ? (
                       // เลขตัวเดียวต่อช่อง: ขาด = ติดลบสีแดง (ต้องผลิตเท่าที่ติดลบ) / ไม่ขาด = จำนวนของที่มี (คลัง + รอเย็บ) สีเทา
                       shortage ? (
-                        `-${formatNumber(cell.need)}`
+                        `-${fc(cell.need)}`
                       ) : (
-                        <span className="font-normal text-[var(--color-on-surface-variant)]">{fmt1(cell.have)}</span>
+                        <span className="font-normal text-[var(--color-on-surface-variant)]">{fc(cell.have)}</span>
                       )
                     ) : v === 0 && metric !== "stock" ? (
                       "–"
                     ) : (
-                      fmt1(v)
+                      fc(v)
                     )}
                     {wipNote(cell.wip)}
                   </td>
@@ -109,7 +112,7 @@ function MetricTable({ m, metric, showHave }: { m: PlanMatrix; metric: Metric; s
                 {wipNote(wipSum(c.cells))}
               </td>
               {metric === "demand" && (
-                <td className="px-2 py-2 text-center text-[var(--color-on-surface-variant)]">{grand > 0 ? `${(Math.round((rowSum(c.cells) / grand) * 1000) / 10).toFixed(1)}%` : "–"}</td>
+                <td className="px-2 py-2 text-center text-[var(--color-on-surface-variant)] max-sm:hidden">{grand > 0 ? `${(Math.round((rowSum(c.cells) / grand) * 1000) / 10).toFixed(1)}%` : "–"}</td>
               )}
             </tr>
           ))}
@@ -117,14 +120,14 @@ function MetricTable({ m, metric, showHave }: { m: PlanMatrix; metric: Metric; s
             <td className="px-3 py-2">รวม</td>
             {m.sizes.map((s) => (
               <td key={s} className={`px-1 py-2 text-center ${negNeed && colSum(s) > 0 ? "text-[var(--color-danger)]" : ""}`}>
-                {negNeed ? (colSum(s) > 0 ? `-${fmt1(colSum(s))}` : "0") : fmt1(colSum(s))}
+                {negNeed ? (colSum(s) > 0 ? `-${fc(colSum(s))}` : "0") : fc(colSum(s))}
               </td>
             ))}
             <td className={`px-2 py-2 text-center ${negNeed && grand > 0 ? "text-[var(--color-danger)]" : ""}`}>
               {negNeed ? (grand > 0 ? `-${fmt1(grand)}` : "0") : fmt1(grand)}
               {wipNote(grandWip)}
             </td>
-            {metric === "demand" && <td className="px-2 py-2 text-center">{grand > 0 ? "100%" : "–"}</td>}
+            {metric === "demand" && <td className="px-2 py-2 text-center max-sm:hidden">{grand > 0 ? "100%" : "–"}</td>}
           </tr>
         </tbody>
       </table>
@@ -147,7 +150,7 @@ function ModelBlock({ m, showHave }: { m: PlanMatrix; showHave: boolean }) {
             {m.totals.urgent > 0 && <span className="font-semibold text-[var(--color-danger)]"> · ขาด {formatNumber(m.totals.urgent)} ช่อง</span>}
           </span>
         </summary>
-        <div className="flex gap-8 overflow-x-auto px-5 pb-5">
+        <div className="flex flex-col gap-5 overflow-x-auto px-2 pb-4 sm:flex-row sm:gap-8 sm:px-5 sm:pb-5">
           {METRICS.map((metric) => (
             <MetricTable key={metric} m={m} metric={metric} showHave={showHave} />
           ))}

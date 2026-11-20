@@ -1,5 +1,6 @@
 "use client";
 
+import { compactCellNumber, useIsMobile } from "@/lib/utils/useIsMobile";
 import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -28,6 +29,8 @@ function cellStyle(value: number, max: number): React.CSSProperties | undefined 
 }
 
 function ModelBlock({ m }: { m: WipMatrix }) {
+  const mobile = useIsMobile();
+  const fc = (n: number) => compactCellNumber(n, mobile, formatNumber);
   const brand = useStore((s) => (m.brandId ? s.brands[m.brandId] : undefined));
   return (
     <Card className="overflow-hidden" style={brandBarStyle(brand)}>
@@ -43,8 +46,8 @@ function ModelBlock({ m }: { m: WipMatrix }) {
             {m.negativeCells > 0 && <span className="text-[var(--color-danger)]"> · ติดลบ {m.negativeCells} ช่อง</span>}
           </span>
         </summary>
-        <div className="overflow-x-auto px-5 pb-5">
-          <table className="w-full border-collapse text-sm">
+        <div className="overflow-x-auto px-2 pb-4 sm:px-5 sm:pb-5">
+          <table className="mx-compact w-full border-collapse text-sm">
             <thead>
               <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
                 <th className="sticky left-0 z-10 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-left font-medium">สี</th>
@@ -72,14 +75,14 @@ function ModelBlock({ m }: { m: WipMatrix }) {
                           className={`px-1.5 py-2 text-center sm:px-3 font-semibold ${lv === "out" ? "bg-[var(--color-danger)] text-white" : "text-[var(--color-danger)]"}`}
                           style={lv === "low" ? { backgroundColor: "color-mix(in srgb, var(--color-danger) 18%, transparent)" } : undefined}
                         >
-                          {formatNumber(n ?? 0)}
-                          <div className="text-[10px] font-normal opacity-90">คลัง {formatNumber(stock ?? 0)}</div>
+                          {fc(n ?? 0)}
+                          <div className="text-[9px] font-normal leading-none opacity-90 sm:text-[10px]"><span className="hidden sm:inline">คลัง </span>{formatNumber(stock ?? 0)}</div>
                         </td>
                       );
                     }
                     return (
                       <td key={s} style={n === undefined ? undefined : cellStyle(n, m.maxCell)} className={`px-1.5 py-2 text-center sm:px-3 ${n !== undefined && n < 0 ? "font-semibold text-[var(--color-danger)]" : !n ? "text-[var(--color-on-surface-variant)]/50" : ""}`}>
-                        {n === undefined ? "–" : formatNumber(n)}
+                        {n === undefined ? "–" : fc(n)}
                       </td>
                     );
                   })}
@@ -90,7 +93,7 @@ function ModelBlock({ m }: { m: WipMatrix }) {
                 <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-3 py-2">รวมต่อไซซ์</td>
                 {m.sizes.map((s) => (
                   <td key={s} className={`px-1.5 py-2 text-center sm:px-3 ${(m.sizeTotals[s] ?? 0) < 0 ? "text-[var(--color-danger)]" : ""}`}>
-                    {formatNumber(m.sizeTotals[s] ?? 0)}
+                    {fc(m.sizeTotals[s] ?? 0)}
                   </td>
                 ))}
                 <td className="px-1.5 py-2 text-center sm:px-3">{formatNumber(m.total)}</td>

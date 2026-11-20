@@ -104,3 +104,52 @@ h3 {
     margin-block: -10px;
   }
 }
+
+/* ตารางสี × ไซซ์บนมือถือ: ย่อให้พอดีความกว้างจอ ไม่ต้องเลื่อนซ้าย-ขวา (คอลัมน์ไซซ์แบ่งความกว้างเท่ากัน คอลัมน์สีแคบ ตัวหนังสือเล็กลง) ใช้ class mx-compact บน <table> */
+@media (max-width: 639px) {
+  table.mx-compact {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+    font-size: 11.5px;
+  }
+  table.mx-compact th,
+  table.mx-compact td {
+    padding: 7px 1px !important;
+    width: auto !important;
+    min-width: 0;
+    white-space: normal !important;
+    letter-spacing: 0 !important;
+    overflow-wrap: anywhere;
+  }
+  table.mx-compact th {
+    font-size: 10px;
+    font-weight: 600;
+  }
+  /* ตัวเลขไม่ตัดบรรทัด (เช่น 1,125 ไม่แตกเป็น 1,1 / 25) และบีบตัวอักษรเล็กน้อยให้ 4 หลักยังพอดีช่อง */
+  table.mx-compact td:not(:first-child),
+  table.mx-compact th:not(:first-child) {
+    white-space: nowrap !important;
+    overflow-wrap: normal;
+    letter-spacing: -0.03em !important;
+  }
+  table.mx-compact td:not(:first-child) {
+    font-size: 11px;
+  }
+  table.mx-compact th:first-child,
+  table.mx-compact td:first-child {
+    width: 3.9rem !important;
+    padding-left: 5px !important;
+    text-align: left !important;
+    position: static !important;
+    line-height: 1.15;
+  }
+  table.mx-compact th:last-child,
+  table.mx-compact td:last-child {
+    width: 2.9rem !important;
+  }
+  table.mx-compact td [class*="text-[10px]"],
+  table.mx-compact td [class*="text-[9px]"] {
+    font-size: 9px;
+  }
+}
