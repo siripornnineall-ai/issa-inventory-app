@@ -130,6 +130,11 @@ export async function fetchUnitTokenByScan(supabase: SupabaseClient, value: stri
 // ดึงทีละหน้าตามลำดับคีย์หลัก (ต้อง order ให้แน่นอน ไม่งั้นแต่ละหน้าอาจซ้ำ/ตกหล่น) จนกว่าจะได้หน้าที่ไม่เต็ม
 export const FETCH_PAGE_SIZE = 1000;
 
+// หน้าแรกขอจำนวนแถวทั้งหมดมาด้วย (count) แล้วดึงหน้าที่เหลือพร้อมกันทีละไม่เกิน FETCH_CONCURRENCY หน้า
+// เดิมดึงทีละหน้าต่อกันทีละรอบ ตารางใหญ่ (สต็อกเคลื่อนไหวหลายหมื่นแถว) ต้องรอหลายสิบรอบ เปิดแอปช้ามากบนมือถือ
+// ถ้าฐานข้อมูลไม่ส่งจำนวนมา (หรือจำนวนเปลี่ยนระหว่างดึง) จะดึงต่อทีละหน้าแบบเดิมจนกว่าจะได้หน้าที่ไม่เต็ม
+export const FETCH_CONCURRENCY = 5;
+
 export async function fetchAllRows(
   supabase: SupabaseClient,
   table: string,
@@ -141,12 +146,47 @@ export async function fetchAllRows(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<{ data: any[]; error: any }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows: any[] = [];
-  for (let from = 0; ; from += pageSize) {
-    let query = supabase.from(table).select("*");
+  const page = async (from: number, withCount: boolean): Promise<{ data: any[] | null; error: any; count?: number | null }> => {
+    let query = withCount ? supabase.from(table).select("*", { count: "exact" }) : supabase.from(table).select("*");
     if (filter) query = filter(query);
     for (const col of orderBy) query = query.order(col, { ascending: true });
-    const { data, error } = await query.range(from, from + pageSize - 1);
+    return query.range(from, from + pageSize - 1);
+  };
+  const first = await page(0, true);
+  if (first.error) return { data: [], error: first.error };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows: any[] = [...(first.data ?? [])];
+  if (!first.data || first.data.length < pageSize) return { data: rows, error: null };
+
+  let next = pageSize;
+  const total = first.count;
+  if (typeof total === "number" && total > pageSize) {
+    const starts: number[] = [];
+    for (let from = pageSize; from < total; from += pageSize) starts.push(from);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const results: ({ data: any[] | null; error: any } | undefined)[] = new Array(starts.length);
+    let cursor = 0;
+    let failed: unknown = null;
+    const worker = async () => {
+      while (cursor < starts.length && !failed) {
+        const i = cursor++;
+        const res = await page(starts[i], false);
+        if (res.error) {
+          failed = res.error;
+          return;
+        }
+        results[i] = res;
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(FETCH_CONCURRENCY, starts.length) }, worker));
+    if (failed) return { data: [], error: failed };
+    for (const r of results) rows.push(...(r?.data ?? []));
+    next = starts[starts.length - 1] + pageSize;
+    // หน้าสุดท้ายเต็มพอดี (หรือมีแถวเพิ่มระหว่างดึง) → ดึงต่อทีละหน้าจนจบ
+    if ((results[results.length - 1]?.data?.length ?? 0) < pageSize) return { data: rows, error: null };
+  }
+  for (let from = next; ; from += pageSize) {
+    const { data, error } = await page(from, false);
     if (error) return { data: [], error };
     rows.push(...(data ?? []));
     if (!data || data.length < pageSize) break;
