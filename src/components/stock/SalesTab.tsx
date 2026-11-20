@@ -1,5 +1,7 @@
 "use client";
 
+import { useIsMobile } from "@/lib/utils/useIsMobile";
+import { MobileMatrix, type MxRow } from "@/components/ui/MobileMatrix";
 import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
@@ -119,6 +121,7 @@ function cellStyle(value: number, max: number): React.CSSProperties | undefined 
 }
 
 function ProductBlock({ product: p, defaultOpen, prevLabel }: { product: ProductSales; defaultOpen: boolean; prevLabel: string }) {
+  const isMobile = useIsMobile();
   const change = changePct(p.net, p.prevNet);
   const brand = useStore((s) => (p.brandId ? s.brands[p.brandId] : undefined));
   return (
@@ -137,6 +140,30 @@ function ProductBlock({ product: p, defaultOpen, prevLabel }: { product: Product
             )}
           </span>
         </summary>
+{isMobile ? (
+          <MobileMatrix
+            sizes={p.sizes}
+            rows={p.colors.map<MxRow>((c) => ({
+              key: c.color,
+              label: c.color,
+              summary: (
+                <span className={c.total < 0 ? "font-semibold text-[var(--color-danger)]" : ""}>
+                  รวม {formatNumber(c.total)}
+                  {c.sharePct !== null && ` · ${c.sharePct}%`}
+                </span>
+              ),
+              cells: Object.fromEntries(
+                p.sizes
+                  .filter((s) => (c.cells[s] ?? 0) !== 0)
+                  .map((s) => {
+                    const n = c.cells[s] ?? 0;
+                    return [s, { value: formatNumber(n), tone: n < 0 ? "danger-text" : undefined, tint: n > 0 ? cellStyle(n, p.maxCell) : undefined }];
+                  })
+              ),
+            }))}
+            footer={{ label: "รวมต่อไซซ์", cells: Object.fromEntries(p.sizes.map((s) => [s, formatNumber(p.sizeTotals[s] ?? 0)])), summary: <>สุทธิ {formatNumber(p.net)}</> }}
+          />
+        ) : (
         <div className="overflow-x-auto px-5 pb-5">
           <table className="w-full border-collapse text-sm">
             <thead>
@@ -180,6 +207,7 @@ function ProductBlock({ product: p, defaultOpen, prevLabel }: { product: Product
             </tbody>
           </table>
         </div>
+        )}
       </details>
     </Card>
   );

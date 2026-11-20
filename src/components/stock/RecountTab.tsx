@@ -1,5 +1,7 @@
 "use client";
 
+import { useIsMobile } from "@/lib/utils/useIsMobile";
+import { MobileMatrix, type MxRow } from "@/components/ui/MobileMatrix";
 import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -156,6 +158,7 @@ export function RecountTab({ brandId, setBrandId }: { brandId: string; setBrandI
 }
 
 function RecountBlock({ product: p, defaultOpen }: { product: ProductRecount; defaultOpen: boolean }) {
+  const isMobile = useIsMobile();
   const brand = useStore((s) => (p.brandId ? s.brands[p.brandId] : undefined));
   return (
     <Card className="overflow-hidden" style={brandBarStyle(brand)}>
@@ -168,6 +171,29 @@ function RecountBlock({ product: p, defaultOpen }: { product: ProductRecount; de
             {p.diffCells > 0 && <span className="text-[var(--color-danger)]"> (ไม่ตรง {p.diffCells} ตัวเลือก)</span>}
           </span>
         </summary>
+{isMobile ? (
+          <MobileMatrix
+            sizes={p.sizes}
+            rows={p.rows.map<MxRow>((r) => ({
+              key: r.color,
+              label: r.color,
+              summary: r.countedCells > 0 ? (
+                <>
+                  นับ {formatNumber(r.counted)} · ระบบ {formatNumber(r.system)} · <span className={`font-semibold ${diffTone(r.diff)}`}>{signed(r.diff)}</span>
+                </>
+              ) : undefined,
+              cells: Object.fromEntries(
+                p.sizes
+                  .filter((s) => r.cells[s])
+                  .map((s) => {
+                    const c = r.cells[s]!;
+                    return [s, { value: formatNumber(c.counted), sub: c.diff !== 0 ? `ระบบ ${formatNumber(c.system)}` : undefined, tone: c.diff < 0 ? "danger" : c.diff > 0 ? "success" : undefined }];
+                  })
+              ),
+            }))}
+            footer={{ label: "รวม", cells: {}, summary: <>นับ {formatNumber(p.counted)} · ระบบ {formatNumber(p.system)} · ต่าง {signed(p.diff)}</> }}
+          />
+        ) : (
         <div className="overflow-x-auto px-5 pb-5">
           <table className="w-full border-collapse text-sm">
             <thead>
@@ -224,6 +250,7 @@ function RecountBlock({ product: p, defaultOpen }: { product: ProductRecount; de
             </tbody>
           </table>
         </div>
+        )}
       </details>
     </Card>
   );

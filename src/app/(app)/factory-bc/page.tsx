@@ -1,5 +1,7 @@
 "use client";
 
+import { useIsMobile } from "@/lib/utils/useIsMobile";
+import { MobileMatrix, type MxRow } from "@/components/ui/MobileMatrix";
 import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -28,6 +30,7 @@ function cellStyle(value: number, max: number): React.CSSProperties | undefined 
 }
 
 function ModelBlock({ m }: { m: WipMatrix }) {
+  const isMobile = useIsMobile();
   const brand = useStore((s) => (m.brandId ? s.brands[m.brandId] : undefined));
   return (
     <Card className="overflow-hidden" style={brandBarStyle(brand)}>
@@ -43,6 +46,32 @@ function ModelBlock({ m }: { m: WipMatrix }) {
             {m.negativeCells > 0 && <span className="text-[var(--color-danger)]"> · ติดลบ {m.negativeCells} ช่อง</span>}
           </span>
         </summary>
+{isMobile ? (
+          <MobileMatrix
+            sizes={m.sizes}
+            rows={m.colors.map<MxRow>((c) => ({
+              key: c.color,
+              label: c.color,
+              summary: <span className={c.total < 0 ? "font-semibold text-[var(--color-danger)]" : ""}>รวม {formatNumber(c.total)}</span>,
+              cells: Object.fromEntries(
+                m.sizes
+                  .filter((s) => c.cells[s] !== undefined)
+                  .map((s) => {
+                    const n = c.cells[s] as number;
+                    const lv = m.levels[c.color]?.[s];
+                    const stock = m.stockCells[c.color]?.[s] ?? 0;
+                    return [
+                      s,
+                      lv
+                        ? { value: formatNumber(n), sub: `คลัง ${formatNumber(stock)}`, tone: lv === "out" ? "danger-strong" : "danger" }
+                        : { value: formatNumber(n), tone: n < 0 ? "danger-text" : n === 0 ? "muted" : undefined, tint: n > 0 ? cellStyle(n, m.maxCell) : undefined },
+                    ];
+                  })
+              ),
+            }))}
+            footer={{ label: "รวมต่อไซซ์", cells: Object.fromEntries(m.sizes.map((s) => [s, formatNumber(m.sizeTotals[s] ?? 0)])), summary: <>รวม {formatNumber(m.total)}</> }}
+          />
+        ) : (
         <div className="overflow-x-auto px-5 pb-5">
           <table className="w-full border-collapse text-sm">
             <thead>
@@ -98,6 +127,7 @@ function ModelBlock({ m }: { m: WipMatrix }) {
             </tbody>
           </table>
         </div>
+        )}
       </details>
     </Card>
   );
