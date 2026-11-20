@@ -1,5 +1,6 @@
 "use client";
 
+import { compactCellNumber, useIsMobile } from "@/lib/utils/useIsMobile";
 import { ExcelPickButton } from "@/components/ui/ExcelPickButton";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
@@ -119,6 +120,8 @@ function cellStyle(value: number, max: number): React.CSSProperties | undefined 
 }
 
 function ProductBlock({ product: p, defaultOpen, prevLabel }: { product: ProductSales; defaultOpen: boolean; prevLabel: string }) {
+  const mobile = useIsMobile();
+  const fc = (n: number) => compactCellNumber(n, mobile, formatNumber);
   const change = changePct(p.net, p.prevNet);
   const brand = useStore((s) => (p.brandId ? s.brands[p.brandId] : undefined));
   return (
@@ -137,8 +140,8 @@ function ProductBlock({ product: p, defaultOpen, prevLabel }: { product: Product
             )}
           </span>
         </summary>
-        <div className="overflow-x-auto px-5 pb-5">
-          <table className="w-full border-collapse text-sm">
+        <div className="overflow-x-auto px-2 pb-4 sm:px-5 sm:pb-5">
+          <table className="mx-compact w-full border-collapse text-sm">
             <thead>
               <tr className="bg-[var(--bar,var(--color-primary-container))] text-[color:var(--bar-fg,#fff)]">
                 <th className="sticky left-0 z-10 bg-[var(--bar,var(--color-primary-container))] px-3 py-2 text-left font-medium">สี</th>
@@ -148,7 +151,7 @@ function ProductBlock({ product: p, defaultOpen, prevLabel }: { product: Product
                   </th>
                 ))}
                 <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">รวมต่อสี</th>
-                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium">%</th>
+                <th className="bg-[var(--bar-strong,var(--color-primary))] text-[color:var(--bar-strong-fg,#fff)] px-1.5 py-2 text-center sm:px-3 font-medium max-sm:hidden">%</th>
               </tr>
             </thead>
             <tbody>
@@ -159,23 +162,23 @@ function ProductBlock({ product: p, defaultOpen, prevLabel }: { product: Product
                     const n = c.cells[s] ?? 0;
                     return (
                       <td key={s} style={cellStyle(n, p.maxCell)} className={`px-1.5 py-2 text-center sm:px-3 ${n < 0 ? "font-semibold text-[var(--color-danger)]" : n === 0 ? "text-[var(--color-on-surface-variant)]/50" : ""}`}>
-                        {formatNumber(n)}
+                        {fc(n)}
                       </td>
                     );
                   })}
                   <td className={`bg-[var(--color-surface-container)] px-1.5 py-2 text-center sm:px-3 font-semibold ${c.total < 0 ? "text-[var(--color-danger)]" : ""}`}>{formatNumber(c.total)}</td>
-                  <td className="px-1.5 py-2 text-center sm:px-3 text-[var(--color-on-surface-variant)]">{c.sharePct === null ? "–" : `${c.sharePct}%`}</td>
+                  <td className="px-1.5 py-2 text-center sm:px-3 text-[var(--color-on-surface-variant)] max-sm:hidden">{c.sharePct === null ? "–" : `${c.sharePct}%`}</td>
                 </tr>
               ))}
               <tr className="bg-[var(--color-surface-container)] font-semibold">
                 <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-3 py-2">รวมต่อไซซ์</td>
                 {p.sizes.map((s) => (
                   <td key={s} className={`px-1.5 py-2 text-center sm:px-3 ${(p.sizeTotals[s] ?? 0) < 0 ? "text-[var(--color-danger)]" : ""}`}>
-                    {formatNumber(p.sizeTotals[s] ?? 0)}
+                    {fc(p.sizeTotals[s] ?? 0)}
                   </td>
                 ))}
                 <td className="px-1.5 py-2 text-center sm:px-3">{formatNumber(p.net)}</td>
-                <td className="px-1.5 py-2 text-center sm:px-3">{p.net > 0 ? "100%" : "–"}</td>
+                <td className="px-1.5 py-2 text-center sm:px-3 max-sm:hidden">{p.net > 0 ? "100%" : "–"}</td>
               </tr>
             </tbody>
           </table>
