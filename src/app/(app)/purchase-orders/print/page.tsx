@@ -19,7 +19,7 @@ export default function PurchaseOrdersPrintPage() {
 
   return (
     <div>
-      <div className="mx-auto flex max-w-3xl items-center justify-between p-8 pb-0 print:hidden">
+      <div className="pt-safe mx-auto flex max-w-3xl items-center justify-between p-8 pb-0 print:hidden">
         <BackLink href="/purchase-orders" className="flex items-center gap-1.5 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
           <ArrowLeft className="h-4 w-4" /> กลับ
         </BackLink>

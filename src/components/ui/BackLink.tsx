@@ -12,7 +12,7 @@ export function BackLink({ href, className, children }: { href: string; classNam
   return (
     <Link
       href={href}
-      className={className}
+      className={`${className ?? ""} -my-2.5 min-h-11 py-2.5`}
       onClick={(e) => {
         if (typeof window !== "undefined" && window.history.length > 1) {
           e.preventDefault();
