@@ -121,6 +121,24 @@ export function productionPlan(state: AppState, baseline: BaselineInput[], opts:
   return result.sort((a, b) => b.totals.need - a.totals.need || a.name.localeCompare(b.name, "th"));
 }
 
+// ยอดขายอ้างอิงแบบเฉลี่ยหลายเดือน: ยอดขายแต่ละสี/ไซซ์ไม่เท่ากันทุกเดือน ใช้เดือนเดียวอาจเพี้ยน
+// เฉลี่ยต่อรุ่น: หารด้วยจำนวนเดือนที่รุ่นนั้นมียอดในไฟล์ (รุ่นที่เพิ่งเริ่มขายกลางปีไม่ถูกหารด้วยเดือนที่ยังไม่มี)
+// สี/ไซซ์ที่เดือนนั้นไม่มีแถว ถือว่าขาย 0 ในเดือนนั้น (เฉลี่ยลดลงตามจริง ไม่ใช่นับเฉพาะเดือนที่ขายได้)
+export function averageBaseline(rows: (BaselineInput & { month: string })[], months: string[]): BaselineInput[] {
+  const use = new Set(months);
+  const productMonths = new Map<string, Set<string>>();
+  const sums = new Map<string, BaselineInput>();
+  for (const r of rows) {
+    if (!use.has(r.month)) continue;
+    (productMonths.get(r.productId) ?? productMonths.set(r.productId, new Set()).get(r.productId)!).add(r.month);
+    const key = `${r.productId}|${r.color}|${r.size}`;
+    const cur = sums.get(key);
+    if (cur) cur.qty += r.qty;
+    else sums.set(key, { productId: r.productId, color: r.color, size: r.size, qty: r.qty });
+  }
+  return [...sums.values()].map((v) => ({ ...v, qty: Math.round((v.qty / (productMonths.get(v.productId)?.size || 1)) * 100) / 100 }));
+}
+
 // สีในไฟล์ Excel (ตามหน้าจอ): หัวตารางเขียวเข้ม ตัวอักษรขาว / แถวรวมเทา / ช่องที่ขาดแดง ของหมดแดงเข้ม / รอเย็บเหลือง
 const XL = { head: "0F5F56", headFg: "FFFFFF", total: "E3EAE9", low: "FADBD8", out: "F1948A", wip: "FFF2CC", need: "F5B7B1", title: "CDE7E3" };
 

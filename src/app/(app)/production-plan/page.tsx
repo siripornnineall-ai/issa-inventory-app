@@ -20,7 +20,7 @@ import { REAL_DATA_START, monthRange, netSalesByVariant } from "@/lib/utils/sale
 import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
-import { addMonthsClamped, formatPlanDate, planSheet, productionPlan, type BaselineInput, type PlanCell, type PlanMatrix } from "@/lib/utils/productionPlan";
+import { addMonthsClamped, averageBaseline, formatPlanDate, planSheet, productionPlan, type BaselineInput, type PlanCell, type PlanMatrix } from "@/lib/utils/productionPlan";
 import { matchBaseline, parseBaselineCsv, type BaselineMatch } from "@/lib/utils/salesBaselineImport";
 
 function lastMonthStart(): string {
@@ -279,12 +279,24 @@ function PlanContent() {
         y += 1;
       }
     }
-    return opts.sort((a, b) => b.month.localeCompare(a.month) || a.value.localeCompare(b.value));
+    opts.sort((a, b) => b.month.localeCompare(a.month) || a.value.localeCompare(b.value));
+    // เฉลี่ยหลายเดือนจากไฟล์ที่นำเข้า (มีไฟล์ตั้งแต่ 2 เดือนขึ้นไป): แต่ละสี/ไซซ์ขายไม่เท่ากันทุกเดือน เฉลี่ยแล้วนิ่งกว่าเดือนเดียว
+    const fileMonths = [...baseline.months].sort();
+    if (fileMonths.length >= 2) {
+      const extra = [{ value: "avg:all", month: fileMonths[fileMonths.length - 1], label: `เฉลี่ย ${fileMonths.length} เดือน (${fileMonths[0]} ถึง ${fileMonths[fileMonths.length - 1]}) · จากไฟล์ที่นำเข้า` }];
+      if (fileMonths.length > 3) extra.push({ value: "avg:3", month: fileMonths[fileMonths.length - 1], label: `เฉลี่ย 3 เดือนล่าสุด (${fileMonths[fileMonths.length - 3]} ถึง ${fileMonths[fileMonths.length - 1]}) · จากไฟล์ที่นำเข้า` });
+      opts.unshift(...extra);
+    }
+    return opts;
   }, [baseline.months]);
   const activeSource = sourceOptions.find((o) => o.value === source) ?? sourceOptions.find((o) => o.value.startsWith("file:")) ?? sourceOptions[0];
   const baseRows = useMemo<BaselineInput[]>(() => {
     if (!activeSource) return [];
     if (activeSource.value.startsWith("file:")) return baseline.rows.filter((r) => r.month === activeSource.month);
+    if (activeSource.value.startsWith("avg:")) {
+      const all = [...baseline.months].sort();
+      return averageBaseline(baseline.rows, activeSource.value === "avg:3" ? all.slice(-3) : all);
+    }
     const [y, m] = activeSource.month.split("-").map(Number);
     const r = monthRange(y, m - 1);
     const rows: BaselineInput[] = [];
@@ -293,7 +305,7 @@ function PlanContent() {
       if (v) rows.push({ productId: v.productId, color: v.color, size: v.size, qty });
     }
     return rows;
-  }, [activeSource, baseline.rows, state]);
+  }, [activeSource, baseline.rows, baseline.months, state]);
 
   const matrices = useMemo(() => productionPlan(state, baseRows, { months: Number(months), brandId, search }), [state, baseRows, months, brandId, search]);
   // ขาดรวมถ้าดูล่วงหน้า 1-8 เดือน พร้อมวันที่ปลายทาง (วันนี้ + n เดือน) ใช้บนปุ่มเลือก
@@ -395,7 +407,7 @@ function PlanContent() {
             </Card>
           </div>
           <p className="px-1 text-sm text-[var(--color-on-surface-variant)]">
-            ยอดขายเดือน {activeSource?.label} · ดูล่วงหน้า {months} เดือน (ถึงวันที่ {untilDate}) · แต่ละรุ่นมีสามตารางเรียงข้างกัน (ยอดขาย → สต็อกปัจจุบัน → ที่ต้องผลิต) เลื่อนซ้าย-ขวาดูได้ · ในตารางที่ต้องผลิต{" "}
+            ยอดขาย{activeSource?.value.startsWith("avg:") ? "" : "เดือน"} {activeSource?.label} · ดูล่วงหน้า {months} เดือน (ถึงวันที่ {untilDate}) · แต่ละรุ่นมีสามตารางเรียงข้างกัน (ยอดขาย → สต็อกปัจจุบัน → ที่ต้องผลิต) เลื่อนซ้าย-ขวาดูได้ · ในตารางที่ต้องผลิต{" "}
             <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> ไม่มีของเลย <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={lowStyle}>แดงอ่อน</span> ขาดบางส่วน
           </p>
           {matrices.map((m) => (
