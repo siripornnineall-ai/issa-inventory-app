@@ -53,3 +53,52 @@ export function parseRates(raw: string | null): MaterialRate[] {
     return DEFAULT_MATERIAL_RATES;
   }
 }
+
+// ---- แยกตามสี ----
+// ผ้าหลัก: หลาต่อสี (ผ้าสีเดียวกับตัวเสื้อ) / ผ้ากระเป๋า: มีสองสี ดำกับขาว ตามกลุ่มสีเสื้อ (เจ้าของงานกำหนด 21 พ.ย. 2026)
+// สีที่ไม่อยู่ในรายการนี้ยังไม่ระบุ (ผู้ใช้เลือกเองในการ์ดได้) ไม่เดาให้
+export type PocketColor = "ดำ" | "ขาว" | "";
+export const DEFAULT_POCKET_COLOR: Record<string, PocketColor> = {
+  ดำ: "ดำ",
+  กรม: "ดำ",
+  น้ำตาลไหม้: "ดำ",
+  เทาดิน: "ดำ",
+  ขาว: "ขาว",
+  โอวัลติน: "ขาว",
+  ครีม: "ขาว",
+};
+
+export function parsePocketMap(raw: string | null): Record<string, PocketColor> {
+  const out = { ...DEFAULT_POCKET_COLOR };
+  if (!raw) return out;
+  try {
+    const saved = JSON.parse(raw) as Record<string, unknown>;
+    for (const [color, v] of Object.entries(saved ?? {})) if (v === "ดำ" || v === "ขาว" || v === "") out[color] = v;
+  } catch {
+    // ใช้ค่าตั้งต้น
+  }
+  return out;
+}
+
+export interface ColorMaterialRow {
+  color: string;
+  pieces: number;
+  main: number; // หลาผ้าหลักของสีนี้
+  pocket: number; // หลาผ้ากระเป๋า (ของสีที่ใช้กับสีเสื้อนี้)
+  pocketColor: PocketColor;
+}
+
+export function materialByColor(
+  models: { colors: { color: string; need: number }[] }[],
+  perPiece: { main: number; pocket: number },
+  pocketMap: Record<string, PocketColor>
+): { rows: ColorMaterialRow[]; pocketTotals: { ดำ: number; ขาว: number; ไม่ระบุ: number } } {
+  const byColor = new Map<string, number>();
+  for (const m of models) for (const c of m.colors) if (c.need > 0) byColor.set(c.color, (byColor.get(c.color) ?? 0) + c.need);
+  const rows: ColorMaterialRow[] = [...byColor.entries()]
+    .map(([color, pieces]) => ({ color, pieces, main: pieces * perPiece.main, pocket: pieces * perPiece.pocket, pocketColor: pocketMap[color] ?? "" }))
+    .sort((a, b) => b.pieces - a.pieces);
+  const pocketTotals = { ดำ: 0, ขาว: 0, ไม่ระบุ: 0 };
+  for (const r of rows) pocketTotals[r.pocketColor === "ดำ" ? "ดำ" : r.pocketColor === "ขาว" ? "ขาว" : "ไม่ระบุ"] += r.pocket;
+  return { rows, pocketTotals };
+}

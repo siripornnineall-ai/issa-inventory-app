@@ -4,10 +4,22 @@ import { MaterialCard } from "./MaterialCard";
 
 describe("MaterialCard", () => {
   it("คำนวณผ้าหลักและผ้ากระเป๋าจากจำนวนที่ต้องผลิต และแก้อัตราได้", () => {
-    render(<MaterialCard models={[{ id: "a", name: "Billie Wide", need: 100 }]} months="1" untilDate="21/12/2026" />);
+    render(<MaterialCard models={[{ id: "a", name: "Billie Wide", need: 100, colors: [{ color: "ดำ", need: 60 }, { color: "ขาว", need: 40 }] }]} months="1" untilDate="21/12/2026" />);
     expect(screen.getByText("ผ้าหลักรวม").parentElement?.textContent).toContain("145");
-    expect(screen.getByText("ผ้ากระเป๋ารวม").parentElement?.textContent).toContain("19");
+    // ผ้ากระเป๋าแยกดำ/ขาว: ดำ 60 ตัว x 0.19 = 11.4, ขาว 40 ตัว x 0.19 = 7.6
+    expect(screen.getByText("ผ้ากระเป๋าสีดำ").parentElement?.textContent).toContain("11.4");
+    expect(screen.getByText("ผ้ากระเป๋าสีขาว").parentElement?.textContent).toContain("7.6");
     fireEvent.change(screen.getByLabelText("ผ้าหลัก ต่อตัว"), { target: { value: "2" } });
     expect(screen.getByText("ผ้าหลักรวม").parentElement?.textContent).toContain("200");
+  });
+});
+
+describe("MaterialCard แยกสี", () => {
+  it("แสดงผ้าหลักต่อสี และเตือนสีที่ยังไม่ระบุผ้ากระเป๋า เลือกแล้วคำเตือนหาย", () => {
+    render(<MaterialCard models={[{ id: "a", name: "A", need: 110, colors: [{ color: "ดำ", need: 100 }, { color: "ชมพู", need: 10 }] }]} months="1" untilDate="21/12/2026" />);
+    expect(screen.getByRole("status").textContent).toContain("ยังไม่ระบุสี");
+    fireEvent.change(screen.getByLabelText("สีผ้ากระเป๋าของสีชมพู"), { target: { value: "ขาว" } });
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByText("ผ้ากระเป๋าสีขาว").parentElement?.textContent).toContain("1.9");
   });
 });
