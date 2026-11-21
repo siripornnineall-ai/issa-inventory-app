@@ -158,3 +158,8 @@ h3 {
 .pt-safe {
   padding-top: max(1.5rem, calc(env(safe-area-inset-top) + 0.75rem));
 }
+
+/* แถบแจ้งเตือนค้างบนสุด (มีเวอร์ชันใหม่ / ส่งไม่สำเร็จ): ดันเนื้อหาลงให้พ้นแถบสถานะ iPhone ไม่งั้นปุ่มอยู่ใต้แถบสถานะแล้วกดไม่ได้ */
+.banner-safe {
+  padding-top: calc(env(safe-area-inset-top) + 0.625rem);
+}

@@ -62,7 +62,7 @@ export function UpdateBanner() {
 
   const unsent = pendingSyncCount();
   return (
-    <div role="status" className="sticky top-0 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--color-warning)] bg-[var(--color-warning-container)] px-4 py-2.5 text-sm text-[var(--color-on-surface)]">
+    <div role="status" className="banner-safe sticky top-0 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--color-warning)] bg-[var(--color-warning-container)] px-4 py-2.5 text-sm text-[var(--color-on-surface)]">
       <RefreshCw className="h-4 w-4 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="font-semibold">มีเวอร์ชันใหม่ของแอป</p>
