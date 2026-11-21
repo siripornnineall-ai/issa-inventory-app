@@ -1,26 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Download } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
-import { materialByColor, materialNeeds, parsePocketMap, parseRates, type MaterialRate, type PocketColor } from "@/lib/utils/materialPlan";
+import { materialByColor, materialNeeds, type PocketColor } from "@/lib/utils/materialPlan";
+import type { MaterialSettings } from "./useMaterialSettings";
 
-const RATES_KEY = "issa-material-rates";
-const POCKET_KEY = "issa-material-pocket-colors";
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 1 });
 const round1 = (n: number) => Math.round(n * 10) / 10;
-
-function read(key: string): string | null {
-  try {
-    return typeof window === "undefined" ? null : localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
 
 export interface MaterialModel {
   id: string;
@@ -31,35 +22,8 @@ export interface MaterialModel {
 
 // วัสดุที่ต้องใช้ตามยอดที่ต้องผลิต (ตามจำนวนเดือนที่เลือกดูล่วงหน้า): ผ้าหลักแยกตามสี ผ้ากระเป๋าแยกเป็นสีดำ/สีขาว
 // อัตราต่อตัวและสีผ้ากระเป๋าของแต่ละสีแก้ได้ จำไว้ในเครื่องนี้
-export function MaterialCard({ models, months, untilDate }: { models: MaterialModel[]; months: string; untilDate: string }) {
-  const [rates, setRates] = useState<MaterialRate[]>(() => parseRates(read(RATES_KEY)));
-  const [draft, setDraft] = useState<Record<string, string>>(() => Object.fromEntries(rates.map((x) => [x.key, String(x.perPiece)])));
-  const [pocketMap, setPocketMap] = useState<Record<string, PocketColor>>(() => parsePocketMap(read(POCKET_KEY)));
-
-  function edit(key: string, text: string) {
-    setDraft((d) => ({ ...d, [key]: text }));
-    const v = Number(text);
-    if (text.trim() === "" || !Number.isFinite(v) || v < 0) return;
-    const next = rates.map((r) => (r.key === key ? { ...r, perPiece: v } : r));
-    setRates(next);
-    try {
-      localStorage.setItem(RATES_KEY, JSON.stringify(Object.fromEntries(next.map((r) => [r.key, r.perPiece]))));
-    } catch {
-      // เก็บไม่ได้ก็ใช้ค่าในหน้านี้ไปก่อน
-    }
-  }
-
-  function setPocket(color: string, value: PocketColor) {
-    const next = { ...pocketMap, [color]: value };
-    setPocketMap(next);
-    try {
-      localStorage.setItem(POCKET_KEY, JSON.stringify(next));
-    } catch {
-      // เหมือนด้านบน
-    }
-  }
-
-  const perPiece = useMemo(() => ({ main: rates.find((r) => r.key === "main")?.perPiece ?? 0, pocket: rates.find((r) => r.key === "pocket")?.perPiece ?? 0 }), [rates]);
+export function MaterialCard({ models, months, untilDate, settings }: { models: MaterialModel[]; months: string; untilDate: string; settings: MaterialSettings }) {
+  const { rates, draft, pocketMap, perPiece, editRate: edit, setPocket } = settings;
   const byModel = useMemo(() => materialNeeds(models, rates), [models, rates]);
   const byColor = useMemo(() => materialByColor(models, perPiece, pocketMap), [models, perPiece, pocketMap]);
 

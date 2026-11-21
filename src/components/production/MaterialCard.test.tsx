@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MaterialCard } from "./MaterialCard";
+import { MaterialCard, type MaterialModel } from "./MaterialCard";
+import { useMaterialSettings } from "./useMaterialSettings";
+
+function Wrapper({ models }: { models: MaterialModel[] }) {
+  const settings = useMaterialSettings();
+  return <MaterialCard models={models} months="1" untilDate="21/12/2026" settings={settings} />;
+}
 
 describe("MaterialCard", () => {
   it("คำนวณผ้าหลักและผ้ากระเป๋าจากจำนวนที่ต้องผลิต และแก้อัตราได้", () => {
-    render(<MaterialCard models={[{ id: "a", name: "Billie Wide", need: 100, colors: [{ color: "ดำ", need: 60 }, { color: "ขาว", need: 40 }] }]} months="1" untilDate="21/12/2026" />);
+    render(<Wrapper models={[{ id: "a", name: "Billie Wide", need: 100, colors: [{ color: "ดำ", need: 60 }, { color: "ขาว", need: 40 }] }]} />);
     expect(screen.getByText("ผ้าหลักรวม").parentElement?.textContent).toContain("145");
     // ผ้ากระเป๋าแยกดำ/ขาว: ดำ 60 ตัว x 0.19 = 11.4, ขาว 40 ตัว x 0.19 = 7.6
     expect(screen.getByText("ผ้ากระเป๋าสีดำ").parentElement?.textContent).toContain("11.4");
@@ -16,7 +22,7 @@ describe("MaterialCard", () => {
 
 describe("MaterialCard แยกสี", () => {
   it("แสดงผ้าหลักต่อสี และเตือนสีที่ยังไม่ระบุผ้ากระเป๋า เลือกแล้วคำเตือนหาย", () => {
-    render(<MaterialCard models={[{ id: "a", name: "A", need: 110, colors: [{ color: "ดำ", need: 100 }, { color: "ชมพู", need: 10 }] }]} months="1" untilDate="21/12/2026" />);
+    render(<Wrapper models={[{ id: "a", name: "A", need: 110, colors: [{ color: "ดำ", need: 100 }, { color: "ชมพู", need: 10 }] }]} />);
     expect(screen.getByRole("status").textContent).toContain("ยังไม่ระบุสี");
     fireEvent.change(screen.getByLabelText("สีผ้ากระเป๋าของสีชมพู"), { target: { value: "ขาว" } });
     expect(screen.queryByRole("status")).toBeNull();
