@@ -78,10 +78,12 @@ describe("หน้าวางแผนผลิต", () => {
     const group = await screen.findByRole("group", { name: "เลือกเดือนยอดขายอ้างอิง" });
     const chips = Array.from(group.querySelectorAll("button[aria-pressed]")) as HTMLButtonElement[];
     expect(chips.some((c) => c.title === "จากไฟล์ที่นำเข้า")).toBe(true);
-    expect(chips).toHaveLength(2); // ก.ย. และ ต.ค. จากไฟล์
+    const usable = chips.filter((c) => !c.disabled);
+    expect(usable).toHaveLength(2); // ก.ย. และ ต.ค. จากไฟล์
+    expect(chips.some((c) => c.disabled)).toBe(true); // เดือนที่ยังไม่มีข้อมูลโชว์เป็นปุ่มจาง กดไม่ได้
     // ตั้งต้นเลือกเดือนเดียว (เดือนล่าสุดที่นำเข้า) ติ๊กเพิ่มอีกเดือน → เฉลี่ย 2 เดือน
-    expect(chips.filter((c) => c.getAttribute("aria-pressed") === "true")).toHaveLength(1);
-    fireEvent.click(chips.find((c) => c.getAttribute("aria-pressed") === "false")!);
+    expect(usable.filter((c) => c.getAttribute("aria-pressed") === "true")).toHaveLength(1);
+    fireEvent.click(usable.find((c) => c.getAttribute("aria-pressed") === "false")!);
     await waitFor(() => expect(screen.getByText(/เฉลี่ย 2 เดือน/)).toBeTruthy());
   });
 

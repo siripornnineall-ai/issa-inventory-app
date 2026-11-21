@@ -265,31 +265,42 @@ function PlanContent() {
   const brands = useMemo(() => Object.values(state.brands).sort((a, b) => a.name.localeCompare(b.name, "th")), [state.brands]);
   // เดือนที่เลือกเป็นยอดขายอ้างอิงได้: เดือนที่นำเข้าไฟล์ไว้ + เดือนที่จบแล้วในระบบ (ตั้งแต่ต้นเดือนที่ระบบเริ่มใช้จริง) เดือนที่มีทั้งสองแบบใช้ไฟล์
   const monthChoices = useMemo(() => {
-    const kind = new Map<string, "file" | "sys">();
-    for (const m of baseline.months) kind.set(m, "file");
+    const kind = new Map<string, "file" | "sys" | "none">();
     const now = new Date();
-    const start = new Date(REAL_DATA_START);
-    let y = start.getFullYear();
-    let m0 = start.getMonth();
+    const real = new Date(REAL_DATA_START);
+    const realKey = `${real.getFullYear()}-${String(real.getMonth() + 1).padStart(2, "0")}`;
+    // แสดงทุกเดือนตั้งแต่ ม.ค. ปีนี้ (หรือเดือนแรกที่มีไฟล์) ถึงเดือนที่แล้ว: เดือนที่ยังไม่มีข้อมูลเป็นปุ่มจาง กดไม่ได้ ให้เห็นว่ายังขาดเดือนไหน
+    const firstFile = [...baseline.months].sort()[0];
+    let y = now.getFullYear();
+    let m0 = 0;
+    if (firstFile) {
+      const [fy, fm] = firstFile.split("-").map(Number);
+      if (fy < y || (fy === y && fm - 1 < m0)) {
+        y = fy;
+        m0 = fm - 1;
+      }
+    }
     while (y < now.getFullYear() || (y === now.getFullYear() && m0 < now.getMonth())) {
       const key = `${y}-${String(m0 + 1).padStart(2, "0")}`;
-      if (!kind.has(key)) kind.set(key, "sys");
+      kind.set(key, baseline.months.includes(key) ? "file" : key >= realKey ? "sys" : "none");
       m0 += 1;
       if (m0 > 11) {
         m0 = 0;
         y += 1;
       }
     }
+    for (const m of baseline.months) kind.set(m, "file");
     return [...kind.entries()].map(([month, k]) => ({ month, kind: k })).sort((a, b) => a.month.localeCompare(b.month));
   }, [baseline.months]);
+  const usableMonths = useMemo(() => monthChoices.filter((c) => c.kind !== "none"), [monthChoices]);
   // ติ๊กได้หลายเดือน: หลายเดือน = เฉลี่ยต่อเดือน (ไม่ติ๊กเลย = เดือนล่าสุดที่นำเข้าไฟล์ เหมือนเดิม)
   const selectedMonths = useMemo(() => {
-    const valid = picked.filter((m) => monthChoices.some((c) => c.month === m));
+    const valid = picked.filter((m) => usableMonths.some((c) => c.month === m));
     if (valid.length > 0) return [...valid].sort();
     const latestFile = [...baseline.months].sort().pop();
-    const fallback = latestFile ?? monthChoices[monthChoices.length - 1]?.month;
+    const fallback = latestFile ?? usableMonths[usableMonths.length - 1]?.month;
     return fallback ? [fallback] : [];
-  }, [picked, monthChoices, baseline.months]);
+  }, [picked, usableMonths, baseline.months]);
   const baseRows = useMemo<BaselineInput[]>(() => {
     const rowsForMonth = (month: string): BaselineInput[] => {
       if (baseline.months.includes(month)) return baseline.rows.filter((r) => r.month === month);
@@ -357,18 +368,19 @@ function PlanContent() {
                   key={c.month}
                   type="button"
                   aria-pressed={on}
+                  disabled={c.kind === "none"}
                   onClick={() => toggleMonth(c.month)}
-                  title={c.kind === "file" ? "จากไฟล์ที่นำเข้า" : "ยอดขายที่บันทึกในระบบ"}
-                  className={`rounded-full border px-3 py-1 text-sm ${on ? "border-transparent bg-[var(--color-primary-container)] font-semibold text-white" : "border-[var(--color-border)] bg-white"}`}
+                  title={c.kind === "file" ? "จากไฟล์ที่นำเข้า" : c.kind === "sys" ? "ยอดขายที่บันทึกในระบบ" : "ยังไม่มียอดขายของเดือนนี้ (นำเข้าไฟล์ก่อน)"}
+                  className={`rounded-full border px-3 py-1 text-sm ${on ? "border-transparent bg-[var(--color-primary-container)] font-semibold text-white" : c.kind === "none" ? "cursor-not-allowed border-dashed border-[var(--color-border)] bg-transparent text-[var(--color-on-surface-variant)]/50" : "border-[var(--color-border)] bg-white"}`}
                 >
                   {c.month}
                   {c.kind === "sys" && <span className="ml-1 text-[11px] opacity-70">ระบบ</span>}
                 </button>
               );
             })}
-            {monthChoices.length > 1 && (
+            {usableMonths.length > 1 && (
               <>
-                <button type="button" onClick={() => setPicked(monthChoices.map((c) => c.month))} className="px-2 text-sm text-[var(--color-primary)] underline">
+                <button type="button" onClick={() => setPicked(usableMonths.map((c) => c.month))} className="px-2 text-sm text-[var(--color-primary)] underline">
                   เลือกทั้งหมด
                 </button>
                 <button type="button" onClick={() => setPicked([])} className="px-2 text-sm text-[var(--color-on-surface-variant)] underline">
