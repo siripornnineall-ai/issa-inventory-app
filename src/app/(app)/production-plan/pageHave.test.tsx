@@ -53,7 +53,7 @@ describe("หน้าวางแผนผลิต: ตารางที่�
     seed();
   });
 
-  const needTable = (container: HTMLElement) => container.querySelectorAll("table")[2] as HTMLTableElement;
+  const needTable = (container: HTMLElement) => container.querySelectorAll("table:not([data-material])")[2] as HTMLTableElement;
   const cellOf = (table: HTMLTableElement, color: string) => Array.from(table.querySelectorAll("tbody tr")).find((r) => r.querySelector("td")?.textContent === color)!;
 
   it("ค่าเริ่มต้นติ๊กอยู่: ช่องที่ขาดเป็นเลขติดลบสีแดง ช่องที่มีของพอเป็นจำนวนของที่มีสีเทา ไม่มีคำว่า 'มี'", async () => {

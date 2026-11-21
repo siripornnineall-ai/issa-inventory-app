@@ -107,7 +107,7 @@ describe("หน้าวางแผนผลิต", () => {
   it("ทั้งสามตารางกว้างเท่ากันและทุกแถวสูงเท่ากัน (ตรงกันแถวต่อแถว) ไม่ว่าจะมีบรรทัด +รอเย็บ หรือคอลัมน์ % หรือไม่", async () => {
     const { container } = render(<ProductionPlanPage />);
     await waitFor(() => expect(screen.getByText(/ที่ต้องผลิตเพิ่ม \(ชิ้น\)/)).toBeTruthy());
-    const tables = Array.from(container.querySelectorAll("table"));
+    const tables = Array.from(container.querySelectorAll("table:not([data-material])"));
     expect(tables).toHaveLength(3);
     for (const t of tables) {
       expect(t.className).toContain("table-fixed");
