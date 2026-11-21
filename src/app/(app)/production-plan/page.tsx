@@ -21,7 +21,7 @@ import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
 import { addMonthsClamped, averageBaseline, formatPlanDate, planSheet, productionPlan, type BaselineInput, type PlanCell, type PlanMatrix } from "@/lib/utils/productionPlan";
-import { matchBaseline, parseBaselineCsv, type BaselineMatch } from "@/lib/utils/salesBaselineImport";
+import { matchBaseline, parseBaselineCsv, parseBaselineSheets, type BaselineMatch } from "@/lib/utils/salesBaselineImport";
 
 function lastMonthStart(): string {
   const d = new Date();
@@ -167,15 +167,46 @@ function ImportCard({ onSaved }: { onSaved: () => void }) {
   const [match, setMatch] = useState<BaselineMatch | null>(null);
   const [month, setMonth] = useState(lastMonthStart());
   const [busy, setBusy] = useState(false);
+  // ไฟล์ Excel ที่มีหนึ่งชีตต่อเดือน: นำเข้าได้ทุกเดือนพร้อมกัน
+  const [batch, setBatch] = useState<{ sheetName: string; month: string | null; match: BaselineMatch }[] | null>(null);
 
   async function pick(file: File | undefined) {
     if (!file) return;
     try {
-      const blocks = parseBaselineCsv(await file.text());
       setFileName(file.name);
+      if (/\.xlsx?$/i.test(file.name)) {
+        const XLSX = await import("xlsx");
+        const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+        const sheets = parseBaselineSheets(wb.SheetNames.map((name) => ({ name, csv: XLSX.utils.sheet_to_csv(wb.Sheets[name]) })));
+        if (sheets.length === 0) throw new Error("no sheets");
+        setMatch(null);
+        setBatch(sheets.map((sh) => ({ sheetName: sh.sheetName, month: sh.month, match: matchBaseline(state, sh.blocks) })));
+        return;
+      }
+      setBatch(null);
+      const blocks = parseBaselineCsv(await file.text());
       setMatch(matchBaseline(state, blocks));
     } catch {
-      toastError("อ่านไฟล์ไม่ได้ ต้องเป็นไฟล์ CSV ของชีตยอดขาย");
+      toastError("อ่านไฟล์ไม่ได้ ต้องเป็นไฟล์ CSV หรือ Excel ของชีตยอดขาย");
+    }
+  }
+
+  async function saveBatch() {
+    if (!batch || !user) return;
+    setBusy(true);
+    try {
+      let total = 0;
+      for (const b of batch) {
+        if (!b.month || b.match.rows.length === 0) continue;
+        total += await saveBaseline(createClient(), b.match.rows, { month: b.month, fileName, userId: user.id, userName: user.name });
+      }
+      toastSuccess(`บันทึกยอดขายอ้างอิง ${formatNumber(total)} ช่องแล้ว`);
+      setBatch(null);
+      onSaved();
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -198,13 +229,32 @@ function ImportCard({ onSaved }: { onSaved: () => void }) {
     <Card className="p-5">
       <details>
         <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold">
-          <Upload className="h-4 w-4" /> นำเข้ายอดขายรายเดือนจากไฟล์ (CSV)
+          <Upload className="h-4 w-4" /> นำเข้ายอดขายรายเดือนจากไฟล์ (CSV / Excel)
         </summary>
         <div className="mt-4 flex flex-col gap-3 text-sm">
           <p className="text-[var(--color-on-surface-variant)]">
             ใช้ไฟล์ชีตยอดขายแบบเดิม (หนึ่งบล็อกต่อรุ่น สี × ไซซ์) เก็บเป็นยอดอ้างอิงสำหรับวางแผนผลิตเท่านั้น <b>ไม่ใช่ออเดอร์ และไม่ตัดสต็อก</b> นำเข้าซ้ำเดือนเดิมจะทับของเดิม
           </p>
-          <input type="file" accept=".csv,text/csv" aria-label="ไฟล์ยอดขาย" onChange={(e) => void pick(e.target.files?.[0])} />
+          <input type="file" accept=".csv,text/csv,.xlsx,.xls" aria-label="ไฟล์ยอดขาย" onChange={(e) => void pick(e.target.files?.[0])} />
+          {batch && (
+            <div className="flex flex-col gap-2 rounded-xl border border-[var(--color-border)] p-3">
+              <p>ไฟล์ Excel มี <b>{batch.length}</b> เดือน (หนึ่งชีตต่อเดือน) ตรวจก่อนบันทึก:</p>
+              <ul className="flex flex-col gap-1">
+                {batch.map((b) => (
+                  <li key={b.sheetName}>
+                    {b.month ? b.month.slice(0, 7) : <span className="text-amber-800">อ่านเดือนจากชีต “{b.sheetName}” ไม่ได้ (จะข้าม)</span>} · จับคู่ได้ {formatNumber(b.match.rows.length)} ช่อง ({formatNumber(b.match.totalMatched)} จาก {formatNumber(b.match.totalFile)} ชิ้น)
+                    {b.match.unmatchedModels.length > 0 && <span className="text-amber-800"> · ข้ามรุ่น: {b.match.unmatchedModels.join(", ")}</span>}
+                    {b.match.unmatchedCells.length > 0 && <span className="text-amber-800"> · สี/ไซซ์ไม่พบ {formatNumber(b.match.unmatchedCells.length)} ช่อง</span>}
+                  </li>
+                ))}
+              </ul>
+              <div>
+                <Button onClick={() => void saveBatch()} disabled={busy || !batch.some((b) => b.month && b.match.rows.length > 0)}>
+                  {busy ? "กำลังบันทึก..." : "บันทึกยอดขายอ้างอิงทุกเดือน"}
+                </Button>
+              </div>
+            </div>
+          )}
           {match && (
             <div className="flex flex-col gap-2 rounded-xl border border-[var(--color-border)] p-3">
               <p>

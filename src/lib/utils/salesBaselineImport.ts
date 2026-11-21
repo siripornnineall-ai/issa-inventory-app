@@ -157,3 +157,37 @@ export function matchBaseline(state: AppState, blocks: BaselineBlock[]): Baselin
   }
   return out;
 }
+
+// ---- ไฟล์ Excel (.xlsx) ที่มีหนึ่งชีตต่อเดือน (เช่น ม.ค.–ก.ย. 2026) ----
+
+const THAI_MONTH_ABBR: Record<string, number> = {
+  "ม.ค.": 1, "ก.พ.": 2, "มี.ค.": 3, "เม.ย.": 4, "พ.ค.": 5, "มิ.ย.": 6,
+  "ก.ค.": 7, "ส.ค.": 8, "ก.ย.": 9, "ต.ค.": 10, "พ.ย.": 11, "ธ.ค.": 12,
+};
+
+// หาเดือนจากหัวข้อ เช่น "ม.ค. 2026 — 7 สีหลัก" คืน "2026-01-01" (ปี พ.ศ. แปลงเป็น ค.ศ. ให้) ไม่เจอคืน null
+export function monthFromTitle(text: string): string | null {
+  const m = text.match(/(ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.)\s*(\d{4})/);
+  if (!m) return null;
+  let year = Number(m[2]);
+  if (year > 2400) year -= 543;
+  return `${year}-${String(THAI_MONTH_ABBR[m[1]]).padStart(2, "0")}-01`;
+}
+
+export interface BaselineSheet {
+  sheetName: string;
+  month: string | null; // YYYY-MM-01 หรือ null ถ้าอ่านเดือนจากหัวชีตไม่ได้
+  blocks: BaselineBlock[];
+}
+
+// รับข้อความ CSV ของแต่ละชีต (แปลงมาจาก Excel แล้ว) คืนเฉพาะชีตที่มียอด
+export function parseBaselineSheets(sheets: { name: string; csv: string }[]): BaselineSheet[] {
+  const out: BaselineSheet[] = [];
+  for (const s of sheets) {
+    const blocks = parseBaselineCsv(s.csv);
+    if (blocks.length === 0) continue;
+    const firstText = parseCsv(s.csv).flat().find((c) => monthFromTitle(c)) ?? s.name;
+    out.push({ sheetName: s.name, month: monthFromTitle(firstText), blocks });
+  }
+  return out;
+}
