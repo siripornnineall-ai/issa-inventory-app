@@ -378,10 +378,10 @@ function PlanContent() {
   };
 
   const matrices = useMemo(() => productionPlan(state, baseRows, { months: Number(months), brandId, search }), [state, baseRows, months, brandId, search]);
-  // ขาดรวมถ้าดูล่วงหน้า 1-8 เดือน พร้อมวันที่ปลายทาง (วันนี้ + n เดือน) ใช้บนปุ่มเลือก
+  // ขาดรวมถ้าดูล่วงหน้า 1-12 เดือน พร้อมวันที่ปลายทาง (วันนี้ + n เดือน) ใช้บนปุ่มเลือก
   const shortageByMonths = useMemo(() => {
     const today = new Date();
-    return [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
+    return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => ({
       n,
       until: formatPlanDate(addMonthsClamped(today, n)),
       need: productionPlan(state, baseRows, { months: n, brandId, search }).reduce((t, m) => t + m.totals.need, 0),

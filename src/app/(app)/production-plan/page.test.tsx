@@ -65,7 +65,9 @@ describe("หน้าวางแผนผลิต", () => {
     expect(screen.getByRole("button", { name: /ดูล่วงหน้า 3 เดือน/ }).textContent).toContain("270");
     // มีปุ่มถึง 8 เดือน: ขาย 100 x 8 - คลัง 30 = 770
     expect(screen.getByRole("button", { name: /ดูล่วงหน้า 8 เดือน/ }).textContent).toContain("770");
-    expect(screen.queryByRole("button", { name: /ดูล่วงหน้า 9 เดือน/ })).toBeNull();
+    // ดูล่วงหน้าได้ถึง 12 เดือน (1 ปี): ขาย 100 x 12 - คลัง 30 = 1170
+    expect(screen.getByRole("button", { name: /ดูล่วงหน้า 12 เดือน/ }).textContent).toContain("1,170");
+    expect(screen.queryByRole("button", { name: /ดูล่วงหน้า 13 เดือน/ })).toBeNull();
     // ปุ่มแต่ละปุ่มบอกวันที่ปลายทาง dd/mm/yyyy
     expect(screen.getByRole("button", { name: /ดูล่วงหน้า 1 เดือน/ }).textContent).toMatch(/ถึง \d{2}\/\d{2}\/\d{4}/);
     fireEvent.click(screen.getByRole("button", { name: /ดูล่วงหน้า 2 เดือน/ }));
