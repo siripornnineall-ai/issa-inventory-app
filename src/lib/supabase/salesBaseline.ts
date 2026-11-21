@@ -14,9 +14,23 @@ export interface BaselineDbRow {
 
 // ยอดขายอ้างอิงทุกเดือนที่เคยนำเข้า (แถวต่อ เดือน-รุ่น-สี-ไซซ์) และรายชื่อเดือน (ใหม่ไปเก่า)
 export async function loadBaseline(supabase: SupabaseClient): Promise<{ rows: (BaselineInput & { month: string })[]; months: string[] }> {
-  const res = await supabase.from("sales_baseline").select("month, product_id, color, size, qty").order("month", { ascending: false }).limit(20000);
-  if (res.error) throw new Error(res.error.message);
-  const data = (res.data ?? []) as BaselineDbRow[];
+  // PostgREST ตอบสูงสุด 1,000 แถวต่อคำขอ (.limit เกินนั้นไม่ได้ผล) จึงต้องดึงทีละหน้าจนหมด ไม่งั้นเดือนเก่าหายไปจากหน้า
+  const PAGE = 1000;
+  const data: BaselineDbRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const res = await supabase
+      .from("sales_baseline")
+      .select("month, product_id, color, size, qty")
+      .order("month", { ascending: false })
+      .order("product_id")
+      .order("color")
+      .order("size")
+      .range(from, from + PAGE - 1);
+    if (res.error) throw new Error(res.error.message);
+    const page = (res.data ?? []) as BaselineDbRow[];
+    data.push(...page);
+    if (page.length < PAGE) break;
+  }
   return {
     rows: data.map((r) => ({ month: r.month.slice(0, 7), productId: r.product_id, color: r.color, size: r.size, qty: Number(r.qty) })),
     months: [...new Set(data.map((r) => r.month.slice(0, 7)))],
