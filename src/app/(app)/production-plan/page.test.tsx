@@ -17,7 +17,7 @@ vi.mock("@/lib/supabase/client", () => ({
       const chain: Record<string, unknown> = {};
       for (const f of ["select", "order", "limit"]) chain[f] = () => chain;
       chain.then = (resolve: (r: unknown) => unknown) =>
-        Promise.resolve(resolve({ data: [{ month: "2026-10-01", product_id: productId, color: "ดำ", size: "M", qty: 100 }], error: null }));
+        Promise.resolve(resolve({ data: [{ month: "2026-10-01", product_id: productId, color: "ดำ", size: "M", qty: 100 }, { month: "2026-09-01", product_id: productId, color: "ดำ", size: "M", qty: 40 }], error: null }));
       return chain;
     },
   }),
@@ -73,12 +73,16 @@ describe("หน้าวางแผนผลิต", () => {
     expect(screen.getAllByText("170").length).toBeGreaterThan(0);
   });
 
-  it("เลือกเดือนของยอดขายอ้างอิงได้ (ไฟล์ที่นำเข้า และยอดขายที่บันทึกในระบบ)", async () => {
+  it("เลือกเดือนยอดขายอ้างอิงได้ ติ๊กหลายเดือน = เฉลี่ย", async () => {
     render(<ProductionPlanPage />);
-    const sel = (await screen.findByLabelText("ยอดขายอ้างอิงเดือน")) as HTMLSelectElement;
-    const labels = Array.from(sel.options).map((o) => o.textContent);
-    expect(labels.some((t) => t?.includes("จากไฟล์ที่นำเข้า"))).toBe(true);
-    expect(labels.some((t) => t?.includes("ยอดขายที่บันทึกในระบบ"))).toBe(true);
+    const group = await screen.findByRole("group", { name: "เลือกเดือนยอดขายอ้างอิง" });
+    const chips = Array.from(group.querySelectorAll("button[aria-pressed]")) as HTMLButtonElement[];
+    expect(chips.some((c) => c.title === "จากไฟล์ที่นำเข้า")).toBe(true);
+    expect(chips).toHaveLength(2); // ก.ย. และ ต.ค. จากไฟล์
+    // ตั้งต้นเลือกเดือนเดียว (เดือนล่าสุดที่นำเข้า) ติ๊กเพิ่มอีกเดือน → เฉลี่ย 2 เดือน
+    expect(chips.filter((c) => c.getAttribute("aria-pressed") === "true")).toHaveLength(1);
+    fireEvent.click(chips.find((c) => c.getAttribute("aria-pressed") === "false")!);
+    await waitFor(() => expect(screen.getByText(/เฉลี่ย 2 เดือน/)).toBeTruthy());
   });
 
   it("ทุกคนที่ดูสินค้าได้ (พนักงานคลัง/ฝ่ายขาย) เห็นแผนผลิต แต่ไม่เห็นช่องนำเข้าไฟล์ยอดขาย", async () => {

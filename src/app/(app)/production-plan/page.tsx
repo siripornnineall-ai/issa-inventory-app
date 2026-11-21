@@ -20,7 +20,7 @@ import { REAL_DATA_START, monthRange, netSalesByVariant } from "@/lib/utils/sale
 import { brandBarStyle } from "@/lib/utils/brandColor";
 import { downloadWorkbook } from "@/lib/utils/excelMonths";
 import { formatNumber } from "@/lib/utils/money";
-import { addMonthsClamped, formatPlanDate, planSheet, productionPlan, type BaselineInput, type PlanCell, type PlanMatrix } from "@/lib/utils/productionPlan";
+import { addMonthsClamped, averageBaseline, formatPlanDate, planSheet, productionPlan, type BaselineInput, type PlanCell, type PlanMatrix } from "@/lib/utils/productionPlan";
 import { matchBaseline, parseBaselineCsv, type BaselineMatch } from "@/lib/utils/salesBaselineImport";
 
 function lastMonthStart(): string {
@@ -244,7 +244,7 @@ function PlanContent() {
   const [months, setMonths] = useState("1");
   // โชว์ของที่มี (คลัง + รอเย็บ) ในช่องที่ไม่ขาดของตาราง "ที่ต้องผลิต" (ติ๊กปิดได้ถ้ารู้สึกตัวเลขเยอะ)
   const [showHave, setShowHave] = useState(true);
-  const [source, setSource] = useState("");
+  const [picked, setPicked] = useState<string[]>([]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -263,37 +263,58 @@ function PlanContent() {
   }, [reload]);
 
   const brands = useMemo(() => Object.values(state.brands).sort((a, b) => a.name.localeCompare(b.name, "th")), [state.brands]);
-  // ยอดขายที่ใช้เป็นฐาน: ไฟล์ที่นำเข้าของเดือนนั้น หรือยอดขายที่บันทึกในระบบของเดือนที่จบแล้ว (ตั้งแต่ต้นเดือนที่ระบบเริ่มใช้จริง)
-  const sourceOptions = useMemo(() => {
-    const opts: { value: string; month: string; label: string }[] = baseline.months.map((m) => ({ value: `file:${m}`, month: m, label: `${m} · จากไฟล์ที่นำเข้า` }));
+  // เดือนที่เลือกเป็นยอดขายอ้างอิงได้: เดือนที่นำเข้าไฟล์ไว้ + เดือนที่จบแล้วในระบบ (ตั้งแต่ต้นเดือนที่ระบบเริ่มใช้จริง) เดือนที่มีทั้งสองแบบใช้ไฟล์
+  const monthChoices = useMemo(() => {
+    const kind = new Map<string, "file" | "sys">();
+    for (const m of baseline.months) kind.set(m, "file");
     const now = new Date();
     const start = new Date(REAL_DATA_START);
     let y = start.getFullYear();
     let m0 = start.getMonth();
     while (y < now.getFullYear() || (y === now.getFullYear() && m0 < now.getMonth())) {
       const key = `${y}-${String(m0 + 1).padStart(2, "0")}`;
-      opts.push({ value: `sys:${key}`, month: key, label: `${key} · ยอดขายที่บันทึกในระบบ` });
+      if (!kind.has(key)) kind.set(key, "sys");
       m0 += 1;
       if (m0 > 11) {
         m0 = 0;
         y += 1;
       }
     }
-    return opts.sort((a, b) => b.month.localeCompare(a.month) || a.value.localeCompare(b.value));
+    return [...kind.entries()].map(([month, k]) => ({ month, kind: k })).sort((a, b) => a.month.localeCompare(b.month));
   }, [baseline.months]);
-  const activeSource = sourceOptions.find((o) => o.value === source) ?? sourceOptions.find((o) => o.value.startsWith("file:")) ?? sourceOptions[0];
+  // ติ๊กได้หลายเดือน: หลายเดือน = เฉลี่ยต่อเดือน (ไม่ติ๊กเลย = เดือนล่าสุดที่นำเข้าไฟล์ เหมือนเดิม)
+  const selectedMonths = useMemo(() => {
+    const valid = picked.filter((m) => monthChoices.some((c) => c.month === m));
+    if (valid.length > 0) return [...valid].sort();
+    const latestFile = [...baseline.months].sort().pop();
+    const fallback = latestFile ?? monthChoices[monthChoices.length - 1]?.month;
+    return fallback ? [fallback] : [];
+  }, [picked, monthChoices, baseline.months]);
   const baseRows = useMemo<BaselineInput[]>(() => {
-    if (!activeSource) return [];
-    if (activeSource.value.startsWith("file:")) return baseline.rows.filter((r) => r.month === activeSource.month);
-    const [y, m] = activeSource.month.split("-").map(Number);
-    const r = monthRange(y, m - 1);
-    const rows: BaselineInput[] = [];
-    for (const [variantId, qty] of netSalesByVariant(state, r.from, r.to)) {
-      const v = state.variants[variantId];
-      if (v) rows.push({ productId: v.productId, color: v.color, size: v.size, qty });
-    }
-    return rows;
-  }, [activeSource, baseline.rows, state]);
+    const rowsForMonth = (month: string): BaselineInput[] => {
+      if (baseline.months.includes(month)) return baseline.rows.filter((r) => r.month === month);
+      const [y, m] = month.split("-").map(Number);
+      const r = monthRange(y, m - 1);
+      const rows: BaselineInput[] = [];
+      for (const [variantId, qty] of netSalesByVariant(state, r.from, r.to)) {
+        const v = state.variants[variantId];
+        if (v) rows.push({ productId: v.productId, color: v.color, size: v.size, qty });
+      }
+      return rows;
+    };
+    if (selectedMonths.length === 0) return [];
+    if (selectedMonths.length === 1) return rowsForMonth(selectedMonths[0]);
+    return averageBaseline(
+      selectedMonths.flatMap((month) => rowsForMonth(month).map((r) => ({ ...r, month }))),
+      selectedMonths
+    );
+  }, [selectedMonths, baseline.rows, baseline.months, state]);
+  const baseLabel = selectedMonths.length === 1 ? `เดือน ${selectedMonths[0]}` : `เฉลี่ย ${selectedMonths.length} เดือน (${selectedMonths.join(", ")})`;
+  const toggleMonth = (m: string) => {
+    const cur = selectedMonths;
+    const next = cur.includes(m) ? cur.filter((x) => x !== m) : [...cur, m];
+    if (next.length > 0) setPicked(next);
+  };
 
   const matrices = useMemo(() => productionPlan(state, baseRows, { months: Number(months), brandId, search }), [state, baseRows, months, brandId, search]);
   // ขาดรวมถ้าดูล่วงหน้า 1-8 เดือน พร้อมวันที่ปลายทาง (วันนี้ + n เดือน) ใช้บนปุ่มเลือก
@@ -326,14 +347,36 @@ function PlanContent() {
             </option>
           ))}
         </Select>
-        {sourceOptions.length > 0 && (
-          <Select value={activeSource?.value ?? ""} onChange={(e) => setSource(e.target.value)} aria-label="ยอดขายอ้างอิงเดือน" className="w-72">
-            {sourceOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                ยอดขายเดือน {o.label}
-              </option>
-            ))}
-          </Select>
+        {monthChoices.length > 0 && (
+          <div className="flex w-full flex-wrap items-center gap-1.5" role="group" aria-label="เลือกเดือนยอดขายอ้างอิง">
+            <span className="mr-1 text-sm font-medium">ยอดขายอ้างอิงจากเดือน (ติ๊กได้หลายเดือน = เฉลี่ย):</span>
+            {monthChoices.map((c) => {
+              const on = selectedMonths.includes(c.month);
+              return (
+                <button
+                  key={c.month}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggleMonth(c.month)}
+                  title={c.kind === "file" ? "จากไฟล์ที่นำเข้า" : "ยอดขายที่บันทึกในระบบ"}
+                  className={`rounded-full border px-3 py-1 text-sm ${on ? "border-transparent bg-[var(--color-primary-container)] font-semibold text-white" : "border-[var(--color-border)] bg-white"}`}
+                >
+                  {c.month}
+                  {c.kind === "sys" && <span className="ml-1 text-[11px] opacity-70">ระบบ</span>}
+                </button>
+              );
+            })}
+            {monthChoices.length > 1 && (
+              <>
+                <button type="button" onClick={() => setPicked(monthChoices.map((c) => c.month))} className="px-2 text-sm text-[var(--color-primary)] underline">
+                  เลือกทั้งหมด
+                </button>
+                <button type="button" onClick={() => setPicked([])} className="px-2 text-sm text-[var(--color-on-surface-variant)] underline">
+                  ล้าง
+                </button>
+              </>
+            )}
+          </div>
         )}
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={showHave} onChange={(e) => setShowHave(e.target.checked)} />
@@ -395,7 +438,7 @@ function PlanContent() {
             </Card>
           </div>
           <p className="px-1 text-sm text-[var(--color-on-surface-variant)]">
-            ยอดขายเดือน {activeSource?.label} · ดูล่วงหน้า {months} เดือน (ถึงวันที่ {untilDate}) · แต่ละรุ่นมีสามตารางเรียงข้างกัน (ยอดขาย → สต็อกปัจจุบัน → ที่ต้องผลิต) เลื่อนซ้าย-ขวาดูได้ · ในตารางที่ต้องผลิต{" "}
+            ยอดขาย{baseLabel} · ดูล่วงหน้า {months} เดือน (ถึงวันที่ {untilDate}) · แต่ละรุ่นมีสามตารางเรียงข้างกัน (ยอดขาย → สต็อกปัจจุบัน → ที่ต้องผลิต) เลื่อนซ้าย-ขวาดูได้ · ในตารางที่ต้องผลิต{" "}
             <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> ไม่มีของเลย <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={lowStyle}>แดงอ่อน</span> ขาดบางส่วน
           </p>
           {matrices.map((m) => (
