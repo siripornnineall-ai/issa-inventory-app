@@ -8,7 +8,6 @@ import { Header } from "@/components/layout/Header";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { RequireAccess } from "@/components/layout/RequireAccess";
 import { Card } from "@/components/ui/Card";
-import { MaterialCard } from "@/components/production/MaterialCard";
 import { MaterialSideTable } from "@/components/production/MaterialSideTable";
 import { useMaterialSettings, type MaterialSettings } from "@/components/production/useMaterialSettings";
 import { Button } from "@/components/ui/Button";
@@ -508,7 +507,6 @@ function PlanContent() {
             ยอดขาย{baseLabel} · ดูล่วงหน้า {months} เดือน (ถึงวันที่ {untilDate}) · แต่ละรุ่นมีสามตารางเรียงข้างกัน (ยอดขาย → สต็อกปัจจุบัน → ที่ต้องผลิต) เลื่อนซ้าย-ขวาดูได้ · ในตารางที่ต้องผลิต{" "}
             <span className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-xs font-semibold text-white">แดงเข้ม</span> ไม่มีของเลย <span className="rounded px-1.5 py-0.5 text-xs font-semibold text-[var(--color-danger)]" style={lowStyle}>แดงอ่อน</span> ขาดบางส่วน
           </p>
-          <MaterialCard models={matrices.map((m) => ({ id: m.productId, name: m.shape ? `${m.name} ${m.shape}` : m.name, need: m.totals.need, colors: m.colors.map((c) => ({ color: c.color, need: c.need })) }))} months={months} untilDate={untilDate} settings={material} />
           {matrices.map((m) => (
             <ModelBlock key={m.productId} m={m} showHave={showHave} material={material} />
           ))}
