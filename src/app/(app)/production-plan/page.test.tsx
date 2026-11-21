@@ -15,7 +15,7 @@ vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
     from() {
       const chain: Record<string, unknown> = {};
-      for (const f of ["select", "order", "limit"]) chain[f] = () => chain;
+      for (const f of ["select", "order", "limit", "range"]) chain[f] = () => chain;
       chain.then = (resolve: (r: unknown) => unknown) =>
         Promise.resolve(resolve({ data: [{ month: "2026-10-01", product_id: productId, color: "ดำ", size: "M", qty: 100 }, { month: "2026-09-01", product_id: productId, color: "ดำ", size: "M", qty: 40 }], error: null }));
       return chain;
