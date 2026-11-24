@@ -12,6 +12,12 @@ export const RETURN_REASONS = [
 
 export type ReturnReasonCode = (typeof RETURN_REASONS)[number]["code"];
 
+// เหตุผลที่ผู้ใช้เพิ่มเอง (ตาราง return_custom_options): เก็บรหัสเป็น "x:" + ข้อความ จึงอ่านชื่อกลับได้เลยโดยไม่ต้องค้นตาราง
+export const CUSTOM_REASON_PREFIX = "x:";
+export const CUSTOM_LABEL_MAX = 40;
+export const customReasonCode = (label: string) => `${CUSTOM_REASON_PREFIX}${label.trim()}`;
+export const isCustomReasonCode = (code: unknown): code is string => typeof code === "string" && code.startsWith(CUSTOM_REASON_PREFIX) && code.slice(CUSTOM_REASON_PREFIX.length).trim().length > 0;
+
 // สิ่งที่ลูกค้าพูด (ไม่บังคับ เลือกได้หลายข้อ) ใช้นับว่าพูดอะไรบ่อยที่สุด
 export const RETURN_TAGS = ["ใหญ่ไป", "เล็กไป", "ยาวไป", "สั้นไป", "ผ้าบาง", "ใส่ไม่สวย", "สีไม่เหมือนรูป", "ได้ของช้า"] as const;
 
@@ -19,10 +25,11 @@ export const RETURN_REASON_LABEL_TH: Record<string, string> = Object.fromEntries
 
 export const NO_REASON_LABEL = "ไม่ได้ระบุ";
 
-export function isReturnReason(value: unknown): value is ReturnReasonCode {
-  return typeof value === "string" && RETURN_REASONS.some((r) => r.code === value);
+export function isReturnReason(value: unknown): value is string {
+  return (typeof value === "string" && RETURN_REASONS.some((r) => r.code === value)) || isCustomReasonCode(value);
 }
 
 export function returnReasonLabel(code: string | undefined | null): string {
+  if (isCustomReasonCode(code)) return code.slice(CUSTOM_REASON_PREFIX.length).trim();
   return code && RETURN_REASON_LABEL_TH[code] ? RETURN_REASON_LABEL_TH[code] : NO_REASON_LABEL;
 }

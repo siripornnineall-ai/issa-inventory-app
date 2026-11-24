@@ -30,7 +30,9 @@ import { useUnsavedChangesGuard } from "@/lib/utils/useUnsavedChangesGuard";
 import { useDraft } from "@/lib/utils/useDraft";
 import { pruneRestoredTokens } from "@/lib/utils/draftRestore";
 import { findRecentSimilarDoc, useSaveGuard } from "@/lib/utils/saveGuard";
-import { RETURN_REASONS, RETURN_TAGS, isReturnReason, type ReturnReasonCode } from "@/lib/utils/returnReasons";
+import { RETURN_REASONS, RETURN_TAGS, customReasonCode, isReturnReason } from "@/lib/utils/returnReasons";
+import { ReturnOptionsManager } from "@/components/stock/ReturnOptionsManager";
+import { useReturnOptions } from "@/components/stock/useReturnOptions";
 import { SALES_CHANNEL_LABEL_TH, STOCK_RETURN_HINT_TH, STOCK_RETURN_LABEL_TH, STOCK_RETURN_TYPES, isStockReturnType, type StockReturnType, type UnitToken, type ProductVariant } from "@/lib/types";
 
 interface Line {
@@ -38,7 +40,7 @@ interface Line {
   variantId: string;
   qty: number;
   unitPrice: number; // ราคาต่อชิ้นของที่ถูกคืน (ตั้งต้นจากราคาขาย แก้ได้) ใช้รวมเป็นมูลค่าของที่ถูกคืน
-  reason: ReturnReasonCode | ""; // เหตุผลที่ลูกค้าคืน (บังคับ)
+  reason: string; // เหตุผลที่ลูกค้าคืน (บังคับ) รหัสของระบบ หรือ "x:" + ข้อความที่เพิ่มเอง
   tags: string[]; // สิ่งที่ลูกค้าพูด (ไม่บังคับ)
   exchangeToId: string; // เปลี่ยนเป็นตัวเลือกไหน (เฉพาะใบ "เปลี่ยน" บังคับ ข้อมูลอย่างเดียว ไม่ตัดสต็อก)
 }
@@ -66,6 +68,12 @@ function StockReturnForm({ onAgain }: { onAgain: () => void }) {
   const state = useStore();
   const { stockReturn, recordUnitScanIn } = useActions();
   const user = useCurrentUser();
+  const returnOptions = useReturnOptions();
+  const reasonOptions = useMemo(
+    () => [...RETURN_REASONS.map((r) => ({ value: r.code as string, label: r.label })), ...returnOptions.reasons.map((o) => ({ value: customReasonCode(o.label), label: o.label }))],
+    [returnOptions.reasons]
+  );
+  const tagOptions = useMemo(() => [...(RETURN_TAGS as readonly string[]), ...returnOptions.tags.map((o) => o.label)], [returnOptions.tags]);
   const router = useRouter();
 
   const activeWarehouses = useMemo(() => Object.values(state.warehouses).filter((w) => w.active), [state.warehouses]);
@@ -190,7 +198,7 @@ function StockReturnForm({ onAgain }: { onAgain: () => void }) {
   }
 
   // ตั้งเหตุผลเดียวกันให้ทุกบรรทัดทีเดียว (ใบที่คืนมาหลายชิ้นด้วยเหตุผลเดียวกัน)
-  function applyReasonToAll(reason: ReturnReasonCode) {
+  function applyReasonToAll(reason: string) {
     setLines((prev) => prev.map((l) => ({ ...l, reason })));
   }
 
@@ -345,6 +353,7 @@ function StockReturnForm({ onAgain }: { onAgain: () => void }) {
           <CardTitle>3. สินค้าที่ได้รับกลับมา และเหตุผล</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          <ReturnOptionsManager api={returnOptions} user={user ? { id: user.id, name: user.name } : null} />
           <VariantPicker warehouseId={warehouseId} onSelect={addLine} onScanSku={scanSku} onScanToken={handleScanToken} />
 
           {scanLog.length > 0 && (
@@ -368,10 +377,10 @@ function StockReturnForm({ onAgain }: { onAgain: () => void }) {
                   <div className="flex flex-wrap gap-2">
                     <SegmentedChoice
                       ariaLabel="เหตุผลเดียวกันทุกรายการ"
-                      value={RETURN_REASONS.find((r) => lines.every((l) => l.reason === r.code))?.code ?? ""}
+                      value={reasonOptions.find((r) => lines.every((l) => l.reason === r.value))?.value ?? ""}
                       onChange={applyReasonToAll}
                       columns="grid-cols-2 sm:grid-cols-4"
-                      options={RETURN_REASONS.map((r) => ({ value: r.code, label: r.label }))}
+                      options={reasonOptions}
                     />
                   </div>
                 </div>
@@ -420,7 +429,7 @@ function StockReturnForm({ onAgain }: { onAgain: () => void }) {
                         value={l.reason}
                         onChange={(reason) => patchLine(l.key, { reason })}
                         columns="grid-cols-2 sm:grid-cols-4"
-                        options={RETURN_REASONS.map((r) => ({ value: r.code, label: r.label }))}
+                        options={reasonOptions}
                       />
                       {noReason && <p className="mt-1 text-xs text-[var(--color-danger)]">กรุณาเลือกเหตุผล</p>}
                     </div>
@@ -430,7 +439,7 @@ function StockReturnForm({ onAgain }: { onAgain: () => void }) {
                         ลูกค้าพูดว่า <span className="font-normal text-[var(--color-on-surface-variant)]">(ไม่บังคับ เลือกได้หลายข้อ)</span>
                       </p>
                       <div className="flex flex-wrap gap-2" role="group" aria-label={`ลูกค้าพูดว่า รายการที่ ${i + 1}`}>
-                        {RETURN_TAGS.map((t) => (
+                        {tagOptions.map((t) => (
                           <Chip key={t} active={l.tags.includes(t)} onClick={() => toggleTag(l.key, t)}>
                             {t}
                           </Chip>

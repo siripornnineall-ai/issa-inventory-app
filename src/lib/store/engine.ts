@@ -36,7 +36,7 @@ import { SALES_CHANNEL_LABEL_TH, STOCK_RETURN_LABEL_TH, STOCK_RETURN_TYPES } fro
 import { ADMIN_ONLY_PERMISSIONS, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, type Permission } from "@/lib/auth/permissions";
 import { AppState, stockKey } from "./state";
 import { NO_TAX_INVOICE_BUYER_LABEL } from "@/lib/types";
-import { RETURN_TAGS, isReturnReason } from "@/lib/utils/returnReasons";
+import { CUSTOM_LABEL_MAX, RETURN_TAGS, isReturnReason } from "@/lib/utils/returnReasons";
 import { newId, genDocNo, genSku, genSkuV2, suggestColorCode } from "@/lib/utils/ids";
 import { nowISO, todayInputValue, formatThaiDateTime } from "@/lib/utils/date";
 
@@ -709,7 +709,7 @@ export function stockReturn(draft: Draft<AppState>, input: StockReturnInput): St
       if (!line.exchangeToId) throw new BusinessRuleError(`${where} ยังไม่ได้เลือกว่าเปลี่ยนเป็นสินค้าอะไร`);
       if (!draft.variants[line.exchangeToId]) throw new BusinessRuleError(`${where} ไม่พบสินค้าที่เปลี่ยนเป็น`);
     }
-    for (const tag of line.tags ?? []) if (!(RETURN_TAGS as readonly string[]).includes(tag)) throw new BusinessRuleError(`${where} มีคำที่ลูกค้าพูดที่ไม่รู้จัก: ${tag}`);
+    for (const tag of line.tags ?? []) if (!(RETURN_TAGS as readonly string[]).includes(tag) && !(typeof tag === "string" && tag.trim().length > 0 && tag.length <= CUSTOM_LABEL_MAX)) throw new BusinessRuleError(`${where} มีคำที่ลูกค้าพูดที่ไม่รู้จัก: ${tag}`);
   });
   const docId = newId();
   const docNo = genDocNo("SRT", nextSeq(draft, "SRT"));

@@ -83,13 +83,22 @@ describe("stockReturn: สต็อกคืนสินค้า", () => {
     expect(returnStats(state, "2000-01-01T00:00:00.000Z", "2000-01-02T00:00:00.000Z").ratePct).toBeNull();
   });
 
+  it("เหตุผลและคำที่ลูกค้าพูดที่ผู้ใช้เพิ่มเอง (x:ข้อความ) บันทึกได้ และอ่านชื่อกลับมาได้", () => {
+    const { state, warehouse, variant } = seed();
+    const base = { date: DATE, warehouseId: warehouse, returnType: "return_customer" as const, receivedBy: "u1", receivedByName: "x" };
+    const next = produce(state, (d) => { engine.stockReturn(d, { ...base, lines: [{ itemId: variant, qty: 1, reason: "x:ลูกค้าสั่งซ้ำ", tags: ["ตะเข็บหลุด"] }] }); });
+    const doc = Object.values(next.stockInDocs).find((x) => x.returnType === "return_customer")!;
+    expect(doc.lines[0]).toMatchObject({ returnReason: "x:ลูกค้าสั่งซ้ำ", returnTags: ["ตะเข็บหลุด"] });
+    expect(() => produce(state, (d) => { engine.stockReturn(d, { ...base, lines: [{ itemId: variant, qty: 1, reason: "x:  " }] }); })).toThrow(/เหตุผล/);
+  });
+
   it("ต้องเลือกเหตุผลทุกบรรทัด: ไม่มีเหตุผล หรือรหัสเหตุผลที่ไม่รู้จัก → ปฏิเสธและบอกว่ารายการที่เท่าไร สต็อกไม่เปลี่ยน", () => {
     const { state, warehouse, variant } = seed();
     const base = { date: DATE, warehouseId: warehouse, returnType: "return_customer" as const, receivedBy: "u1", receivedByName: "x" };
     expect(() => produce(state, (d) => { engine.stockReturn(d, { ...base, lines: [{ itemId: variant, qty: 1 }] }); })).toThrow(/รายการที่ 1 .*ยังไม่ได้เลือกเหตุผล/);
     expect(() => produce(state, (d) => { engine.stockReturn(d, { ...base, lines: [{ itemId: variant, qty: 1, reason: "nope" }] }); })).toThrow(/เหตุผล/);
     expect(() => produce(state, (d) => { engine.stockReturn(d, { ...base, lines: [{ itemId: variant, qty: 1, reason: "size", unitPrice: -5 }] }); })).toThrow(/ราคา/);
-    expect(() => produce(state, (d) => { engine.stockReturn(d, { ...base, lines: [{ itemId: variant, qty: 1, reason: "size", tags: ["ไม่มีในรายการ"] }] }); })).toThrow(/คำที่ลูกค้าพูด/);
+    expect(() => produce(state, (d) => { engine.stockReturn(d, { ...base, lines: [{ itemId: variant, qty: 1, reason: "size", tags: ["ก".repeat(41)] }] }); })).toThrow(/คำที่ลูกค้าพูด/);
     expect(qtyOf(state, variant, warehouse)).toBe(6);
   });
 
