@@ -64,6 +64,28 @@ describe("พิมพ์ป้าย Sale", () => {
     expect(printed.items!.map((i) => i.salePrice).sort()).toEqual([500, 650]);
   });
 
+  it("รุ่นเดียวกันพิมพ์หลายราคาพร้อมกันได้: กด เพิ่มอีกราคา ได้บรรทัดใหม่ แยกราคา/จำนวนใบ", async () => {
+    render(<PrintLabelsBatchPage />);
+    fireEvent.click(screen.getByRole("button", { name: "เพิ่มสองไซซ์" }));
+    fireEvent.click(screen.getByLabelText(/ป้าย Sale/));
+    // หน้าจอมีทั้งการ์ดมือถือและตารางจอกว้างในเทสต์ จึงนับเฉพาะชุดสุดท้าย (ตาราง)
+    const tableInputs = (label: string, n: number) => screen.getAllByLabelText(label).slice(-n);
+    fireEvent.click(screen.getAllByRole("button", { name: /อีกราคา/ }).slice(-2)[0]);
+    const prices = tableInputs("ราคา Sale", 3);
+    expect(prices).toHaveLength(3);
+    fireEvent.change(prices[0], { target: { value: "300" } });
+    fireEvent.change(prices[1], { target: { value: "450" } }); // บรรทัดที่เพิ่มของรุ่นเดียวกัน
+    fireEvent.change(prices[2], { target: { value: "500" } });
+    const qtys = tableInputs("จำนวนใบที่พิมพ์", 3);
+    fireEvent.change(qtys[1], { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: /พิมพ์ป้าย/ }));
+    await waitFor(() => expect(printed.items).not.toBeNull());
+    const byPrice = printed.items!.reduce<Record<number, number>>((m, i) => ({ ...m, [i.salePrice as number]: (m[i.salePrice as number] ?? 0) + 1 }), {});
+    expect(byPrice[300]).toBe(1);
+    expect(byPrice[450]).toBe(3);
+    expect(byPrice[500]).toBe(1);
+  });
+
   it("ปิดโหมด Sale: ป้ายไม่มีราคา (สี/ไซซ์เหมือนเดิม)", async () => {
     render(<PrintLabelsBatchPage />);
     fireEvent.click(screen.getByRole("button", { name: "เพิ่มสองไซซ์" }));

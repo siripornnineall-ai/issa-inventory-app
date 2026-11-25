@@ -75,6 +75,16 @@ export default function PrintLabelsBatchPage() {
     setCart((prev) => prev.map((l) => (l.key === key ? { ...l, price: raw.trim() === "" || !Number.isFinite(n) || n < 0 ? undefined : n } : l)));
   }
 
+  // ป้าย Sale: รุ่นเดียวกันพิมพ์ได้หลายราคา เพิ่มบรรทัดใหม่ของรุ่นเดิมให้ใส่ราคา/จำนวนใบแยก (รหัสป้ายยังสร้างใหม่ทุกใบ)
+  function addPriceLine(key: string) {
+    setCart((prev) => {
+      const i = prev.findIndex((l) => l.key === key);
+      if (i < 0) return prev;
+      const copy: CartLine = { key: `${prev[i].variantId}#${Date.now().toString(36)}${prev.length}`, variantId: prev[i].variantId, qty: 1 };
+      return [...prev.slice(0, i + 1), copy, ...prev.slice(i + 1)];
+    });
+  }
+
   function removeLine(key: string) {
     setCart((prev) => prev.filter((l) => l.key !== key));
   }
@@ -188,13 +198,19 @@ export default function PrintLabelsBatchPage() {
                         min={0}
                         value={line.qty}
                         onChange={(e) => updateQty(line.key, Math.max(0, Math.floor(Number(e.target.value)) || 0))}
+                        aria-label="จำนวนใบที่พิมพ์"
                         className="h-8 w-24 px-2 py-1 text-sm"
                       />
                     </div>
                     {saleMode && (
                       <div className="mt-1.5">
                         <label className="mb-0.5 block text-[10px] text-[var(--color-on-surface-variant)]">ราคา Sale (บาท)</label>
-                        <Input type="number" min={0} value={line.price ?? ""} onChange={(e) => updatePrice(line.key, e.target.value)} aria-label="ราคา Sale" className="h-8 w-28 px-2 py-1 text-sm" />
+                        <div className="flex items-center gap-2">
+                          <Input type="number" min={0} value={line.price ?? ""} onChange={(e) => updatePrice(line.key, e.target.value)} aria-label="ราคา Sale" className="h-8 w-28 px-2 py-1 text-sm" />
+                          <button type="button" onClick={() => addPriceLine(line.key)} className="text-xs text-[var(--color-primary)] underline">
+                            + อีกราคา
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -231,12 +247,18 @@ export default function PrintLabelsBatchPage() {
                             min={0}
                             value={line.qty}
                             onChange={(e) => updateQty(line.key, Math.max(0, Math.floor(Number(e.target.value)) || 0))}
+                            aria-label="จำนวนใบที่พิมพ์"
                             className="w-24"
                           />
                         </Td>
                         {saleMode && (
                           <Td>
-                            <Input type="number" min={0} value={line.price ?? ""} onChange={(e) => updatePrice(line.key, e.target.value)} aria-label="ราคา Sale" className="w-28" />
+                            <div className="flex items-center gap-3">
+                              <Input type="number" min={0} value={line.price ?? ""} onChange={(e) => updatePrice(line.key, e.target.value)} aria-label="ราคา Sale" className="w-28" />
+                              <button type="button" onClick={() => addPriceLine(line.key)} className="whitespace-nowrap text-xs text-[var(--color-primary)] underline">
+                                + เพิ่มอีกราคา
+                              </button>
+                            </div>
                           </Td>
                         )}
                         <Td>
