@@ -22,6 +22,7 @@ interface CartLine {
   key: string;
   variantId: string;
   qty: number;
+  price?: number; // ราคาป้าย Sale ของรายการนี้ (ว่าง = ยังไม่ใส่)
 }
 
 export default function PrintLabelsBatchPage() {
@@ -31,6 +32,8 @@ export default function PrintLabelsBatchPage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [printBatch, setPrintBatch] = useState<PrintLabelItem[] | null>(null);
   const [minting, setMinting] = useState(false);
+  const [saleMode, setSaleMode] = useState(false); // ป้าย Sale: แสดงราคาแทนสี/ไซซ์
+  const [bulkPrice, setBulkPrice] = useState("");
 
   useEffect(() => {
     if (!printBatch || printBatch.length === 0) return;
@@ -67,6 +70,11 @@ export default function PrintLabelsBatchPage() {
     setCart((prev) => prev.map((l) => (l.key === key ? { ...l, qty } : l)));
   }
 
+  function updatePrice(key: string, raw: string) {
+    const n = Number(raw);
+    setCart((prev) => prev.map((l) => (l.key === key ? { ...l, price: raw.trim() === "" || !Number.isFinite(n) || n < 0 ? undefined : n } : l)));
+  }
+
   function removeLine(key: string) {
     setCart((prev) => prev.filter((l) => l.key !== key));
   }
@@ -77,6 +85,13 @@ export default function PrintLabelsBatchPage() {
     setMinting(true);
     try {
       const batch: PrintLabelItem[] = [];
+      if (saleMode) {
+        const missing = cart.findIndex((l) => l.qty > 0 && !(l.price !== undefined && l.price >= 0));
+        if (missing >= 0) {
+          toastError(`รายการที่ ${missing + 1} ยังไม่ได้ใส่ราคา (ป้าย Sale ต้องมีราคาทุกใบ)`);
+          return;
+        }
+      }
       for (const line of cart) {
         if (line.qty <= 0) continue;
         const variant = state.variants[line.variantId];
@@ -85,7 +100,7 @@ export default function PrintLabelsBatchPage() {
         const brand = product.brandId ? state.brands[product.brandId] : undefined;
         // ทั้งบาร์โค้ดและ QR สร้างรหัสเฉพาะใบใหม่ทุกครั้งที่พิมพ์ (บาร์โค้ดใช้รหัสสั้น 8 ตัว QR ใช้ id เต็ม)
         const tokens: UnitToken[] = mintUnitTokens(line.variantId, line.qty);
-        for (const token of tokens) batch.push({ product, variant, token, brandLogoUrl: brand?.logoUrl });
+        for (const token of tokens) batch.push({ product, variant, token, brandLogoUrl: brand?.logoUrl, salePrice: saleMode ? line.price : undefined });
       }
       if (batch.length === 0) {
         toastError("กรุณาเพิ่มรุ่นสินค้าและระบุจำนวนอย่างน้อย 1 ใบ");
@@ -132,6 +147,22 @@ export default function PrintLabelsBatchPage() {
         ) : (
           <>
             <BulkQtyControl className="mb-3" onApply={(qty) => setCart((prev) => prev.map((l) => ({ ...l, qty })))} />
+            <div className="mb-3 flex flex-col gap-2 rounded-xl border border-[var(--color-border)] p-3">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={saleMode} onChange={(e) => setSaleMode(e.target.checked)} />
+                ป้าย Sale (แสดงราคาแทนสี/ไซซ์ เช่น สินค้าตัวอย่างที่เอามาขาย)
+              </label>
+              {saleMode && (
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-[var(--color-on-surface-variant)]">ราคาเดียวกันทุกรายการ</span>
+                  <Input type="number" min={0} value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} placeholder="บาท" aria-label="ราคาเดียวกันทุกรายการ" className="h-8 w-28 px-2 py-1" />
+                  <Button type="button" size="sm" variant="secondary" disabled={bulkPrice.trim() === ""} onClick={() => setCart((prev) => prev.map((l) => ({ ...l, price: Number(bulkPrice) >= 0 ? Number(bulkPrice) : l.price })))}>
+                    ใส่ให้ทุกรายการ
+                  </Button>
+                  <span className="text-xs text-[var(--color-on-surface-variant)]">หรือใส่ราคาแยกแต่ละรายการในช่องด้านล่าง</span>
+                </div>
+              )}
+            </div>
             {/* การ์ดสำหรับจอมือถือ */}
             <div className="mb-6 flex flex-col gap-2 sm:hidden">
               {cart.map((line) => {
@@ -160,6 +191,12 @@ export default function PrintLabelsBatchPage() {
                         className="h-8 w-24 px-2 py-1 text-sm"
                       />
                     </div>
+                    {saleMode && (
+                      <div className="mt-1.5">
+                        <label className="mb-0.5 block text-[10px] text-[var(--color-on-surface-variant)]">ราคา Sale (บาท)</label>
+                        <Input type="number" min={0} value={line.price ?? ""} onChange={(e) => updatePrice(line.key, e.target.value)} aria-label="ราคา Sale" className="h-8 w-28 px-2 py-1 text-sm" />
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -172,6 +209,7 @@ export default function PrintLabelsBatchPage() {
                   <Tr>
                     <Th>สินค้า</Th>
                     <Th>จำนวนใบที่พิมพ์</Th>
+                    {saleMode && <Th>ราคา Sale (บาท)</Th>}
                     <Th></Th>
                   </Tr>
                 </Thead>
@@ -196,6 +234,11 @@ export default function PrintLabelsBatchPage() {
                             className="w-24"
                           />
                         </Td>
+                        {saleMode && (
+                          <Td>
+                            <Input type="number" min={0} value={line.price ?? ""} onChange={(e) => updatePrice(line.key, e.target.value)} aria-label="ราคา Sale" className="w-28" />
+                          </Td>
+                        )}
                         <Td>
                           <button onClick={() => removeLine(line.key)} className="text-[var(--color-danger)]" aria-label="ลบรายการ">
                             <Trash2 className="h-4 w-4" />

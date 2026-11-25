@@ -13,7 +13,11 @@ export interface PrintLabelItem {
   // ป้าย QR ต้องมีโทเคนเฉพาะตัว ส่วนป้ายบาร์โค้ดใช้ SKU จึงไม่ต้องมี
   token?: UnitToken;
   brandLogoUrl?: string;
+  // ป้าย Sale (เช่น สินค้าตัวอย่างที่เอามาขาย): ใส่ราคา = แสดง "SALE ฿ราคา" แทนสี/ไซซ์
+  salePrice?: number;
 }
+
+const salePriceText = (price: number) => `SALE ฿${price.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
 // พิมพ์ป้ายได้ 2 ชนิดรหัส (calibration.codeType) และ 2 ชนิดกระดาษ (calibration.paper):
 // - บาร์โค้ด Code 128 ของ SKU (ค่าเริ่มต้น) / QR รหัสเฉพาะตัวทุกใบ
@@ -32,7 +36,8 @@ export function PrintableQrLabels({ items, calibration }: { items: PrintLabelIte
       <style>{buildLabelPrintCss(calibration)}</style>
       <div className="qr-label-page">
         <div className="qr-label-grid grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {items.map(({ product, variant: v, token, brandLogoUrl }, idx) => {
+          {items.map(({ product, variant: v, token, brandLogoUrl, salePrice }, idx) => {
+            const variantText = salePrice !== undefined ? salePriceText(salePrice) : `${v.color} / ${v.size}`;
             // บาร์โค้ด = รหัสสั้น 8 ตัวเฉพาะใบนี้ (กันสแกนซ้ำเหมือน QR) ป้ายที่ไม่มีรหัส (ทำก่อนมีฟีเจอร์นี้) ใช้ SKU แทน
             const code = token?.code;
             const barcodeText = wantBarcode ? (code ?? v.sku) : null;
@@ -43,9 +48,7 @@ export function PrintableQrLabels({ items, calibration }: { items: PrintLabelIte
                 <div key={`${v.id}-${idx}`} className="qr-label-card barcode-card flex flex-col rounded-lg border border-[var(--color-border)] p-2 text-left">
                   <div className="bc-head">
                     <span className="bc-name">{product.sellingName}</span>
-                    <span className="bc-variant">
-                      {v.color} / {v.size}
-                    </span>
+                    <span className="bc-variant">{variantText}</span>
                   </div>
                   {product.shape && <p className="bc-shape">{product.shape}</p>}
                   <div className="bc-code">
@@ -69,9 +72,7 @@ export function PrintableQrLabels({ items, calibration }: { items: PrintLabelIte
                 <QrLabel value={token.id} size={80} logoUrl={brandLogoUrl} />
                 <div className="qr-label-text min-w-0">
                   <p className="qr-label-name truncate text-xs font-medium leading-tight">{product.sellingName}</p>
-                  <p className="qr-label-variant truncate text-xs text-[var(--color-on-surface-variant)]">
-                    {v.color} / {v.size}
-                  </p>
+                  <p className="qr-label-variant truncate text-xs text-[var(--color-on-surface-variant)]">{variantText}</p>
                   {product.shape && <p className="qr-label-shape truncate text-[10px] leading-tight text-[var(--color-on-surface-variant)]">{product.shape}</p>}
                   <p className="qr-label-sku truncate font-mono text-[10px] leading-tight">{v.sku}</p>
                 </div>
