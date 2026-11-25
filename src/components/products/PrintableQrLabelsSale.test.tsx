@@ -22,3 +22,14 @@ describe("ป้าย Sale", () => {
     expect(container.querySelector(".bc-variant")?.textContent).toBe("ดำ / S");
   });
 });
+
+describe("ป้าย Sale แบบ QR", () => {
+  it("QR ที่มีราคา = แสดง SALE ฿ราคา แทนสี/ไซซ์ และยังมี QR", () => {
+    const token = { id: "7b1f3c2e-9a4d-4e8b-8c55-100000000001", variantId: "v1", createdAt: "2026-10-01T00:00:00Z" };
+    const item: PrintLabelItem = { product, variant, token, salePrice: 750 };
+    const { container } = render(<PrintableQrLabels items={[item]} calibration={{ ...DEFAULT_LABEL_CALIBRATION, codeType: "qr" }} />);
+    expect(container.querySelector(".qr-label-variant")?.textContent).toBe("SALE ฿750");
+    expect(container.querySelector(".qr-label-name")?.textContent).toBe("Billie Slim");
+    expect(container.querySelector("svg")).not.toBeNull();
+  });
+});
