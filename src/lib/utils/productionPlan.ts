@@ -58,9 +58,10 @@ export function planCell(demand: number, stock: number, wip: number, buffer: num
   return { demand, stock, wip, have, diff, need, coverDays, level };
 }
 
-export function productionPlan(state: AppState, baseline: BaselineInput[], opts: { buffer?: number; months?: number; brandId?: string; search?: string } = {}): PlanMatrix[] {
+export function productionPlan(state: AppState, baseline: BaselineInput[], opts: { buffer?: number; months?: number; brandId?: string; search?: string; includeWip?: boolean } = {}): PlanMatrix[] {
   const buffer = opts.buffer ?? 0;
   const months = opts.months ?? 1;
+  const includeWip = opts.includeWip ?? true; // false = ไม่นับของที่ตัดแล้วรอเย็บที่ BC (ของที่มี = คลังอย่างเดียว)
   const q = (opts.search ?? "").trim().toLowerCase();
   const wip = wipBalances(state);
   const demandByKey = new Map<string, number>();
@@ -93,7 +94,7 @@ export function productionPlan(state: AppState, baseline: BaselineInput[], opts:
       if (isHiddenColor(v.color)) continue;
       const demand = Math.round((demandByKey.get(`${productId}|${v.color}|${v.size}`) ?? 0) * months * 100) / 100;
       const stock = variantStockAcrossWarehouses(state, v.id).onHand;
-      const w = Math.max(0, wip.get(v.id) ?? 0);
+      const w = includeWip ? Math.max(0, wip.get(v.id) ?? 0) : 0;
       // ช่องที่ไม่มียอดขายอ้างอิงและไม่มีของเลย ไม่ต้องโชว์
       if (demand === 0 && stock === 0 && w === 0) continue;
       const c = planCell(demand, stock, w, buffer, months);

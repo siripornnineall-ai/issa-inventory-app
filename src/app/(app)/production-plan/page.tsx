@@ -298,6 +298,7 @@ function PlanContent() {
   const [months, setMonths] = useState("1");
   // โชว์ของที่มี (คลัง + รอเย็บ) ในช่องที่ไม่ขาดของตาราง "ที่ต้องผลิต" (ติ๊กปิดได้ถ้ารู้สึกตัวเลขเยอะ)
   const [showHave, setShowHave] = useState(true);
+  const [includeWip, setIncludeWip] = useState(true); // ติ๊ก = ของที่มีรวมชิ้นที่ตัดแล้วรอเย็บที่ BC / ไม่ติ๊ก = นับแต่ของในคลัง
   const [picked, setPicked] = useState<string[]>([]);
 
   const reload = useCallback(async () => {
@@ -381,16 +382,16 @@ function PlanContent() {
     if (next.length > 0) setPicked(next);
   };
 
-  const matrices = useMemo(() => productionPlan(state, baseRows, { months: Number(months), brandId, search }), [state, baseRows, months, brandId, search]);
+  const matrices = useMemo(() => productionPlan(state, baseRows, { months: Number(months), brandId, search, includeWip }), [state, baseRows, months, brandId, search, includeWip]);
   // ขาดรวมถ้าดูล่วงหน้า 1-12 เดือน พร้อมวันที่ปลายทาง (วันนี้ + n เดือน) ใช้บนปุ่มเลือก
   const shortageByMonths = useMemo(() => {
     const today = new Date();
     return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => ({
       n,
       until: formatPlanDate(addMonthsClamped(today, n)),
-      need: productionPlan(state, baseRows, { months: n, brandId, search }).reduce((t, m) => t + m.totals.need, 0),
+      need: productionPlan(state, baseRows, { months: n, brandId, search, includeWip }).reduce((t, m) => t + m.totals.need, 0),
     }));
-  }, [state, baseRows, brandId, search]);
+  }, [state, baseRows, brandId, search, includeWip]);
   const untilDate = shortageByMonths.find((x) => String(x.n) === months)?.until ?? "";
   const sum = matrices.reduce(
     (s, m) => ({ stock: s.stock + m.totals.stock, wip: s.wip + m.totals.wip, have: s.have + m.totals.have, need: s.need + m.totals.need, urgent: s.urgent + m.totals.urgent }),
@@ -447,6 +448,10 @@ function PlanContent() {
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={showHave} onChange={(e) => setShowHave(e.target.checked)} />
           โชว์ของที่มีในตารางที่ต้องผลิต
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={includeWip} onChange={(e) => setIncludeWip(e.target.checked)} />
+          นับของที่ตัดแล้วรอเย็บ (ที่ BC) รวมด้วย
         </label>
         <span className="ml-auto">
           <ExcelPickButton items={matrices.map((m) => ({ id: m.productId, label: m.shape ? `${m.name} ${m.shape}` : m.name }))} onExport={(sel) => downloadWorkbook("วางแผนผลิต.xlsx", [{ name: "วางแผนผลิต", ...planSheet(state, matrices.filter((m) => sel.has(m.productId))) }])} disabled={matrices.length === 0} />
